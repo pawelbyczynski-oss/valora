@@ -190,7 +190,7 @@ select {
 
 .login-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -445,6 +445,12 @@ select {
   padding: 0 12px;
   border: 1px solid rgba(216, 184, 106, 0.5);
   border-radius: 8px;
+  color: var(--gold);
+  text-decoration: none;
+  font-weight: 850;
+}
+
+.inline-link {
   color: var(--gold);
   text-decoration: none;
   font-weight: 850;

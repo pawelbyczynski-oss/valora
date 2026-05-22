@@ -54,6 +54,7 @@ const premium = {
   promoCode: document.querySelector("#promoCode"),
   promoMessage: document.querySelector("#promoMessage"),
   adminNav: document.querySelector(".admin-nav"),
+  demoUserLogin: document.querySelector("#demoUserLogin"),
   emailLoginForm: document.querySelector("#emailLoginForm"),
   loginEmail: document.querySelector("#loginEmail"),
   authMessage: document.querySelector("#authMessage"),
@@ -76,6 +77,7 @@ const premium = {
   subscriptionSince: document.querySelector("#subscriptionSince"),
   subscriptionNote: document.querySelector("#subscriptionNote"),
   manageBilling: document.querySelector("#manageBilling"),
+  invoiceList: document.querySelector("#invoiceList"),
   refreshAdmin: document.querySelector("#refreshAdmin"),
   adminUsers: document.querySelector("#adminUsers"),
   adminSubscriptions: document.querySelector("#adminSubscriptions"),
@@ -174,6 +176,7 @@ const defaultProperties = [
 
 let properties = JSON.parse(localStorage.getItem("valora-properties") || "null") || defaultProperties;
 let promoAccess = localStorage.getItem("valora-promo-access") === "true";
+let demoUserMode = localStorage.getItem("valora-demo-user") === "true";
 
 function formatDate(dateString) {
   if (!dateString) return "-";
@@ -289,6 +292,48 @@ function openDashboard() {
   renderPremiumDashboard();
 }
 
+function renderInvoices(invoices = []) {
+  if (!premium.invoiceList) return;
+
+  if (!invoices.length) {
+    premium.invoiceList.innerHTML = `<div><span>No invoices yet</span><strong>Stripe pending</strong></div>`;
+    return;
+  }
+
+  premium.invoiceList.replaceChildren(
+    ...invoices.map((invoice) => {
+      const row = document.createElement("div");
+      const label = invoice.invoice_number || invoice.stripe_invoice_id || "Stripe invoice";
+      const link = invoice.hosted_invoice_url || invoice.invoice_pdf_url;
+      row.innerHTML = link
+        ? `<span>${label}</span><a class="inline-link" href="${link}" target="_blank" rel="noreferrer">${moneyFromPence(invoice.amount_pence)}</a>`
+        : `<span>${label}</span><strong>${moneyFromPence(invoice.amount_pence)}</strong>`;
+      return row;
+    }),
+  );
+}
+
+function enterDemoUserMode() {
+  demoUserMode = true;
+  localStorage.setItem("valora-demo-user", "true");
+  properties = defaultProperties;
+  premium.adminNav.hidden = true;
+  renderSubscriptionFallback();
+  premium.subscriptionStatus.textContent = "Demo user";
+  premium.subscriptionRenewal.textContent = formatDate(new Date(Date.now() + 30 * 86400000).toISOString());
+  premium.subscriptionPaid.textContent = "£4.99";
+  premium.subscriptionSince.textContent = formatDate(new Date().toISOString());
+  premium.subscriptionNote.textContent = "Demo user view. Use this to inspect the normal customer dashboard without sending magic links.";
+  renderInvoices([
+    {
+      invoice_number: "DEMO-0001",
+      amount_pence: 499,
+      hosted_invoice_url: "",
+    },
+  ]);
+  openDashboard();
+}
+
 function renderSubscriptionFallback() {
   if (promoAccess) {
     premium.subscriptionStatus.textContent = "Complimentary";
@@ -309,6 +354,13 @@ function renderSubscriptionFallback() {
 
 async function loadSubscriptionSummary() {
   renderSubscriptionFallback();
+  renderInvoices();
+
+  if (demoUserMode) {
+    enterDemoUserMode();
+    return;
+  }
+
   if (!supabaseClient) return;
 
   const {
@@ -347,6 +399,15 @@ async function loadSubscriptionSummary() {
   premium.subscriptionSince.textContent = formatDate(subscription.created_at);
   premium.subscriptionNote.textContent = `Plan: ${moneyFromPence(subscription.amount_monthly_pence || 499)} / month. Stripe billing portal will open here once connected.`;
   premium.manageBilling.textContent = "Manage billing";
+
+  const { data: payments } = await supabaseClient
+    .from("payments")
+    .select("stripe_invoice_id,invoice_number,amount_pence,hosted_invoice_url,invoice_pdf_url,paid_at")
+    .eq("user_id", user.id)
+    .order("paid_at", { ascending: false })
+    .limit(8);
+
+  renderInvoices(payments || []);
 }
 
 async function startStripeCheckout() {
@@ -1109,6 +1170,10 @@ premium.providerButtons.forEach((button) => {
     premium.emailLoginForm.hidden = false;
     premium.authMessage.textContent = `${button.dataset.loginProvider} sign-in is coming later. Use email magic link for the MVP.`;
   });
+});
+
+premium.demoUserLogin.addEventListener("click", () => {
+  enterDemoUserMode();
 });
 
 premium.promoForm.addEventListener("submit", async (event) => {

@@ -96,10 +96,14 @@ Deno.serve(async (request) => {
         user_id: profile.id,
         subscription_id: subscription?.id ?? null,
         stripe_invoice_id: invoice.id,
+        invoice_number: invoice.number,
         stripe_payment_intent_id: invoice.payment_intent ? String(invoice.payment_intent) : null,
         amount_pence: invoice.amount_paid ?? 0,
         currency: invoice.currency ?? "gbp",
         status: "paid",
+        hosted_invoice_url: invoice.hosted_invoice_url,
+        invoice_pdf_url: invoice.invoice_pdf,
+        billing_reason: invoice.billing_reason,
         paid_at: invoice.status_transitions.paid_at
           ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
           : new Date().toISOString(),
