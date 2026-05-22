@@ -1,0 +1,13 @@
+{
+  "name": "valora",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Valora BTL and property portfolio prototype",
+  "scripts": {
+    "dev": "npx serve . -l 4173",
+    "check": "node --check app.js"
+  },
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}
