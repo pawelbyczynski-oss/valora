@@ -50,6 +50,9 @@ const premium = {
   premiumHero: document.querySelector(".premium-hero"),
   showLogin: document.querySelector("#showLogin"),
   loginPanel: document.querySelector("#loginPanel"),
+  promoForm: document.querySelector("#promoForm"),
+  promoCode: document.querySelector("#promoCode"),
+  promoMessage: document.querySelector("#promoMessage"),
   emailLoginForm: document.querySelector("#emailLoginForm"),
   loginEmail: document.querySelector("#loginEmail"),
   authMessage: document.querySelector("#authMessage"),
@@ -150,6 +153,7 @@ const defaultProperties = [
 ];
 
 let properties = JSON.parse(localStorage.getItem("valora-properties") || "null") || defaultProperties;
+let promoAccess = localStorage.getItem("valora-promo-access") === "true";
 
 function valueOf(input) {
   return Number(input.value) || 0;
@@ -342,6 +346,60 @@ async function initAuth() {
     await loadSupabaseProperties(session.user.id);
     openDashboard();
   }
+}
+
+async function trackEvent(eventType, metadata = {}) {
+  if (!supabaseClient) return;
+
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+
+  await supabaseClient.from("analytics_events").insert({
+    user_id: user?.id || null,
+    event_type: eventType,
+    metadata,
+  });
+}
+
+async function redeemPromoCode(code) {
+  const normalizedCode = code.trim().toUpperCase();
+  if (!normalizedCode) {
+    premium.promoMessage.textContent = "Enter a promo code.";
+    return;
+  }
+
+  if (normalizedCode === "FRIENDS100") {
+    promoAccess = true;
+    localStorage.setItem("valora-promo-access", "true");
+    premium.promoMessage.textContent = "Promo accepted. Premium access unlocked.";
+    await trackEvent("promo_redeemed", { code: normalizedCode, mode: "local" });
+    openDashboard();
+    return;
+  }
+
+  if (!supabaseClient) {
+    premium.promoMessage.textContent = "Promo not recognised.";
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("promo_codes")
+    .select("id,lifetime_access,free_months")
+    .eq("code", normalizedCode)
+    .eq("active", true)
+    .maybeSingle();
+
+  if (error || !data) {
+    premium.promoMessage.textContent = "Promo not recognised.";
+    return;
+  }
+
+  promoAccess = true;
+  localStorage.setItem("valora-promo-access", "true");
+  premium.promoMessage.textContent = "Promo accepted. Premium access unlocked.";
+  await trackEvent("promo_redeemed", { code: normalizedCode, mode: "supabase" });
+  openDashboard();
 }
 
 function selectedTaxBand() {
@@ -836,7 +894,10 @@ document.addEventListener("keydown", (event) => {
 });
 
 premium.navButtons.forEach((button) => {
-  button.addEventListener("click", () => switchView(button.dataset.view));
+  button.addEventListener("click", () => {
+    switchView(button.dataset.view);
+    if (button.dataset.view === "premiumView") trackEvent("premium_viewed");
+  });
 });
 
 premium.showLogin.addEventListener("click", () => {
@@ -845,6 +906,7 @@ premium.showLogin.addEventListener("click", () => {
 
 premium.providerButtons.forEach((button) => {
   button.addEventListener("click", () => {
+    trackEvent("login_started", { provider: button.dataset.loginProvider });
     if (button.dataset.loginProvider === "Email") {
       premium.emailLoginForm.hidden = false;
       premium.authMessage.textContent = supabaseClient
@@ -857,6 +919,11 @@ premium.providerButtons.forEach((button) => {
     premium.emailLoginForm.hidden = false;
     premium.authMessage.textContent = `${button.dataset.loginProvider} sign-in is coming later. Use email magic link for the MVP.`;
   });
+});
+
+premium.promoForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await redeemPromoCode(premium.promoCode.value);
 });
 
 premium.emailLoginForm.addEventListener("submit", async (event) => {
@@ -919,15 +986,18 @@ premium.propertyForm.addEventListener("submit", (event) => {
 
   properties = [property, ...properties];
   savePropertyToSupabase(property);
+  trackEvent("property_added", { property_name: property.name, region: property.region });
   premium.propertyModal.hidden = true;
   renderPremiumDashboard();
 });
 
 premium.exportPortfolio.addEventListener("click", () => {
+  trackEvent("pdf_exported", { property_count: properties.length });
   window.print();
 });
 
 renderTaxBands("higher");
 renderPremiumDashboard();
+trackEvent("page_view", { path: window.location.pathname });
 initAuth();
 update();
