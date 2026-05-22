@@ -50,6 +50,9 @@ const premium = {
   premiumHero: document.querySelector(".premium-hero"),
   showLogin: document.querySelector("#showLogin"),
   loginPanel: document.querySelector("#loginPanel"),
+  emailLoginForm: document.querySelector("#emailLoginForm"),
+  loginEmail: document.querySelector("#loginEmail"),
+  authMessage: document.querySelector("#authMessage"),
   dashboardPanel: document.querySelector("#dashboardPanel"),
   providerButtons: document.querySelectorAll("[data-login-provider]"),
   openPropertyModal: document.querySelector("#openPropertyModal"),
@@ -64,6 +67,14 @@ const premium = {
   portfolioDebt: document.querySelector("#portfolioDebt"),
   portfolioCashflow: document.querySelector("#portfolioCashflow"),
 };
+
+const SUPABASE_URL = window.VALORA_CONFIG?.SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = window.VALORA_CONFIG?.SUPABASE_ANON_KEY || "";
+const APP_BASE_URL = window.location.origin;
+const supabaseClient =
+  window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
 
 let investorType = "individual";
 let mortgageType = "interestOnly";
@@ -241,6 +252,96 @@ function openDashboard() {
   premium.loginPanel.hidden = true;
   premium.dashboardPanel.hidden = false;
   renderPremiumDashboard();
+}
+
+async function loadSupabaseProperties(userId) {
+  if (!supabaseClient) return false;
+
+  const { data, error } = await supabaseClient
+    .from("properties")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    premium.authMessage.textContent = error.message;
+    return false;
+  }
+
+  if (data?.length) {
+    properties = data.map((property) => ({
+      id: property.id,
+      name: property.name,
+      region: property.region === "scotland" ? "Scotland" : "England",
+      letType: property.let_type === "short_term" ? "Short-term let" : "Long-term let",
+      purchaseDate: property.purchase_date,
+      purchasePrice: Number(property.purchase_price),
+      currentValue: Number(property.current_value),
+      deposit: Number(property.deposit_paid),
+      mortgageBalance: Number(property.mortgage_balance),
+      rate: Number(property.mortgage_rate),
+      mortgageExpiry: property.mortgage_expiry_date,
+      rent: Number(property.monthly_rent),
+      expenses: Number(property.operating_expenses),
+      tenantName: property.tenant_name,
+      tenantContact: property.tenant_email || property.tenant_phone,
+      rentDueDay: property.rent_due_day || 1,
+      rentReminder: property.rent_reminder_enabled ? "On" : "Off",
+      landlordRegistration: property.landlord_registration_number,
+      documents: "",
+    }));
+  }
+
+  return true;
+}
+
+async function savePropertyToSupabase(property) {
+  if (!supabaseClient) return;
+
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+
+  if (!user) return;
+
+  await supabaseClient.from("properties").insert({
+    user_id: user.id,
+    name: property.name,
+    region: property.region.toLowerCase(),
+    let_type: property.letType === "Short-term let" ? "short_term" : "long_term",
+    purchase_date: property.purchaseDate || null,
+    purchase_price: property.purchasePrice,
+    current_value: property.currentValue,
+    deposit_paid: property.deposit,
+    mortgage_balance: property.mortgageBalance,
+    mortgage_rate: property.rate,
+    mortgage_expiry_date: property.mortgageExpiry || null,
+    monthly_rent: property.rent,
+    operating_expenses: property.expenses,
+    rent_due_day: property.rentDueDay,
+    rent_reminder_enabled: property.rentReminder === "On",
+    tenant_name: property.tenantName || null,
+    tenant_email: property.tenantContact?.includes("@") ? property.tenantContact : null,
+    tenant_phone: property.tenantContact?.includes("@") ? null : property.tenantContact || null,
+    landlord_registration_number: property.landlordRegistration || null,
+    notes: property.documents || null,
+  });
+}
+
+async function initAuth() {
+  if (!supabaseClient) {
+    premium.authMessage.textContent = "Supabase key is not configured in app.js yet.";
+    return;
+  }
+
+  const {
+    data: { session },
+  } = await supabaseClient.auth.getSession();
+
+  if (session?.user) {
+    await loadSupabaseProperties(session.user.id);
+    openDashboard();
+  }
 }
 
 function selectedTaxBand() {
@@ -743,7 +844,40 @@ premium.showLogin.addEventListener("click", () => {
 });
 
 premium.providerButtons.forEach((button) => {
-  button.addEventListener("click", openDashboard);
+  button.addEventListener("click", () => {
+    if (button.dataset.loginProvider === "Email") {
+      premium.emailLoginForm.hidden = false;
+      premium.authMessage.textContent = supabaseClient
+        ? "Enter your email and Valora will send a secure magic link."
+        : "Supabase is not configured yet. Add your public Supabase URL and publishable key to config.js.";
+      premium.loginEmail.focus();
+      return;
+    }
+
+    premium.emailLoginForm.hidden = false;
+    premium.authMessage.textContent = `${button.dataset.loginProvider} sign-in is coming later. Use email magic link for the MVP.`;
+  });
+});
+
+premium.emailLoginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  if (!supabaseClient) {
+    premium.authMessage.textContent = "Supabase is not configured yet. Add SUPABASE_URL and SUPABASE_ANON_KEY to config.js.";
+    return;
+  }
+
+  premium.authMessage.textContent = "Sending magic link...";
+  const { error } = await supabaseClient.auth.signInWithOtp({
+    email: premium.loginEmail.value,
+    options: {
+      emailRedirectTo: APP_BASE_URL,
+    },
+  });
+
+  premium.authMessage.textContent = error
+    ? error.message
+    : "Magic link sent. Check your email, then return to Valora.";
 });
 
 premium.openPropertyModal.addEventListener("click", () => {
@@ -762,29 +896,29 @@ premium.propertyModal.addEventListener("click", (event) => {
 
 premium.propertyForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  properties = [
-    {
-      name: document.querySelector("#propertyName").value,
-      region: document.querySelector("#propertyRegion").value,
-      letType: document.querySelector("#propertyLetType").value,
-      purchaseDate: document.querySelector("#propertyPurchaseDate").value,
-      purchasePrice: Number(document.querySelector("#propertyPurchasePrice").value) || 0,
-      currentValue: Number(document.querySelector("#propertyCurrentValue").value) || 0,
-      deposit: Number(document.querySelector("#propertyDeposit").value) || 0,
-      mortgageBalance: Number(document.querySelector("#propertyMortgage").value) || 0,
-      rate: Number(document.querySelector("#propertyRate").value) || 0,
-      mortgageExpiry: document.querySelector("#propertyMortgageExpiry").value,
-      rent: Number(document.querySelector("#propertyRent").value) || 0,
-      expenses: Number(document.querySelector("#propertyExpenses").value) || 0,
-      tenantName: document.querySelector("#tenantName").value,
-      tenantContact: document.querySelector("#tenantContact").value,
-      rentDueDay: Number(document.querySelector("#rentDueDay").value) || 1,
-      rentReminder: document.querySelector("#rentReminder").value,
-      landlordRegistration: document.querySelector("#landlordRegistration").value,
-      documents: document.querySelector("#propertyDocuments").value,
-    },
-    ...properties,
-  ];
+  const property = {
+    name: document.querySelector("#propertyName").value,
+    region: document.querySelector("#propertyRegion").value,
+    letType: document.querySelector("#propertyLetType").value,
+    purchaseDate: document.querySelector("#propertyPurchaseDate").value,
+    purchasePrice: Number(document.querySelector("#propertyPurchasePrice").value) || 0,
+    currentValue: Number(document.querySelector("#propertyCurrentValue").value) || 0,
+    deposit: Number(document.querySelector("#propertyDeposit").value) || 0,
+    mortgageBalance: Number(document.querySelector("#propertyMortgage").value) || 0,
+    rate: Number(document.querySelector("#propertyRate").value) || 0,
+    mortgageExpiry: document.querySelector("#propertyMortgageExpiry").value,
+    rent: Number(document.querySelector("#propertyRent").value) || 0,
+    expenses: Number(document.querySelector("#propertyExpenses").value) || 0,
+    tenantName: document.querySelector("#tenantName").value,
+    tenantContact: document.querySelector("#tenantContact").value,
+    rentDueDay: Number(document.querySelector("#rentDueDay").value) || 1,
+    rentReminder: document.querySelector("#rentReminder").value,
+    landlordRegistration: document.querySelector("#landlordRegistration").value,
+    documents: document.querySelector("#propertyDocuments").value,
+  };
+
+  properties = [property, ...properties];
+  savePropertyToSupabase(property);
   premium.propertyModal.hidden = true;
   renderPremiumDashboard();
 });
@@ -795,4 +929,5 @@ premium.exportPortfolio.addEventListener("click", () => {
 
 renderTaxBands("higher");
 renderPremiumDashboard();
+initAuth();
 update();

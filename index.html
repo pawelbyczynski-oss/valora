@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Valora | BTL Deal Intelligence</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
     <nav class="app-nav" aria-label="Valora navigation">
@@ -222,6 +223,14 @@
           <button class="provider-button" type="button" data-login-provider="Apple">Continue with Apple</button>
           <button class="provider-button" type="button" data-login-provider="Email">Continue with email</button>
         </div>
+        <form class="email-login" id="emailLoginForm" hidden>
+          <label>
+            <span>Email address</span>
+            <input id="loginEmail" type="email" placeholder="you@example.com" required />
+          </label>
+          <button class="tax-button" type="submit">Send magic link</button>
+          <p class="field-hint" id="authMessage">We'll email you a secure sign-in link.</p>
+        </form>
         <p class="field-hint">Prototype only: sign-in and Stripe billing will be connected later.</p>
       </section>
 
@@ -469,6 +478,7 @@
       <a href="terms.html">Terms of Service</a>
     </footer>
 
+    <script src="config.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
