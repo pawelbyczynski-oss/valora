@@ -93,6 +93,7 @@ const SUPABASE_URL = window.VALORA_CONFIG?.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = window.VALORA_CONFIG?.SUPABASE_ANON_KEY || "";
 const APP_BASE_URL = window.location.origin;
 const STRIPE_PRICE_LABEL = "£4.99/month";
+const CHECKOUT_FUNCTION = "create-checkout-session";
 const supabaseClient =
   window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -303,6 +304,7 @@ function renderSubscriptionFallback() {
   premium.subscriptionPaid.textContent = "£0";
   premium.subscriptionSince.textContent = "-";
   premium.subscriptionNote.textContent = `Premium will use Stripe Checkout at ${STRIPE_PRICE_LABEL} once Stripe keys are connected.`;
+  premium.manageBilling.textContent = "Subscribe with Stripe";
 }
 
 async function loadSubscriptionSummary() {
@@ -344,6 +346,42 @@ async function loadSubscriptionSummary() {
   premium.subscriptionPaid.textContent = moneyFromPence(subscription.total_paid_pence);
   premium.subscriptionSince.textContent = formatDate(subscription.created_at);
   premium.subscriptionNote.textContent = `Plan: ${moneyFromPence(subscription.amount_monthly_pence || 499)} / month. Stripe billing portal will open here once connected.`;
+  premium.manageBilling.textContent = "Manage billing";
+}
+
+async function startStripeCheckout() {
+  if (!supabaseClient) {
+    premium.subscriptionNote.textContent = "Supabase is not configured yet, so Stripe Checkout cannot start.";
+    return;
+  }
+
+  const {
+    data: { session },
+  } = await supabaseClient.auth.getSession();
+
+  if (!session) {
+    premium.subscriptionNote.textContent = "Sign in first, then start Stripe Checkout.";
+    premium.emailLoginForm.hidden = false;
+    premium.loginEmail.focus();
+    return;
+  }
+
+  premium.manageBilling.disabled = true;
+  premium.subscriptionNote.textContent = "Opening Stripe Checkout...";
+
+  const { data, error } = await supabaseClient.functions.invoke(CHECKOUT_FUNCTION, {
+    body: {},
+  });
+
+  premium.manageBilling.disabled = false;
+
+  if (error || !data?.url) {
+    premium.subscriptionNote.textContent =
+      "Stripe Checkout is not ready yet. Check Supabase Edge Function secrets and STRIPE_PRICE_ID_MONTHLY.";
+    return;
+  }
+
+  window.location.href = data.url;
 }
 
 function renderAdminTable(target, rows, columns) {
@@ -1079,8 +1117,7 @@ premium.promoForm.addEventListener("submit", async (event) => {
 });
 
 premium.manageBilling.addEventListener("click", () => {
-  premium.subscriptionNote.textContent =
-    "Stripe billing portal is prepared for the next step. Add STRIPE_SECRET_KEY, STRIPE_PRICE_ID and webhook signing secret when your Stripe account is ready.";
+  startStripeCheckout();
 });
 
 premium.refreshAdmin.addEventListener("click", () => {
