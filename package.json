@@ -4,6 +4,7 @@
   "private": true,
   "description": "Valora BTL and property portfolio prototype",
   "scripts": {
+    "build": "node scripts/build-config.js",
     "dev": "npx serve . -l 4173",
     "check": "node --check app.js"
   },

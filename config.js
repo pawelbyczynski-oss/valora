@@ -1,4 +1,4 @@
 window.VALORA_CONFIG = {
-  SUPABASE_URL: "",
-  SUPABASE_ANON_KEY: "",
+  "SUPABASE_URL": "",
+  "SUPABASE_ANON_KEY": ""
 };
