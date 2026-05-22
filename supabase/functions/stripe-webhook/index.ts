@@ -53,6 +53,8 @@ Deno.serve(async (request) => {
       .single();
 
     const priceId = subscription.items.data[0]?.price.id;
+    const amountMonthlyPence = subscription.items.data[0]?.price.unit_amount ?? 499;
+    const currency = subscription.items.data[0]?.price.currency ?? "gbp";
 
     if (profile && priceId) {
       await supabase.from("subscriptions").upsert({
@@ -60,8 +62,57 @@ Deno.serve(async (request) => {
         stripe_subscription_id: subscription.id,
         stripe_price_id: priceId,
         status: subscription.status,
+        amount_monthly_pence: amountMonthlyPence,
+        currency,
+        current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
         current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+        cancel_at_period_end: subscription.cancel_at_period_end,
+        canceled_at: subscription.canceled_at ? new Date(subscription.canceled_at * 1000).toISOString() : null,
       }, { onConflict: "stripe_subscription_id" });
+    }
+  }
+
+  if (event.type === "invoice.paid") {
+    const invoice = event.data.object as Stripe.Invoice;
+    const customerId = String(invoice.customer);
+    const subscriptionId = invoice.subscription ? String(invoice.subscription) : null;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("stripe_customer_id", customerId)
+      .single();
+
+    const { data: subscription } = subscriptionId
+      ? await supabase
+          .from("subscriptions")
+          .select("id,total_paid_pence")
+          .eq("stripe_subscription_id", subscriptionId)
+          .single()
+      : { data: null };
+
+    if (profile) {
+      await supabase.from("payments").upsert({
+        user_id: profile.id,
+        subscription_id: subscription?.id ?? null,
+        stripe_invoice_id: invoice.id,
+        stripe_payment_intent_id: invoice.payment_intent ? String(invoice.payment_intent) : null,
+        amount_pence: invoice.amount_paid ?? 0,
+        currency: invoice.currency ?? "gbp",
+        status: "paid",
+        paid_at: invoice.status_transitions.paid_at
+          ? new Date(invoice.status_transitions.paid_at * 1000).toISOString()
+          : new Date().toISOString(),
+      }, { onConflict: "stripe_invoice_id" });
+
+      if (subscription?.id) {
+        await supabase
+          .from("subscriptions")
+          .update({
+            total_paid_pence: Number(subscription.total_paid_pence ?? 0) + Number(invoice.amount_paid ?? 0),
+          })
+          .eq("id", subscription.id);
+      }
     }
   }
 

@@ -139,6 +139,13 @@ select {
   gap: 18px;
 }
 
+.admin-shell {
+  width: min(1220px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 32px 0;
+  gap: 18px;
+}
+
 .premium-hero {
   padding: 24px;
   display: grid;
@@ -236,13 +243,15 @@ select {
 }
 
 .portfolio-metrics article,
-.property-card {
+.property-card,
+.admin-metrics article {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.045);
 }
 
-.portfolio-metrics article {
+.portfolio-metrics article,
+.admin-metrics article {
   min-height: 104px;
   display: grid;
   align-content: space-between;
@@ -252,13 +261,17 @@ select {
 
 .portfolio-metrics span,
 .property-meta span,
-.document-list span {
+.document-list span,
+.subscription-grid span,
+.admin-metrics span,
+.admin-row span {
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 750;
 }
 
-.portfolio-metrics strong {
+.portfolio-metrics strong,
+.admin-metrics strong {
   font-size: 1.45rem;
 }
 
@@ -274,6 +287,76 @@ select {
 
 .property-list-panel {
   grid-row: span 2;
+}
+
+.subscription-card {
+  grid-column: 1 / -1;
+}
+
+.subscription-grid,
+.admin-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.subscription-grid div {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.subscription-grid strong {
+  font-size: 1.08rem;
+}
+
+.stripe-button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 12px;
+}
+
+.stripe-readiness {
+  grid-column: 1 / -1;
+}
+
+.admin-table {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.admin-row div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-row strong {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}
+
+.muted-row {
+  color: var(--muted);
+  grid-template-columns: 1fr;
 }
 
 .property-list {
@@ -909,12 +992,15 @@ li {
 @media (max-width: 900px) {
   .app-shell,
   .premium-hero,
-  .dashboard-grid {
+  .dashboard-grid,
+  .admin-grid {
     grid-template-columns: 1fr;
   }
 
   .portfolio-metrics,
-  .property-meta {
+  .property-meta,
+  .subscription-grid,
+  .admin-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -946,6 +1032,9 @@ li {
   .metrics-grid,
   .login-grid,
   .portfolio-metrics,
+  .subscription-grid,
+  .admin-metrics,
+  .admin-row,
   .property-meta,
   .property-form,
   .tax-summary,
@@ -973,8 +1062,10 @@ li {
   }
 
   .app-nav,
+  .admin-shell,
   .premium-hero,
   .login-panel,
+  .admin-view,
   .dashboard-actions,
   .results-panel,
   .calculator-panel,

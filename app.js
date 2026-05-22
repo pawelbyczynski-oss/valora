@@ -53,6 +53,7 @@ const premium = {
   promoForm: document.querySelector("#promoForm"),
   promoCode: document.querySelector("#promoCode"),
   promoMessage: document.querySelector("#promoMessage"),
+  adminNav: document.querySelector(".admin-nav"),
   emailLoginForm: document.querySelector("#emailLoginForm"),
   loginEmail: document.querySelector("#loginEmail"),
   authMessage: document.querySelector("#authMessage"),
@@ -69,11 +70,29 @@ const premium = {
   portfolioValue: document.querySelector("#portfolioValue"),
   portfolioDebt: document.querySelector("#portfolioDebt"),
   portfolioCashflow: document.querySelector("#portfolioCashflow"),
+  subscriptionStatus: document.querySelector("#subscriptionStatus"),
+  subscriptionRenewal: document.querySelector("#subscriptionRenewal"),
+  subscriptionPaid: document.querySelector("#subscriptionPaid"),
+  subscriptionSince: document.querySelector("#subscriptionSince"),
+  subscriptionNote: document.querySelector("#subscriptionNote"),
+  manageBilling: document.querySelector("#manageBilling"),
+  refreshAdmin: document.querySelector("#refreshAdmin"),
+  adminUsers: document.querySelector("#adminUsers"),
+  adminSubscriptions: document.querySelector("#adminSubscriptions"),
+  adminMrr: document.querySelector("#adminMrr"),
+  adminProperties: document.querySelector("#adminProperties"),
+  adminPageViews: document.querySelector("#adminPageViews"),
+  adminPremiumViews: document.querySelector("#adminPremiumViews"),
+  adminPdfExports: document.querySelector("#adminPdfExports"),
+  adminPromos: document.querySelector("#adminPromos"),
+  adminUserList: document.querySelector("#adminUserList"),
+  adminEventList: document.querySelector("#adminEventList"),
 };
 
 const SUPABASE_URL = window.VALORA_CONFIG?.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = window.VALORA_CONFIG?.SUPABASE_ANON_KEY || "";
 const APP_BASE_URL = window.location.origin;
+const STRIPE_PRICE_LABEL = "£4.99/month";
 const supabaseClient =
   window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -154,6 +173,17 @@ const defaultProperties = [
 
 let properties = JSON.parse(localStorage.getItem("valora-properties") || "null") || defaultProperties;
 let promoAccess = localStorage.getItem("valora-promo-access") === "true";
+
+function formatDate(dateString) {
+  if (!dateString) return "-";
+  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(
+    new Date(dateString),
+  );
+}
+
+function moneyFromPence(pence) {
+  return money.format((Number(pence) || 0) / 100);
+}
 
 function valueOf(input) {
   return Number(input.value) || 0;
@@ -258,6 +288,119 @@ function openDashboard() {
   renderPremiumDashboard();
 }
 
+function renderSubscriptionFallback() {
+  if (promoAccess) {
+    premium.subscriptionStatus.textContent = "Complimentary";
+    premium.subscriptionRenewal.textContent = "Lifetime";
+    premium.subscriptionPaid.textContent = "£0";
+    premium.subscriptionSince.textContent = "Early access";
+    premium.subscriptionNote.textContent = "Private access code applied. Stripe billing will not be required for this account in the MVP.";
+    return;
+  }
+
+  premium.subscriptionStatus.textContent = "Not active";
+  premium.subscriptionRenewal.textContent = "-";
+  premium.subscriptionPaid.textContent = "£0";
+  premium.subscriptionSince.textContent = "-";
+  premium.subscriptionNote.textContent = `Premium will use Stripe Checkout at ${STRIPE_PRICE_LABEL} once Stripe keys are connected.`;
+}
+
+async function loadSubscriptionSummary() {
+  renderSubscriptionFallback();
+  if (!supabaseClient) return;
+
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+
+  if (!user) return;
+
+  const { data: redemptions } = await supabaseClient
+    .from("promo_redemptions")
+    .select("promo_codes(lifetime_access,code)")
+    .eq("user_id", user.id)
+    .limit(1);
+
+  if (redemptions?.some((item) => item.promo_codes?.lifetime_access)) {
+    promoAccess = true;
+    localStorage.setItem("valora-promo-access", "true");
+    renderSubscriptionFallback();
+  }
+
+  const { data: subscriptions } = await supabaseClient
+    .from("subscriptions")
+    .select("status,current_period_start,current_period_end,created_at,amount_monthly_pence,currency,total_paid_pence,cancel_at_period_end")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  const subscription = subscriptions?.[0];
+  if (!subscription) return;
+
+  premium.subscriptionStatus.textContent = subscription.cancel_at_period_end
+    ? `${subscription.status} - canceling`
+    : subscription.status;
+  premium.subscriptionRenewal.textContent = formatDate(subscription.current_period_end);
+  premium.subscriptionPaid.textContent = moneyFromPence(subscription.total_paid_pence);
+  premium.subscriptionSince.textContent = formatDate(subscription.created_at);
+  premium.subscriptionNote.textContent = `Plan: ${moneyFromPence(subscription.amount_monthly_pence || 499)} / month. Stripe billing portal will open here once connected.`;
+}
+
+function renderAdminTable(target, rows, columns) {
+  if (!target) return;
+
+  if (!rows?.length) {
+    target.innerHTML = `<div class="admin-row muted-row">No data yet</div>`;
+    return;
+  }
+
+  target.replaceChildren(
+    ...rows.map((row) => {
+      const item = document.createElement("div");
+      item.className = "admin-row";
+      item.innerHTML = columns
+        .map(
+          ([label, key]) =>
+            `<div><span>${label}</span><strong>${row[key] ?? "-"}</strong></div>`,
+        )
+        .join("");
+      return item;
+    }),
+  );
+}
+
+async function loadAdminOverview() {
+  if (!supabaseClient) return;
+
+  const { data, error } = await supabaseClient.rpc("get_admin_overview");
+  if (error || !data) {
+    premium.adminNav.hidden = true;
+    return;
+  }
+
+  premium.adminNav.hidden = false;
+  premium.adminUsers.textContent = data.totals?.users ?? 0;
+  premium.adminSubscriptions.textContent = data.totals?.active_subscriptions ?? 0;
+  premium.adminMrr.textContent = moneyFromPence(data.totals?.mrr_pence);
+  premium.adminProperties.textContent = data.totals?.properties ?? 0;
+  premium.adminPageViews.textContent = data.events?.page_view ?? 0;
+  premium.adminPremiumViews.textContent = data.events?.premium_viewed ?? 0;
+  premium.adminPdfExports.textContent = data.events?.pdf_exported ?? 0;
+  premium.adminPromos.textContent = data.totals?.promo_redemptions ?? 0;
+
+  renderAdminTable(premium.adminUserList, data.recent_users, [
+    ["Email", "email"],
+    ["Status", "status"],
+    ["Joined", "joined"],
+    ["Paid", "paid"],
+  ]);
+  renderAdminTable(premium.adminEventList, data.recent_events, [
+    ["Event", "event_type"],
+    ["When", "created"],
+    ["User", "email"],
+  ]);
+}
+
 async function loadSupabaseProperties(userId) {
   if (!supabaseClient) return false;
 
@@ -344,6 +487,8 @@ async function initAuth() {
 
   if (session?.user) {
     await loadSupabaseProperties(session.user.id);
+    await loadSubscriptionSummary();
+    await loadAdminOverview();
     openDashboard();
   }
 }
@@ -369,17 +514,8 @@ async function redeemPromoCode(code) {
     return;
   }
 
-  if (normalizedCode === "FRIENDS100") {
-    promoAccess = true;
-    localStorage.setItem("valora-promo-access", "true");
-    premium.promoMessage.textContent = "Promo accepted. Premium access unlocked.";
-    await trackEvent("promo_redeemed", { code: normalizedCode, mode: "local" });
-    openDashboard();
-    return;
-  }
-
   if (!supabaseClient) {
-    premium.promoMessage.textContent = "Promo not recognised.";
+    premium.promoMessage.textContent = "Promo codes are checked securely online. Try again after the app is connected.";
     return;
   }
 
@@ -395,10 +531,25 @@ async function redeemPromoCode(code) {
     return;
   }
 
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+
+  if (user) {
+    await supabaseClient.from("promo_redemptions").upsert(
+      {
+        promo_code_id: data.id,
+        user_id: user.id,
+      },
+      { ignoreDuplicates: true, onConflict: "promo_code_id,user_id" },
+    );
+  }
+
   promoAccess = true;
   localStorage.setItem("valora-promo-access", "true");
   premium.promoMessage.textContent = "Promo accepted. Premium access unlocked.";
   await trackEvent("promo_redeemed", { code: normalizedCode, mode: "supabase" });
+  loadSubscriptionSummary();
   openDashboard();
 }
 
@@ -873,6 +1024,7 @@ Object.values(inputs).forEach((input) => {
 
 outputs.openTaxModal.addEventListener("click", () => {
   if (latestMetrics) updateTaxModal(latestMetrics);
+  trackEvent("tax_modal_opened");
   outputs.taxModal.hidden = false;
 });
 
@@ -924,6 +1076,15 @@ premium.providerButtons.forEach((button) => {
 premium.promoForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   await redeemPromoCode(premium.promoCode.value);
+});
+
+premium.manageBilling.addEventListener("click", () => {
+  premium.subscriptionNote.textContent =
+    "Stripe billing portal is prepared for the next step. Add STRIPE_SECRET_KEY, STRIPE_PRICE_ID and webhook signing secret when your Stripe account is ready.";
+});
+
+premium.refreshAdmin.addEventListener("click", () => {
+  loadAdminOverview();
 });
 
 premium.emailLoginForm.addEventListener("submit", async (event) => {
@@ -998,6 +1159,7 @@ premium.exportPortfolio.addEventListener("click", () => {
 
 renderTaxBands("higher");
 renderPremiumDashboard();
+renderSubscriptionFallback();
 trackEvent("page_view", { path: window.location.pathname });
 initAuth();
 update();
