@@ -195,7 +195,8 @@ select {
 }
 
 .email-login,
-.promo-form {
+.promo-form,
+.account-password-form {
   display: grid;
   gap: 12px;
   padding: 14px;

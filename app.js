@@ -66,6 +66,9 @@ const premium = {
   newPassword: document.querySelector("#newPassword"),
   resetPasswordSubmit: document.querySelector("#resetPasswordSubmit"),
   resetMessage: document.querySelector("#resetMessage"),
+  accountPasswordForm: document.querySelector("#accountPasswordForm"),
+  accountPassword: document.querySelector("#accountPassword"),
+  accountPasswordMessage: document.querySelector("#accountPasswordMessage"),
   dashboardPanel: document.querySelector("#dashboardPanel"),
   providerButtons: document.querySelectorAll("[data-login-provider]"),
   openPropertyModal: document.querySelector("#openPropertyModal"),
@@ -110,6 +113,8 @@ const SUPABASE_URL = window.VALORA_CONFIG?.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = window.VALORA_CONFIG?.SUPABASE_ANON_KEY || "";
 const STRIPE_PRICE_LABEL = "£4.99/month";
 const CHECKOUT_FUNCTION = "create-checkout-session";
+let passwordRecoveryPending =
+  window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery");
 const supabaseClient =
   window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -649,7 +654,19 @@ function getAuthRedirectUrl() {
 }
 
 function isPasswordRecoveryUrl() {
-  return window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery");
+  return (
+    passwordRecoveryPending ||
+    window.location.hash.includes("type=recovery") ||
+    window.location.search.includes("type=recovery")
+  );
+}
+
+function showPasswordRecoveryForm() {
+  premium.loginPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+  premium.emailLoginForm.hidden = true;
+  premium.passwordResetForm.hidden = false;
+  premium.resetMessage.textContent = "Set a new password for this account.";
+  premium.newPassword.focus();
 }
 
 function setAuthMode(mode) {
@@ -738,31 +755,59 @@ async function handleEmailAuth() {
     : "Password reset email sent. Open the link and set a new password here.";
 }
 
-async function updateRecoveredPassword() {
+async function updatePassword(password, messageTarget, buttonTarget) {
   if (!supabaseClient) {
-    premium.resetMessage.textContent = "Supabase is not configured.";
-    return;
+    messageTarget.textContent = "Supabase is not configured.";
+    return false;
   }
 
-  const password = premium.newPassword.value;
   if (password.length < 8) {
-    premium.resetMessage.textContent = "Password must be at least 8 characters.";
-    return;
+    messageTarget.textContent = "Password must be at least 8 characters.";
+    return false;
   }
 
-  premium.resetPasswordSubmit.disabled = true;
-  premium.resetMessage.textContent = "Updating password...";
+  buttonTarget.disabled = true;
+  messageTarget.textContent = "Updating password...";
   const { error } = await supabaseClient.auth.updateUser({ password });
-  premium.resetPasswordSubmit.disabled = false;
+  buttonTarget.disabled = false;
 
   if (error) {
-    premium.resetMessage.textContent = error.message;
+    messageTarget.textContent = error.message;
+    return false;
+  }
+
+  passwordRecoveryPending = false;
+  window.history.replaceState({}, document.title, getAuthRedirectUrl());
+  messageTarget.textContent = "Password updated.";
+  return true;
+}
+
+async function updateRecoveredPassword() {
+  const updated = await updatePassword(
+    premium.newPassword.value,
+    premium.resetMessage,
+    premium.resetPasswordSubmit,
+  );
+
+  if (!updated) {
     return;
   }
 
   premium.passwordResetForm.hidden = true;
   setAuthMode("signin");
   premium.authMessage.textContent = "Password updated. You can now sign in with the new password.";
+}
+
+async function updateDashboardPassword() {
+  const updated = await updatePassword(
+    premium.accountPassword.value,
+    premium.accountPasswordMessage,
+    premium.accountPasswordForm.querySelector("button"),
+  );
+
+  if (updated) {
+    premium.accountPassword.value = "";
+  }
 }
 
 async function initAuth() {
@@ -775,11 +820,8 @@ async function initAuth() {
     authListenerAttached = true;
     supabaseClient.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
-        premium.loginPanel.scrollIntoView({ behavior: "smooth", block: "center" });
-        premium.emailLoginForm.hidden = true;
-        premium.passwordResetForm.hidden = false;
-        premium.resetMessage.textContent = "Set a new password for this account.";
-        premium.newPassword.focus();
+        passwordRecoveryPending = true;
+        showPasswordRecoveryForm();
       }
     });
   }
@@ -789,10 +831,7 @@ async function initAuth() {
   } = await supabaseClient.auth.getSession();
 
   if (isPasswordRecoveryUrl()) {
-    premium.loginPanel.scrollIntoView({ behavior: "smooth", block: "center" });
-    premium.emailLoginForm.hidden = true;
-    premium.passwordResetForm.hidden = false;
-    premium.resetMessage.textContent = "Set a new password for this account.";
+    showPasswordRecoveryForm();
     return;
   }
 
@@ -1403,6 +1442,11 @@ premium.emailLoginForm.addEventListener("submit", async (event) => {
 premium.passwordResetForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   await updateRecoveredPassword();
+});
+
+premium.accountPasswordForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await updateDashboardPassword();
 });
 
 premium.openPropertyModal.addEventListener("click", () => {
