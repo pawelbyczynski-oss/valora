@@ -89,6 +89,13 @@ const premium = {
   adminPromos: document.querySelector("#adminPromos"),
   adminUserList: document.querySelector("#adminUserList"),
   adminEventList: document.querySelector("#adminEventList"),
+  adminPromoForm: document.querySelector("#adminPromoForm"),
+  adminPromoCode: document.querySelector("#adminPromoCode"),
+  adminPromoUses: document.querySelector("#adminPromoUses"),
+  adminPromoExpiry: document.querySelector("#adminPromoExpiry"),
+  adminPromoDuration: document.querySelector("#adminPromoDuration"),
+  adminPromoMessage: document.querySelector("#adminPromoMessage"),
+  adminPromoList: document.querySelector("#adminPromoList"),
 };
 
 const SUPABASE_URL = window.VALORA_CONFIG?.SUPABASE_URL || "";
@@ -468,6 +475,24 @@ function renderAdminTable(target, rows, columns) {
   );
 }
 
+function renderAdminPromos(promos = []) {
+  renderAdminTable(
+    premium.adminPromoList,
+    promos.map((promo) => ({
+      code: promo.code,
+      usage: `${promo.redeemed_count || 0}/${promo.max_redemptions || "unlimited"}`,
+      access: promo.lifetime_access ? "Infinity" : `${promo.free_months || 0} months`,
+      expiry: promo.expires_at ? formatDate(promo.expires_at) : "No expiry",
+    })),
+    [
+      ["Code", "code"],
+      ["Used", "usage"],
+      ["Access", "access"],
+      ["Expires", "expiry"],
+    ],
+  );
+}
+
 async function loadAdminOverview() {
   if (!supabaseClient) return;
 
@@ -498,6 +523,41 @@ async function loadAdminOverview() {
     ["When", "created"],
     ["User", "email"],
   ]);
+  renderAdminPromos(data.promo_codes || []);
+}
+
+async function createAdminPromoCode() {
+  if (!supabaseClient) {
+    premium.adminPromoMessage.textContent = "Supabase is not configured.";
+    return;
+  }
+
+  const duration = premium.adminPromoDuration.value;
+  const code = premium.adminPromoCode.value.trim().toUpperCase();
+  const maxRedemptions = Number(premium.adminPromoUses.value) || null;
+  const expiresAt = premium.adminPromoExpiry.value
+    ? new Date(`${premium.adminPromoExpiry.value}T23:59:59`).toISOString()
+    : null;
+
+  premium.adminPromoMessage.textContent = "Creating promo code...";
+
+  const { data, error } = await supabaseClient.rpc("create_admin_promo_code", {
+    input_code: code,
+    input_max_redemptions: maxRedemptions,
+    input_expires_at: expiresAt,
+    input_free_months: duration === "infinity" ? 0 : Number(duration),
+    input_lifetime_access: duration === "infinity",
+  });
+
+  if (error || !data?.success) {
+    premium.adminPromoMessage.textContent = error?.message || data?.message || "Could not create promo code.";
+    return;
+  }
+
+  premium.adminPromoMessage.textContent = `Promo code ${code} created.`;
+  premium.adminPromoForm.reset();
+  premium.adminPromoUses.value = 10;
+  loadAdminOverview();
 }
 
 async function loadSupabaseProperties(userId) {
@@ -618,30 +678,13 @@ async function redeemPromoCode(code) {
     return;
   }
 
-  const { data, error } = await supabaseClient
-    .from("promo_codes")
-    .select("id,lifetime_access,free_months")
-    .eq("code", normalizedCode)
-    .eq("active", true)
-    .maybeSingle();
+  const { data, error } = await supabaseClient.rpc("redeem_promo_code", {
+    input_code: normalizedCode,
+  });
 
-  if (error || !data) {
-    premium.promoMessage.textContent = "Promo not recognised.";
+  if (error || !data?.accepted) {
+    premium.promoMessage.textContent = data?.message || "Promo not recognised.";
     return;
-  }
-
-  const {
-    data: { user },
-  } = await supabaseClient.auth.getUser();
-
-  if (user) {
-    await supabaseClient.from("promo_redemptions").upsert(
-      {
-        promo_code_id: data.id,
-        user_id: user.id,
-      },
-      { ignoreDuplicates: true, onConflict: "promo_code_id,user_id" },
-    );
   }
 
   promoAccess = true;
@@ -1187,6 +1230,11 @@ premium.manageBilling.addEventListener("click", () => {
 
 premium.refreshAdmin.addEventListener("click", () => {
   loadAdminOverview();
+});
+
+premium.adminPromoForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  createAdminPromoCode();
 });
 
 premium.emailLoginForm.addEventListener("submit", async (event) => {

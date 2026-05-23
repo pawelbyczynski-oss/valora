@@ -364,6 +364,38 @@
       <div class="admin-grid">
         <section class="panel-card">
           <div class="section-heading">
+            <p class="eyebrow">Promo codes</p>
+            <h2>Create access code</h2>
+          </div>
+          <form class="admin-form" id="adminPromoForm">
+            <label>
+              <span>Code name</span>
+              <input id="adminPromoCode" placeholder="VALORA-LAUNCH" autocomplete="off" required />
+            </label>
+            <label>
+              <span>Usage limit</span>
+              <input id="adminPromoUses" type="number" min="1" step="1" value="10" />
+            </label>
+            <label>
+              <span>Expiry date</span>
+              <input id="adminPromoExpiry" type="date" />
+            </label>
+            <label>
+              <span>Access duration</span>
+              <select id="adminPromoDuration">
+                <option value="3">3 months</option>
+                <option value="6">6 months</option>
+                <option value="infinity">Infinity</option>
+              </select>
+            </label>
+            <button class="tax-button" type="submit">Create promo code</button>
+            <p class="field-hint" id="adminPromoMessage">Codes are saved in Supabase and checked securely during redemption.</p>
+          </form>
+          <div class="admin-table promo-table" id="adminPromoList"></div>
+        </section>
+
+        <section class="panel-card">
+          <div class="section-heading">
             <p class="eyebrow">Users</p>
             <h2>Recent accounts</h2>
           </div>
