@@ -57,7 +57,15 @@ const premium = {
   demoUserLogin: document.querySelector("#demoUserLogin"),
   emailLoginForm: document.querySelector("#emailLoginForm"),
   loginEmail: document.querySelector("#loginEmail"),
+  loginPasswordWrap: document.querySelector("#loginPasswordWrap"),
+  loginPassword: document.querySelector("#loginPassword"),
+  authModeButtons: document.querySelectorAll("[data-auth-mode]"),
+  emailAuthSubmit: document.querySelector("#emailAuthSubmit"),
   authMessage: document.querySelector("#authMessage"),
+  passwordResetForm: document.querySelector("#passwordResetForm"),
+  newPassword: document.querySelector("#newPassword"),
+  resetPasswordSubmit: document.querySelector("#resetPasswordSubmit"),
+  resetMessage: document.querySelector("#resetMessage"),
   dashboardPanel: document.querySelector("#dashboardPanel"),
   providerButtons: document.querySelectorAll("[data-login-provider]"),
   openPropertyModal: document.querySelector("#openPropertyModal"),
@@ -100,7 +108,6 @@ const premium = {
 
 const SUPABASE_URL = window.VALORA_CONFIG?.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = window.VALORA_CONFIG?.SUPABASE_ANON_KEY || "";
-const APP_BASE_URL = window.location.origin;
 const STRIPE_PRICE_LABEL = "£4.99/month";
 const CHECKOUT_FUNCTION = "create-checkout-session";
 const supabaseClient =
@@ -184,6 +191,8 @@ const defaultProperties = [
 let properties = JSON.parse(localStorage.getItem("valora-properties") || "null") || defaultProperties;
 let promoAccess = localStorage.getItem("valora-promo-access") === "true";
 let demoUserMode = localStorage.getItem("valora-demo-user") === "true";
+let authMode = "signup";
+let authListenerAttached = false;
 
 function formatDate(dateString) {
   if (!dateString) return "-";
@@ -330,7 +339,7 @@ function enterDemoUserMode() {
   premium.subscriptionRenewal.textContent = formatDate(new Date(Date.now() + 30 * 86400000).toISOString());
   premium.subscriptionPaid.textContent = "£4.99";
   premium.subscriptionSince.textContent = formatDate(new Date().toISOString());
-  premium.subscriptionNote.textContent = "Demo user view. Use this to inspect the normal customer dashboard without sending magic links.";
+  premium.subscriptionNote.textContent = "Demo user view. Use this to inspect the normal customer dashboard without creating a test account.";
   renderInvoices([
     {
       invoice_number: "DEMO-0001",
@@ -634,15 +643,158 @@ async function savePropertyToSupabase(property) {
   });
 }
 
+function getAuthRedirectUrl() {
+  if (window.location.protocol === "file:") return window.location.href.split("#")[0];
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+function isPasswordRecoveryUrl() {
+  return window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery");
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  premium.emailLoginForm.hidden = false;
+  premium.authModeButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.authMode === mode);
+  });
+
+  const needsPassword = mode !== "forgot";
+  premium.loginPasswordWrap.hidden = !needsPassword;
+  premium.loginPassword.required = needsPassword;
+  premium.loginPassword.autocomplete = mode === "signup" ? "new-password" : "current-password";
+
+  if (mode === "signup") {
+    premium.emailAuthSubmit.textContent = "Create account";
+    premium.authMessage.textContent = "Create a test account with email and password.";
+  } else if (mode === "signin") {
+    premium.emailAuthSubmit.textContent = "Sign in";
+    premium.authMessage.textContent = "Sign in with your email and password.";
+  } else {
+    premium.emailAuthSubmit.textContent = "Send reset link";
+    premium.authMessage.textContent = "Enter your email and Valora will send a secure password reset link.";
+  }
+}
+
+async function handleEmailAuth() {
+  if (!supabaseClient) {
+    premium.authMessage.textContent = "Supabase is not configured yet. Add SUPABASE_URL and SUPABASE_ANON_KEY to config.js.";
+    return;
+  }
+
+  const email = premium.loginEmail.value.trim();
+  const password = premium.loginPassword.value;
+  premium.emailAuthSubmit.disabled = true;
+
+  if (authMode === "signup") {
+    premium.authMessage.textContent = "Creating account...";
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: getAuthRedirectUrl(),
+      },
+    });
+
+    premium.emailAuthSubmit.disabled = false;
+    if (error) {
+      premium.authMessage.textContent = error.message;
+      return;
+    }
+
+    if (data.session) {
+      premium.authMessage.textContent = "Account created. Opening your dashboard...";
+      await initAuth();
+      return;
+    }
+
+    premium.authMessage.textContent = "Account created. Check your email to confirm it, then sign in.";
+    return;
+  }
+
+  if (authMode === "signin") {
+    premium.authMessage.textContent = "Signing in...";
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+    premium.emailAuthSubmit.disabled = false;
+    if (error) {
+      premium.authMessage.textContent = error.message;
+      return;
+    }
+
+    premium.authMessage.textContent = "Signed in. Opening your dashboard...";
+    await initAuth();
+    return;
+  }
+
+  premium.authMessage.textContent = "Sending password reset link...";
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: getAuthRedirectUrl(),
+  });
+
+  premium.emailAuthSubmit.disabled = false;
+  premium.authMessage.textContent = error
+    ? error.message
+    : "Password reset email sent. Open the link and set a new password here.";
+}
+
+async function updateRecoveredPassword() {
+  if (!supabaseClient) {
+    premium.resetMessage.textContent = "Supabase is not configured.";
+    return;
+  }
+
+  const password = premium.newPassword.value;
+  if (password.length < 8) {
+    premium.resetMessage.textContent = "Password must be at least 8 characters.";
+    return;
+  }
+
+  premium.resetPasswordSubmit.disabled = true;
+  premium.resetMessage.textContent = "Updating password...";
+  const { error } = await supabaseClient.auth.updateUser({ password });
+  premium.resetPasswordSubmit.disabled = false;
+
+  if (error) {
+    premium.resetMessage.textContent = error.message;
+    return;
+  }
+
+  premium.passwordResetForm.hidden = true;
+  setAuthMode("signin");
+  premium.authMessage.textContent = "Password updated. You can now sign in with the new password.";
+}
+
 async function initAuth() {
   if (!supabaseClient) {
     premium.authMessage.textContent = "Supabase key is not configured in app.js yet.";
     return;
   }
 
+  if (!authListenerAttached) {
+    authListenerAttached = true;
+    supabaseClient.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        premium.loginPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+        premium.emailLoginForm.hidden = true;
+        premium.passwordResetForm.hidden = false;
+        premium.resetMessage.textContent = "Set a new password for this account.";
+        premium.newPassword.focus();
+      }
+    });
+  }
+
   const {
     data: { session },
   } = await supabaseClient.auth.getSession();
+
+  if (isPasswordRecoveryUrl()) {
+    premium.loginPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+    premium.emailLoginForm.hidden = true;
+    premium.passwordResetForm.hidden = false;
+    premium.resetMessage.textContent = "Set a new password for this account.";
+    return;
+  }
 
   if (session?.user) {
     await loadSupabaseProperties(session.user.id);
@@ -1202,16 +1354,16 @@ premium.providerButtons.forEach((button) => {
   button.addEventListener("click", () => {
     trackEvent("login_started", { provider: button.dataset.loginProvider });
     if (button.dataset.loginProvider === "Email") {
-      premium.emailLoginForm.hidden = false;
+      setAuthMode("signup");
       premium.authMessage.textContent = supabaseClient
-        ? "Enter your email and Valora will send a secure magic link."
+        ? "Create an account or sign in with email and password."
         : "Supabase is not configured yet. Add your public Supabase URL and publishable key to config.js.";
       premium.loginEmail.focus();
       return;
     }
 
-    premium.emailLoginForm.hidden = false;
-    premium.authMessage.textContent = `${button.dataset.loginProvider} sign-in is coming later. Use email magic link for the MVP.`;
+    setAuthMode("signup");
+    premium.authMessage.textContent = `${button.dataset.loginProvider} sign-in is coming later. Use email and password for the test version.`;
   });
 });
 
@@ -1237,25 +1389,20 @@ premium.adminPromoForm.addEventListener("submit", (event) => {
   createAdminPromoCode();
 });
 
+premium.authModeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    setAuthMode(button.dataset.authMode);
+  });
+});
+
 premium.emailLoginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  await handleEmailAuth();
+});
 
-  if (!supabaseClient) {
-    premium.authMessage.textContent = "Supabase is not configured yet. Add SUPABASE_URL and SUPABASE_ANON_KEY to config.js.";
-    return;
-  }
-
-  premium.authMessage.textContent = "Sending magic link...";
-  const { error } = await supabaseClient.auth.signInWithOtp({
-    email: premium.loginEmail.value,
-    options: {
-      emailRedirectTo: APP_BASE_URL,
-    },
-  });
-
-  premium.authMessage.textContent = error
-    ? error.message
-    : "Magic link sent. Check your email, then return to Valora.";
+premium.passwordResetForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await updateRecoveredPassword();
 });
 
 premium.openPropertyModal.addEventListener("click", () => {

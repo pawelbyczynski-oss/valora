@@ -222,7 +222,7 @@
         <div class="login-grid">
           <button class="provider-button" type="button" data-login-provider="Google">Continue with Google</button>
           <button class="provider-button" type="button" data-login-provider="Apple">Continue with Apple</button>
-          <button class="provider-button" type="button" data-login-provider="Email">Continue with email</button>
+          <button class="provider-button" type="button" data-login-provider="Email">Email account</button>
           <button class="provider-button" type="button" id="demoUserLogin">Preview demo user</button>
         </div>
         <form class="promo-form" id="promoForm">
@@ -234,14 +234,31 @@
           <p class="field-hint" id="promoMessage">Early friends can unlock premium access with a private code.</p>
         </form>
         <form class="email-login" id="emailLoginForm" hidden>
+          <div class="auth-tabs" role="tablist" aria-label="Email account options">
+            <button class="auth-tab active" type="button" data-auth-mode="signup">Create account</button>
+            <button class="auth-tab" type="button" data-auth-mode="signin">Sign in</button>
+            <button class="auth-tab" type="button" data-auth-mode="forgot">Forgot password</button>
+          </div>
           <label>
             <span>Email address</span>
             <input id="loginEmail" type="email" placeholder="you@example.com" required />
           </label>
-          <button class="tax-button" type="submit">Send magic link</button>
-          <p class="field-hint" id="authMessage">We'll email you a secure sign-in link.</p>
+          <label id="loginPasswordWrap">
+            <span>Password</span>
+            <input id="loginPassword" type="password" minlength="8" placeholder="Minimum 8 characters" autocomplete="current-password" required />
+          </label>
+          <button class="tax-button" id="emailAuthSubmit" type="submit">Create account</button>
+          <p class="field-hint" id="authMessage">Create a test account with email and password.</p>
         </form>
-        <p class="field-hint">Prototype only: sign-in and Stripe billing will be connected later.</p>
+        <form class="email-login" id="passwordResetForm" hidden>
+          <label>
+            <span>New password</span>
+            <input id="newPassword" type="password" minlength="8" placeholder="Minimum 8 characters" autocomplete="new-password" />
+          </label>
+          <button class="tax-button" id="resetPasswordSubmit" type="submit">Update password</button>
+          <p class="field-hint" id="resetMessage">You opened a password reset link. Set a new password to recover the account.</p>
+        </form>
+        <p class="field-hint">Email/password accounts run through Supabase Auth. Google and Apple can be added later.</p>
       </section>
 
       <section class="dashboard-shell" id="dashboardPanel" hidden>
