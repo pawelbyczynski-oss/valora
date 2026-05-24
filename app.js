@@ -310,15 +310,52 @@ function daysUntil(dateString) {
   return Math.ceil((target - today) / 86400000);
 }
 
+function dateValue(dateString) {
+  return dateString ? new Date(`${dateString}T12:00:00`).getTime() : 0;
+}
+
+function latestMortgageDeal(property) {
+  const latestRemortgage = [...(property.remortgages || [])].sort((a, b) => {
+    const bDate = dateValue(b.startDate) || dateValue(b.expiryDate);
+    const aDate = dateValue(a.startDate) || dateValue(a.expiryDate);
+    return bDate - aDate;
+  })[0];
+
+  if (latestRemortgage) {
+    return {
+      productType: latestRemortgage.productType || property.mortgageProductType || "Fixed",
+      rate: Number(latestRemortgage.rate ?? property.rate) || 0,
+      balance: Number(latestRemortgage.balance ?? property.mortgageBalance) || 0,
+      expiryDate: latestRemortgage.expiryDate || property.mortgageExpiry,
+      termMonths: latestRemortgage.termMonths,
+      equityRelease: Number(latestRemortgage.equityRelease || 0),
+      notes: latestRemortgage.notes || "",
+      source: "remortgage",
+    };
+  }
+
+  return {
+    productType: property.mortgageProductType || "Fixed",
+    rate: Number(property.rate || 0),
+    balance: Number(property.mortgageBalance || 0),
+    expiryDate: property.mortgageExpiry,
+    termMonths: null,
+    equityRelease: 0,
+    notes: "",
+    source: "property",
+  };
+}
+
 function propertyCashflow(property) {
-  const mortgageInterest = property.mortgageBalance * (property.rate / 100 / 12);
+  const mortgageDeal = latestMortgageDeal(property);
+  const mortgageInterest = mortgageDeal.balance * (mortgageDeal.rate / 100 / 12);
   return property.rent - property.expenses - mortgageInterest;
 }
 
 function renderPremiumDashboard() {
   localStorage.setItem("valora-properties", JSON.stringify(properties));
   const totalValue = properties.reduce((sum, property) => sum + Number(property.currentValue || 0), 0);
-  const totalDebt = properties.reduce((sum, property) => sum + Number(property.mortgageBalance || 0), 0);
+  const totalDebt = properties.reduce((sum, property) => sum + latestMortgageDeal(property).balance, 0);
   const totalCashflow = properties.reduce((sum, property) => sum + propertyCashflow(property), 0);
 
   premium.portfolioCount.textContent = properties.length;
@@ -333,9 +370,10 @@ function renderPremiumDashboard() {
       card.setAttribute("role", "button");
       card.setAttribute("tabindex", "0");
       card.dataset.propertyId = property.id;
-      const mortgageInterest = property.mortgageBalance * (property.rate / 100 / 12);
+      const mortgageDeal = latestMortgageDeal(property);
+      const mortgageInterest = mortgageDeal.balance * (mortgageDeal.rate / 100 / 12);
       const cashflow = propertyCashflow(property);
-      const expiryDays = daysUntil(property.mortgageExpiry);
+      const expiryDays = daysUntil(mortgageDeal.expiryDate);
 
       card.innerHTML = `
         <div class="property-card-head">
@@ -343,19 +381,19 @@ function renderPremiumDashboard() {
             <h3>${property.name}</h3>
             <span class="field-hint">${property.region} · ${property.letType}</span>
           </div>
-          <span class="pill">${expiryDays <= 120 ? "Remortgage soon" : property.mortgageProductType || "Tracked"}</span>
+          <span class="pill">${expiryDays <= 120 ? "Remortgage soon" : mortgageDeal.productType}</span>
         </div>
         <div class="property-meta">
           <div><span>Purchase price</span><strong>${money.format(property.purchasePrice)}</strong></div>
           <div><span>Value</span><strong>${money.format(property.currentValue)}</strong></div>
-          <div><span>Mortgage</span><strong>${money.format(property.mortgageBalance)}</strong></div>
-          <div><span>Rate</span><strong>${property.rate.toFixed(2)}%</strong></div>
+          <div><span>Mortgage</span><strong>${money.format(mortgageDeal.balance)}</strong></div>
+          <div><span>Rate</span><strong>${mortgageDeal.rate.toFixed(2)}%</strong></div>
           <div><span>Rent</span><strong>${money.format(property.rent)}</strong></div>
           <div><span>Expenses</span><strong>${money.format(property.expenses)}</strong></div>
           <div><span>Cashflow</span><strong>${money.format(cashflow)}</strong></div>
           <div><span>Mortgage interest</span><strong>${money.format(mortgageInterest)}</strong></div>
         </div>
-        <div class="property-expiry"><span>Expiry</span><strong>${property.mortgageExpiry}</strong></div>
+        <div class="property-expiry"><span>Expiry</span><strong>${mortgageDeal.expiryDate || "-"}</strong></div>
         <p class="field-hint">Open property record for tenancy and remortgage history.</p>
       `;
       return card;
@@ -383,21 +421,22 @@ function renderPropertyDetail() {
   const property = activeProperty();
   if (!property) return;
 
+  const mortgageDeal = latestMortgageDeal(property);
   premium.propertyDetailTitle.textContent = property.name;
   document.querySelector("#detailTenancyRent").value = property.rent || "";
-  document.querySelector("#detailMortgageProduct").value = property.mortgageProductType || "Fixed";
-  document.querySelector("#detailMortgageRate").value = property.rate || "";
-  document.querySelector("#detailMortgageBalance").value = property.mortgageBalance || "";
-  document.querySelector("#detailMortgageEnd").value = property.mortgageExpiry || "";
+  document.querySelector("#detailMortgageProduct").value = mortgageDeal.productType || "Fixed";
+  document.querySelector("#detailMortgageRate").value = mortgageDeal.rate || "";
+  document.querySelector("#detailMortgageBalance").value = mortgageDeal.balance || "";
+  document.querySelector("#detailMortgageEnd").value = mortgageDeal.expiryDate || "";
   premium.propertyDetailSummary.innerHTML = `
     <div><span>Region</span><strong>${property.region}</strong></div>
     <div><span>Let type</span><strong>${property.letType}</strong></div>
     <div><span>Purchase price</span><strong>${money.format(property.purchasePrice)}</strong></div>
     <div><span>Current value</span><strong>${money.format(property.currentValue)}</strong></div>
-    <div><span>Mortgage balance</span><strong>${money.format(property.mortgageBalance)}</strong></div>
-    <div><span>Mortgage product</span><strong>${property.mortgageProductType || "Fixed"}</strong></div>
-    <div><span>Rate</span><strong>${Number(property.rate || 0).toFixed(2)}%</strong></div>
-    <div><span>Expiry</span><strong>${property.mortgageExpiry || "-"}</strong></div>
+    <div><span>Mortgage balance</span><strong>${money.format(mortgageDeal.balance)}</strong></div>
+    <div><span>Mortgage product</span><strong>${mortgageDeal.productType || "Fixed"}</strong></div>
+    <div><span>Rate</span><strong>${Number(mortgageDeal.rate || 0).toFixed(2)}%</strong></div>
+    <div><span>Expiry</span><strong>${mortgageDeal.expiryDate || "-"}</strong></div>
   `;
 
   premium.tenancyHistoryList.replaceChildren(
@@ -481,7 +520,7 @@ function renderReminders() {
   const reminders = [];
 
   properties.forEach((property) => {
-    const expiryDays = daysUntil(property.mortgageExpiry);
+    const expiryDays = daysUntil(latestMortgageDeal(property).expiryDate);
     if (expiryDays <= 180) {
       reminders.push(`Mortgage deal for ${property.name} expires in ${expiryDays} days. Prepare remortgage options.`);
     }
@@ -1005,14 +1044,15 @@ async function saveRemortgageToSupabase(property, remortgage) {
 async function updateSupabasePropertySnapshot(property) {
   if (!supabaseClient || !property.id || property.id.startsWith("demo-")) return;
 
+  const mortgageDeal = latestMortgageDeal(property);
   await supabaseClient
     .from("properties")
     .update({
       monthly_rent: property.rent,
-      mortgage_balance: property.mortgageBalance,
-      mortgage_product_type: property.mortgageProductType,
-      mortgage_rate: property.rate,
-      mortgage_expiry_date: property.mortgageExpiry || null,
+      mortgage_balance: mortgageDeal.balance,
+      mortgage_product_type: mortgageDeal.productType,
+      mortgage_rate: mortgageDeal.rate,
+      mortgage_expiry_date: mortgageDeal.expiryDate || null,
     })
     .eq("id", property.id);
 }
@@ -1986,10 +2026,6 @@ premium.remortgageForm.addEventListener("submit", async (event) => {
   const savedId = await saveRemortgageToSupabase(property, remortgage);
   if (savedId) remortgage.id = savedId;
   property.remortgages = [remortgage, ...(property.remortgages || [])];
-  property.mortgageProductType = remortgage.productType;
-  if (remortgage.rate) property.rate = remortgage.rate;
-  if (remortgage.balance) property.mortgageBalance = remortgage.balance;
-  if (remortgage.expiryDate) property.mortgageExpiry = remortgage.expiryDate;
   await updateSupabasePropertySnapshot(property);
   renderPremiumDashboard();
   renderPropertyDetail();
@@ -2020,11 +2056,26 @@ premium.propertyForm.addEventListener("submit", async (event) => {
     landlordRegistration: document.querySelector("#landlordRegistration").value,
     documents: "",
     tenancies: [],
-    remortgages: [],
+    remortgages: [
+      {
+        id: createId("remortgage"),
+        productType: document.querySelector("#propertyMortgageProduct").value,
+        rate: Number(document.querySelector("#propertyRate").value) || 0,
+        balance: Number(document.querySelector("#propertyMortgage").value) || 0,
+        termMonths: null,
+        startDate: document.querySelector("#propertyPurchaseDate").value,
+        expiryDate: document.querySelector("#propertyMortgageExpiry").value,
+        equityRelease: 0,
+        notes: "Initial mortgage deal",
+      },
+    ],
   };
 
   const savedId = await savePropertyToSupabase(property);
   if (savedId) property.id = savedId;
+  const initialMortgage = property.remortgages[0];
+  const savedMortgageId = await saveRemortgageToSupabase(property, initialMortgage);
+  if (savedMortgageId) initialMortgage.id = savedMortgageId;
 
   properties = [property, ...properties];
   trackEvent("property_added", { property_name: property.name, region: property.region });
