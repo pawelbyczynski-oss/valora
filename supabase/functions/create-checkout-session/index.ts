@@ -1,7 +1,8 @@
 import Stripe from "https://esm.sh/stripe@14.25.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") ?? "", {
+const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+const stripe = new Stripe(stripeSecretKey ?? "", {
   apiVersion: "2024-06-20",
 });
 
@@ -30,7 +31,11 @@ Deno.serve(async (request) => {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "http://localhost:3000";
+  const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://valora-property-os.vercel.app";
+  if (!stripeSecretKey) {
+    return new Response("Missing STRIPE_SECRET_KEY", { status: 500 });
+  }
+
   const priceId = Deno.env.get("STRIPE_PRICE_ID_MONTHLY");
   if (!priceId) {
     return new Response("Missing STRIPE_PRICE_ID_MONTHLY", { status: 500 });
@@ -40,8 +45,8 @@ Deno.serve(async (request) => {
     mode: "subscription",
     customer_email: user.email,
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appBaseUrl}/premium?checkout=success`,
-    cancel_url: `${appBaseUrl}/premium?checkout=cancelled`,
+    success_url: `${appBaseUrl}/?checkout=success`,
+    cancel_url: `${appBaseUrl}/?checkout=cancelled`,
     metadata: { user_id: user.id },
   });
 
