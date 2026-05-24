@@ -269,10 +269,19 @@
           </div>
           <div class="dashboard-actions">
             <button class="tax-button small-button" id="openPropertyModal" type="button">Add property</button>
+            <button class="secondary-button small-button" id="logoutButton" type="button">Log out</button>
           </div>
         </div>
 
-        <div class="portfolio-metrics">
+        <div class="section-tabs" aria-label="Premium sections">
+          <button class="section-tab active" type="button" data-dashboard-tab="overview">Overview</button>
+          <button class="section-tab" type="button" data-dashboard-tab="properties">Properties</button>
+          <button class="section-tab" type="button" data-dashboard-tab="subscription">Subscription</button>
+          <button class="section-tab" type="button" data-dashboard-tab="documents">Documents</button>
+          <button class="section-tab" type="button" data-dashboard-tab="account">Account</button>
+        </div>
+
+        <div class="portfolio-metrics dashboard-panel" data-dashboard-panel="overview">
           <article>
             <span>Properties</span>
             <strong id="portfolioCount">0</strong>
@@ -292,7 +301,7 @@
         </div>
 
         <div class="dashboard-grid">
-          <section class="panel-card subscription-card">
+          <section class="panel-card subscription-card dashboard-panel" data-dashboard-panel="subscription">
             <div class="section-heading">
               <p class="eyebrow">Subscription</p>
               <h2>Your plan</h2>
@@ -305,9 +314,17 @@
             </div>
             <button class="secondary-button stripe-button" id="manageBilling" type="button">Manage billing</button>
             <p class="field-hint" id="subscriptionNote">Stripe checkout and billing portal will be connected when keys are added.</p>
+            <form class="promo-form dashboard-promo-form" id="dashboardPromoForm">
+              <label>
+                <span>Promo code</span>
+                <input id="dashboardPromoCode" placeholder="Enter promo code" autocomplete="off" />
+              </label>
+              <button class="secondary-button" type="submit">Apply promo code</button>
+              <p class="field-hint" id="dashboardPromoMessage">Use a promo code to unlock complimentary access.</p>
+            </form>
           </section>
 
-          <section class="panel-card property-list-panel">
+          <section class="panel-card property-list-panel dashboard-panel" data-dashboard-panel="properties">
             <div class="section-heading">
               <p class="eyebrow">Saved properties</p>
               <h2>Your portfolio</h2>
@@ -316,7 +333,7 @@
             <button class="secondary-button export-bottom" id="exportPortfolio" type="button">Export PDF summary</button>
           </section>
 
-          <aside class="panel-card">
+          <aside class="panel-card dashboard-panel" data-dashboard-panel="overview">
             <div class="section-heading">
               <p class="eyebrow">Reminders</p>
               <h2>Upcoming actions</h2>
@@ -324,7 +341,7 @@
             <ul class="reminder-list" id="reminderList"></ul>
           </aside>
 
-          <section class="panel-card">
+          <section class="panel-card dashboard-panel" data-dashboard-panel="documents">
             <div class="section-heading">
               <p class="eyebrow">Documents</p>
               <h2>Property vault</h2>
@@ -336,7 +353,7 @@
             </div>
           </section>
 
-          <section class="panel-card">
+          <section class="panel-card dashboard-panel" data-dashboard-panel="subscription">
             <div class="section-heading">
               <p class="eyebrow">Billing</p>
               <h2>Invoices</h2>
@@ -346,7 +363,7 @@
             </div>
           </section>
 
-          <section class="panel-card">
+          <section class="panel-card dashboard-panel" data-dashboard-panel="account">
             <div class="section-heading">
               <p class="eyebrow">Account</p>
               <h2>Security</h2>
@@ -361,7 +378,7 @@
             </form>
           </section>
 
-          <section class="panel-card tenancy-card">
+          <section class="panel-card tenancy-card dashboard-panel" data-dashboard-panel="documents">
             <div class="section-heading">
               <p class="eyebrow">Scotland tenancy setup</p>
               <h2>Prepare once, create faster</h2>
@@ -382,7 +399,15 @@
         <button class="secondary-button small-button" id="refreshAdmin" type="button">Refresh</button>
       </div>
 
-      <div class="admin-metrics">
+      <div class="section-tabs" aria-label="Admin sections">
+        <button class="section-tab active" type="button" data-admin-tab="overview">Overview</button>
+        <button class="section-tab" type="button" data-admin-tab="promos">Promo codes</button>
+        <button class="section-tab" type="button" data-admin-tab="users">Users</button>
+        <button class="section-tab" type="button" data-admin-tab="activity">Activity</button>
+        <button class="section-tab" type="button" data-admin-tab="stripe">Stripe</button>
+      </div>
+
+      <div class="admin-metrics admin-panel" data-admin-panel="overview">
         <article><span>Users</span><strong id="adminUsers">0</strong></article>
         <article><span>Active subs</span><strong id="adminSubscriptions">0</strong></article>
         <article><span>MRR</span><strong id="adminMrr">£0</strong></article>
@@ -394,7 +419,7 @@
       </div>
 
       <div class="admin-grid">
-        <section class="panel-card">
+        <section class="panel-card admin-panel" data-admin-panel="promos">
           <div class="section-heading">
             <p class="eyebrow">Promo codes</p>
             <h2>Create access code</h2>
@@ -426,21 +451,21 @@
           <div class="admin-table promo-table" id="adminPromoList"></div>
         </section>
 
-        <section class="panel-card">
+        <section class="panel-card admin-panel" data-admin-panel="users">
           <div class="section-heading">
             <p class="eyebrow">Users</p>
             <h2>Recent accounts</h2>
           </div>
           <div class="admin-table" id="adminUserList"></div>
         </section>
-        <section class="panel-card">
+        <section class="panel-card admin-panel" data-admin-panel="activity">
           <div class="section-heading">
             <p class="eyebrow">Activity</p>
             <h2>Latest events</h2>
           </div>
           <div class="admin-table" id="adminEventList"></div>
         </section>
-        <section class="panel-card stripe-readiness">
+        <section class="panel-card stripe-readiness admin-panel" data-admin-panel="stripe">
           <div class="section-heading">
             <p class="eyebrow">Stripe</p>
             <h2>Billing setup</h2>

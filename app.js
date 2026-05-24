@@ -53,6 +53,9 @@ const premium = {
   promoForm: document.querySelector("#promoForm"),
   promoCode: document.querySelector("#promoCode"),
   promoMessage: document.querySelector("#promoMessage"),
+  dashboardPromoForm: document.querySelector("#dashboardPromoForm"),
+  dashboardPromoCode: document.querySelector("#dashboardPromoCode"),
+  dashboardPromoMessage: document.querySelector("#dashboardPromoMessage"),
   adminNav: document.querySelector(".admin-nav"),
   demoUserLogin: document.querySelector("#demoUserLogin"),
   emailLoginForm: document.querySelector("#emailLoginForm"),
@@ -72,6 +75,7 @@ const premium = {
   dashboardPanel: document.querySelector("#dashboardPanel"),
   providerButtons: document.querySelectorAll("[data-login-provider]"),
   openPropertyModal: document.querySelector("#openPropertyModal"),
+  logoutButton: document.querySelector("#logoutButton"),
   closePropertyModal: document.querySelector("#closePropertyModal"),
   propertyModal: document.querySelector("#propertyModal"),
   propertyForm: document.querySelector("#propertyForm"),
@@ -107,6 +111,10 @@ const premium = {
   adminPromoDuration: document.querySelector("#adminPromoDuration"),
   adminPromoMessage: document.querySelector("#adminPromoMessage"),
   adminPromoList: document.querySelector("#adminPromoList"),
+  dashboardTabButtons: document.querySelectorAll("[data-dashboard-tab]"),
+  dashboardPanels: document.querySelectorAll("[data-dashboard-panel]"),
+  adminTabButtons: document.querySelectorAll("[data-admin-tab]"),
+  adminPanels: document.querySelectorAll("[data-admin-panel]"),
 };
 
 const SUPABASE_URL = window.VALORA_CONFIG?.SUPABASE_URL || "";
@@ -198,6 +206,7 @@ let promoAccess = localStorage.getItem("valora-promo-access") === "true";
 let demoUserMode = localStorage.getItem("valora-demo-user") === "true";
 let authMode = "signup";
 let authListenerAttached = false;
+let isAdminUser = false;
 
 function formatDate(dateString) {
   if (!dateString) return "-";
@@ -310,6 +319,7 @@ function openDashboard() {
   premium.premiumHero.hidden = true;
   premium.loginPanel.hidden = true;
   premium.dashboardPanel.hidden = false;
+  switchDashboardTab("overview");
   renderPremiumDashboard();
 }
 
@@ -356,6 +366,17 @@ function enterDemoUserMode() {
 }
 
 function renderSubscriptionFallback() {
+  if (isAdminUser) {
+    premium.subscriptionStatus.textContent = "Admin access";
+    premium.subscriptionRenewal.textContent = "Not required";
+    premium.subscriptionPaid.textContent = "£0";
+    premium.subscriptionSince.textContent = "Admin";
+    premium.subscriptionNote.textContent = "Admin accounts have complimentary premium access.";
+    premium.manageBilling.textContent = "Billing not required";
+    premium.manageBilling.disabled = true;
+    return;
+  }
+
   if (promoAccess) {
     premium.subscriptionStatus.textContent = "Complimentary";
     premium.subscriptionRenewal.textContent = "Lifetime";
@@ -371,6 +392,7 @@ function renderSubscriptionFallback() {
   premium.subscriptionSince.textContent = "-";
   premium.subscriptionNote.textContent = `Premium will use Stripe Checkout at ${STRIPE_PRICE_LABEL} once Stripe keys are connected.`;
   premium.manageBilling.textContent = "Subscribe with Stripe";
+  premium.manageBilling.disabled = false;
 }
 
 async function loadSubscriptionSummary() {
@@ -389,6 +411,12 @@ async function loadSubscriptionSummary() {
   } = await supabaseClient.auth.getUser();
 
   if (!user) return;
+
+  const { data: adminAccess } = await supabaseClient.rpc("current_user_is_admin");
+  isAdminUser = adminAccess === true;
+  if (isAdminUser) {
+    renderSubscriptionFallback();
+  }
 
   const { data: redemptions } = await supabaseClient
     .from("promo_redemptions")
@@ -410,7 +438,7 @@ async function loadSubscriptionSummary() {
     .limit(1);
 
   const subscription = subscriptions?.[0];
-  if (!subscription) return;
+  if (!subscription || isAdminUser) return;
 
   premium.subscriptionStatus.textContent = subscription.cancel_at_period_end
     ? `${subscription.status} - canceling`
@@ -420,6 +448,7 @@ async function loadSubscriptionSummary() {
   premium.subscriptionSince.textContent = formatDate(subscription.created_at);
   premium.subscriptionNote.textContent = `Plan: ${moneyFromPence(subscription.amount_monthly_pence || 499)} / month. Stripe billing portal will open here once connected.`;
   premium.manageBilling.textContent = "Manage billing";
+  premium.manageBilling.disabled = false;
 
   const { data: payments } = await supabaseClient
     .from("payments")
@@ -432,6 +461,11 @@ async function loadSubscriptionSummary() {
 }
 
 async function startStripeCheckout() {
+  if (isAdminUser) {
+    premium.subscriptionNote.textContent = "Admin accounts do not need Stripe checkout.";
+    return;
+  }
+
   if (!supabaseClient) {
     premium.subscriptionNote.textContent = "Supabase is not configured yet, so Stripe Checkout cannot start.";
     return;
@@ -490,20 +524,26 @@ function renderAdminTable(target, rows, columns) {
 }
 
 function renderAdminPromos(promos = []) {
-  renderAdminTable(
-    premium.adminPromoList,
-    promos.map((promo) => ({
-      code: promo.code,
-      usage: `${promo.redeemed_count || 0}/${promo.max_redemptions || "unlimited"}`,
-      access: promo.lifetime_access ? "Infinity" : `${promo.free_months || 0} months`,
-      expiry: promo.expires_at ? formatDate(promo.expires_at) : "No expiry",
-    })),
-    [
-      ["Code", "code"],
-      ["Used", "usage"],
-      ["Access", "access"],
-      ["Expires", "expiry"],
-    ],
+  if (!premium.adminPromoList) return;
+
+  if (!promos.length) {
+    premium.adminPromoList.innerHTML = `<div class="admin-row muted-row">No promo codes yet</div>`;
+    return;
+  }
+
+  premium.adminPromoList.replaceChildren(
+    ...promos.map((promo) => {
+      const row = document.createElement("div");
+      row.className = "admin-row promo-admin-row";
+      row.innerHTML = `
+        <div><span>Code</span><strong>${promo.code}</strong></div>
+        <div><span>Used</span><strong>${promo.redeemed_count || 0}/${promo.max_redemptions || "unlimited"}</strong></div>
+        <div><span>Access</span><strong>${promo.lifetime_access ? "Infinity" : `${promo.free_months || 0} months`}</strong></div>
+        <div><span>Expires</span><strong>${promo.expires_at ? formatDate(promo.expires_at) : "No expiry"}</strong></div>
+        <button class="secondary-button small-button promo-delete-button" type="button" data-promo-delete="${promo.code}">Deactivate</button>
+      `;
+      return row;
+    }),
   );
 }
 
@@ -571,6 +611,23 @@ async function createAdminPromoCode() {
   premium.adminPromoMessage.textContent = `Promo code ${code} created.`;
   premium.adminPromoForm.reset();
   premium.adminPromoUses.value = 10;
+  loadAdminOverview();
+}
+
+async function deactivateAdminPromoCode(code) {
+  if (!supabaseClient || !code) return;
+
+  premium.adminPromoMessage.textContent = `Deactivating ${code}...`;
+  const { data, error } = await supabaseClient.rpc("deactivate_admin_promo_code", {
+    input_code: code,
+  });
+
+  if (error || !data?.success) {
+    premium.adminPromoMessage.textContent = error?.message || data?.message || "Could not deactivate promo code.";
+    return;
+  }
+
+  premium.adminPromoMessage.textContent = `Promo code ${code} deactivated.`;
   loadAdminOverview();
 }
 
@@ -810,6 +867,51 @@ async function updateDashboardPassword() {
   }
 }
 
+function switchSection(buttons, panels, activeKey, buttonAttr, panelAttr) {
+  buttons.forEach((button) => {
+    button.classList.toggle("active", button.dataset[buttonAttr] === activeKey);
+  });
+
+  panels.forEach((panel) => {
+    panel.hidden = panel.dataset[panelAttr] !== activeKey;
+  });
+}
+
+function switchDashboardTab(tabName) {
+  switchSection(
+    premium.dashboardTabButtons,
+    premium.dashboardPanels,
+    tabName,
+    "dashboardTab",
+    "dashboardPanel",
+  );
+}
+
+function switchAdminTab(tabName) {
+  switchSection(premium.adminTabButtons, premium.adminPanels, tabName, "adminTab", "adminPanel");
+}
+
+async function logoutUser() {
+  demoUserMode = false;
+  promoAccess = false;
+  isAdminUser = false;
+  localStorage.removeItem("valora-demo-user");
+  localStorage.removeItem("valora-promo-access");
+
+  if (supabaseClient) {
+    await supabaseClient.auth.signOut();
+  }
+
+  premium.dashboardPanel.hidden = true;
+  premium.adminNav.hidden = true;
+  premium.emailLoginForm.hidden = false;
+  premium.passwordResetForm.hidden = true;
+  premium.authMessage.textContent = "Signed out.";
+  setAuthMode("signin");
+  switchView("premiumView");
+  premium.loginPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
 async function initAuth() {
   if (!supabaseClient) {
     premium.authMessage.textContent = "Supabase key is not configured in app.js yet.";
@@ -857,15 +959,15 @@ async function trackEvent(eventType, metadata = {}) {
   });
 }
 
-async function redeemPromoCode(code) {
+async function redeemPromoCode(code, messageTarget = premium.promoMessage) {
   const normalizedCode = code.trim().toUpperCase();
   if (!normalizedCode) {
-    premium.promoMessage.textContent = "Enter a promo code.";
+    messageTarget.textContent = "Enter a promo code.";
     return;
   }
 
   if (!supabaseClient) {
-    premium.promoMessage.textContent = "Promo codes are checked securely online. Try again after the app is connected.";
+    messageTarget.textContent = "Promo codes are checked securely online. Try again after the app is connected.";
     return;
   }
 
@@ -874,13 +976,13 @@ async function redeemPromoCode(code) {
   });
 
   if (error || !data?.accepted) {
-    premium.promoMessage.textContent = data?.message || "Promo not recognised.";
+    messageTarget.textContent = data?.message || "Promo not recognised.";
     return;
   }
 
   promoAccess = true;
   localStorage.setItem("valora-promo-access", "true");
-  premium.promoMessage.textContent = "Promo accepted. Premium access unlocked.";
+  messageTarget.textContent = "Promo accepted. Premium access unlocked.";
   await trackEvent("promo_redeemed", { code: normalizedCode, mode: "supabase" });
   loadSubscriptionSummary();
   openDashboard();
@@ -1415,8 +1517,18 @@ premium.promoForm.addEventListener("submit", async (event) => {
   await redeemPromoCode(premium.promoCode.value);
 });
 
+premium.dashboardPromoForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await redeemPromoCode(premium.dashboardPromoCode.value, premium.dashboardPromoMessage);
+  premium.dashboardPromoCode.value = "";
+});
+
 premium.manageBilling.addEventListener("click", () => {
   startStripeCheckout();
+});
+
+premium.logoutButton.addEventListener("click", () => {
+  logoutUser();
 });
 
 premium.refreshAdmin.addEventListener("click", () => {
@@ -1426,6 +1538,24 @@ premium.refreshAdmin.addEventListener("click", () => {
 premium.adminPromoForm.addEventListener("submit", (event) => {
   event.preventDefault();
   createAdminPromoCode();
+});
+
+premium.adminPromoList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-promo-delete]");
+  if (!button) return;
+  deactivateAdminPromoCode(button.dataset.promoDelete);
+});
+
+premium.dashboardTabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    switchDashboardTab(button.dataset.dashboardTab);
+  });
+});
+
+premium.adminTabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    switchAdminTab(button.dataset.adminTab);
+  });
 });
 
 premium.authModeButtons.forEach((button) => {
@@ -1499,6 +1629,8 @@ premium.exportPortfolio.addEventListener("click", () => {
 });
 
 renderTaxBands("higher");
+switchDashboardTab("overview");
+switchAdminTab("overview");
 renderPremiumDashboard();
 renderSubscriptionFallback();
 trackEvent("page_view", { path: window.location.pathname });

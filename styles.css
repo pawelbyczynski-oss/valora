@@ -250,6 +250,41 @@ select {
   flex-wrap: wrap;
 }
 
+.section-tabs {
+  position: sticky;
+  top: 74px;
+  z-index: 6;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(5, 22, 20, 0.92);
+  backdrop-filter: blur(14px);
+}
+
+.section-tab {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.section-tab.active {
+  border-color: rgba(90, 255, 217, 0.65);
+  background: rgba(90, 255, 217, 0.14);
+  color: var(--mint);
+}
+
+.dashboard-panel[hidden],
+.admin-panel[hidden] {
+  display: none;
+}
+
 .secondary-button,
 .small-button {
   min-height: 44px;
@@ -338,6 +373,10 @@ select {
   margin-top: 12px;
 }
 
+.dashboard-promo-form {
+  margin-top: 12px;
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
@@ -392,7 +431,12 @@ select {
 }
 
 .promo-table .admin-row {
-  grid-template-columns: 1.15fr 0.75fr 0.8fr 0.9fr;
+  grid-template-columns: 1.15fr 0.75fr 0.8fr 0.9fr auto;
+  align-items: end;
+}
+
+.promo-delete-button {
+  min-height: 38px;
 }
 
 .property-list {
@@ -1048,6 +1092,10 @@ li {
 }
 
 @media (max-width: 640px) {
+  .section-tabs {
+    top: 96px;
+  }
+
   .app-nav {
     width: min(100vw - 20px, 1180px);
     align-items: stretch;
@@ -1078,6 +1126,7 @@ li {
   .admin-metrics,
   .admin-form,
   .admin-row,
+  .promo-table .admin-row,
   .property-meta,
   .property-form,
   .tax-summary,
