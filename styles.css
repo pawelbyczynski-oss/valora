@@ -614,6 +614,27 @@ select {
   grid-column: 1 / -1;
 }
 
+.form-note {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid rgba(90, 255, 217, 0.28);
+  border-radius: 8px;
+  background: rgba(90, 255, 217, 0.08);
+}
+
+.form-note span {
+  color: var(--mint);
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.form-note p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 .property-detail-modal {
   max-width: 920px;
 }
