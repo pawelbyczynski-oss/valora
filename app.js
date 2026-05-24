@@ -80,6 +80,18 @@ const premium = {
   propertyModal: document.querySelector("#propertyModal"),
   propertyForm: document.querySelector("#propertyForm"),
   propertyList: document.querySelector("#propertyList"),
+  propertyDetailModal: document.querySelector("#propertyDetailModal"),
+  closePropertyDetailModal: document.querySelector("#closePropertyDetailModal"),
+  propertyDetailTitle: document.querySelector("#propertyDetailTitle"),
+  propertyDetailSummary: document.querySelector("#propertyDetailSummary"),
+  propertyDetailTabButtons: document.querySelectorAll("[data-property-detail-tab]"),
+  propertyDetailPanels: document.querySelectorAll("[data-property-detail-panel]"),
+  deletePropertyButton: document.querySelector("#deletePropertyButton"),
+  deletePropertyMessage: document.querySelector("#deletePropertyMessage"),
+  tenancyForm: document.querySelector("#tenancyForm"),
+  tenancyHistoryList: document.querySelector("#tenancyHistoryList"),
+  remortgageForm: document.querySelector("#remortgageForm"),
+  remortgageHistoryList: document.querySelector("#remortgageHistoryList"),
   reminderList: document.querySelector("#reminderList"),
   exportPortfolio: document.querySelector("#exportPortfolio"),
   portfolioCount: document.querySelector("#portfolioCount"),
@@ -160,6 +172,7 @@ const money = new Intl.NumberFormat("en-GB", {
 
 const defaultProperties = [
   {
+    id: "demo-glasgow",
     name: "Flat 4, Glasgow",
     region: "Scotland",
     letType: "Long-term let",
@@ -168,6 +181,7 @@ const defaultProperties = [
     currentValue: 265000,
     deposit: 61250,
     mortgageBalance: 183750,
+    mortgageProductType: "Fixed",
     rate: 5.35,
     mortgageExpiry: "2026-09-30",
     rent: 1350,
@@ -178,8 +192,33 @@ const defaultProperties = [
     rentReminder: "On",
     landlordRegistration: "123456/260/12340",
     documents: "Tenancy agreement, mortgage offer, gas safety",
+    tenancies: [
+      {
+        id: "tenancy-demo-glasgow-1",
+        tenantName: "Jamie Fraser",
+        tenantContact: "jamie@example.com",
+        startDate: "2024-07-01",
+        endDate: "",
+        rent: 1350,
+        documents: ["Tenancy agreement"],
+      },
+    ],
+    remortgages: [
+      {
+        id: "mortgage-demo-glasgow-1",
+        productType: "Fixed",
+        rate: 5.35,
+        balance: 183750,
+        termMonths: 24,
+        startDate: "2024-09-30",
+        expiryDate: "2026-09-30",
+        equityRelease: 0,
+        notes: "Current fixed product",
+      },
+    ],
   },
   {
+    id: "demo-leeds",
     name: "Terrace House, Leeds",
     region: "England",
     letType: "Long-term let",
@@ -188,6 +227,7 @@ const defaultProperties = [
     currentValue: 238000,
     deposit: 52500,
     mortgageBalance: 157500,
+    mortgageProductType: "Fixed",
     rate: 4.89,
     mortgageExpiry: "2027-01-15",
     rent: 1250,
@@ -198,6 +238,30 @@ const defaultProperties = [
     rentReminder: "On",
     landlordRegistration: "",
     documents: "Tenancy agreement, insurance",
+    tenancies: [
+      {
+        id: "tenancy-demo-leeds-1",
+        tenantName: "Aisha Patel",
+        tenantContact: "aisha@example.com",
+        startDate: "2022-04-01",
+        endDate: "",
+        rent: 1250,
+        documents: ["Tenancy agreement"],
+      },
+    ],
+    remortgages: [
+      {
+        id: "mortgage-demo-leeds-1",
+        productType: "Fixed",
+        rate: 4.89,
+        balance: 157500,
+        termMonths: 60,
+        startDate: "2022-01-15",
+        expiryDate: "2027-01-15",
+        equityRelease: 0,
+        notes: "Current fixed product",
+      },
+    ],
   },
 ];
 
@@ -207,6 +271,23 @@ let demoUserMode = localStorage.getItem("valora-demo-user") === "true";
 let authMode = "signup";
 let authListenerAttached = false;
 let isAdminUser = false;
+let activePropertyId = null;
+
+function createId(prefix) {
+  return `${prefix}-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
+}
+
+function normalizePropertyRecord(property) {
+  return {
+    ...property,
+    id: property.id || createId("property"),
+    mortgageProductType: property.mortgageProductType || "Fixed",
+    tenancies: property.tenancies || [],
+    remortgages: property.remortgages || [],
+  };
+}
+
+properties = properties.map(normalizePropertyRecord);
 
 function formatDate(dateString) {
   if (!dateString) return "-";
@@ -249,6 +330,9 @@ function renderPremiumDashboard() {
     ...properties.map((property) => {
       const card = document.createElement("article");
       card.className = "property-card";
+      card.setAttribute("role", "button");
+      card.setAttribute("tabindex", "0");
+      card.dataset.propertyId = property.id;
       const mortgageInterest = property.mortgageBalance * (property.rate / 100 / 12);
       const cashflow = propertyCashflow(property);
       const expiryDays = daysUntil(property.mortgageExpiry);
@@ -259,7 +343,7 @@ function renderPremiumDashboard() {
             <h3>${property.name}</h3>
             <span class="field-hint">${property.region} · ${property.letType}</span>
           </div>
-          <span class="pill">${expiryDays <= 120 ? "Remortgage soon" : "Tracked"}</span>
+          <span class="pill">${expiryDays <= 120 ? "Remortgage soon" : property.mortgageProductType || "Tracked"}</span>
         </div>
         <div class="property-meta">
           <div><span>Purchase price</span><strong>${money.format(property.purchasePrice)}</strong></div>
@@ -272,12 +356,120 @@ function renderPremiumDashboard() {
           <div><span>Mortgage interest</span><strong>${money.format(mortgageInterest)}</strong></div>
         </div>
         <div class="property-expiry"><span>Expiry</span><strong>${property.mortgageExpiry}</strong></div>
+        <p class="field-hint">Open property record for tenancy and remortgage history.</p>
       `;
       return card;
     }),
   );
 
   renderReminders();
+}
+
+function activeProperty() {
+  return properties.find((property) => property.id === activePropertyId);
+}
+
+function switchPropertyDetailTab(tabName) {
+  switchSection(
+    premium.propertyDetailTabButtons,
+    premium.propertyDetailPanels,
+    tabName,
+    "propertyDetailTab",
+    "propertyDetailPanel",
+  );
+}
+
+function renderPropertyDetail() {
+  const property = activeProperty();
+  if (!property) return;
+
+  premium.propertyDetailTitle.textContent = property.name;
+  document.querySelector("#detailTenancyRent").value = property.rent || "";
+  document.querySelector("#detailMortgageProduct").value = property.mortgageProductType || "Fixed";
+  document.querySelector("#detailMortgageRate").value = property.rate || "";
+  document.querySelector("#detailMortgageBalance").value = property.mortgageBalance || "";
+  document.querySelector("#detailMortgageEnd").value = property.mortgageExpiry || "";
+  premium.propertyDetailSummary.innerHTML = `
+    <div><span>Region</span><strong>${property.region}</strong></div>
+    <div><span>Let type</span><strong>${property.letType}</strong></div>
+    <div><span>Purchase price</span><strong>${money.format(property.purchasePrice)}</strong></div>
+    <div><span>Current value</span><strong>${money.format(property.currentValue)}</strong></div>
+    <div><span>Mortgage balance</span><strong>${money.format(property.mortgageBalance)}</strong></div>
+    <div><span>Mortgage product</span><strong>${property.mortgageProductType || "Fixed"}</strong></div>
+    <div><span>Rate</span><strong>${Number(property.rate || 0).toFixed(2)}%</strong></div>
+    <div><span>Expiry</span><strong>${property.mortgageExpiry || "-"}</strong></div>
+  `;
+
+  premium.tenancyHistoryList.replaceChildren(
+    ...((property.tenancies || []).map((tenancy) => {
+      const row = document.createElement("div");
+      row.className = "detail-row";
+      row.innerHTML = `
+        <div><span>Tenant</span><strong>${tenancy.tenantName || "-"}</strong></div>
+        <div><span>Contact</span><strong>${tenancy.tenantContact || "-"}</strong></div>
+        <div><span>Start</span><strong>${formatDate(tenancy.startDate)}</strong></div>
+        <div><span>Move-out</span><strong>${formatDate(tenancy.endDate)}</strong></div>
+        <div><span>Rent</span><strong>${money.format(Number(tenancy.rent || 0))}</strong></div>
+        <div><span>Contracts</span><strong>${(tenancy.documents || []).join(", ") || "-"}</strong></div>
+      `;
+      return row;
+    })),
+  );
+
+  if (!(property.tenancies || []).length) {
+    premium.tenancyHistoryList.innerHTML = `<div class="detail-row muted-row">No tenancy records yet</div>`;
+  }
+
+  premium.remortgageHistoryList.replaceChildren(
+    ...((property.remortgages || []).map((event) => {
+      const row = document.createElement("div");
+      row.className = "detail-row";
+      row.innerHTML = `
+        <div><span>Product</span><strong>${event.productType || "-"}</strong></div>
+        <div><span>Rate</span><strong>${Number(event.rate || 0).toFixed(2)}%</strong></div>
+        <div><span>Balance</span><strong>${money.format(Number(event.balance || 0))}</strong></div>
+        <div><span>Length</span><strong>${event.termMonths || "-"} months</strong></div>
+        <div><span>Start</span><strong>${formatDate(event.startDate)}</strong></div>
+        <div><span>End</span><strong>${formatDate(event.expiryDate)}</strong></div>
+        <div><span>Equity release</span><strong>${money.format(Number(event.equityRelease || 0))}</strong></div>
+        <div><span>Notes</span><strong>${event.notes || "-"}</strong></div>
+      `;
+      return row;
+    })),
+  );
+
+  if (!(property.remortgages || []).length) {
+    premium.remortgageHistoryList.innerHTML = `<div class="detail-row muted-row">No remortgage records yet</div>`;
+  }
+}
+
+function openPropertyDetail(propertyId) {
+  activePropertyId = propertyId;
+  renderPropertyDetail();
+  switchPropertyDetailTab("overview");
+  premium.deletePropertyMessage.textContent = "Deleting a property removes it from your portfolio and lender export.";
+  premium.propertyDetailModal.hidden = false;
+}
+
+async function deleteActiveProperty() {
+  const property = activeProperty();
+  if (!property) return;
+
+  const confirmed = window.confirm(`Delete ${property.name}? This cannot be undone.`);
+  if (!confirmed) return;
+
+  if (supabaseClient && property.id && !property.id.startsWith("demo-")) {
+    const { error } = await supabaseClient.from("properties").delete().eq("id", property.id);
+    if (error) {
+      premium.deletePropertyMessage.textContent = error.message;
+      return;
+    }
+  }
+
+  properties = properties.filter((item) => item.id !== property.id);
+  activePropertyId = null;
+  premium.propertyDetailModal.hidden = true;
+  renderPremiumDashboard();
 }
 
 function ordinalSuffix(day) {
@@ -645,6 +837,22 @@ async function loadSupabaseProperties(userId) {
     return false;
   }
 
+  const propertyIds = (data || []).map((property) => property.id);
+  const { data: tenancies } = propertyIds.length
+    ? await supabaseClient
+        .from("tenancy_periods")
+        .select("*")
+        .in("property_id", propertyIds)
+        .order("tenancy_start_date", { ascending: false })
+    : { data: [] };
+  const { data: remortgages } = propertyIds.length
+    ? await supabaseClient
+        .from("remortgage_events")
+        .select("*")
+        .in("property_id", propertyIds)
+        .order("start_date", { ascending: false })
+    : { data: [] };
+
   if (data?.length) {
     properties = data.map((property) => ({
       id: property.id,
@@ -656,6 +864,7 @@ async function loadSupabaseProperties(userId) {
       currentValue: Number(property.current_value),
       deposit: Number(property.deposit_paid),
       mortgageBalance: Number(property.mortgage_balance),
+      mortgageProductType: property.mortgage_product_type || "Fixed",
       rate: Number(property.mortgage_rate),
       mortgageExpiry: property.mortgage_expiry_date,
       rent: Number(property.monthly_rent),
@@ -666,6 +875,30 @@ async function loadSupabaseProperties(userId) {
       rentReminder: property.rent_reminder_enabled ? "On" : "Off",
       landlordRegistration: property.landlord_registration_number,
       documents: "",
+      tenancies: (tenancies || [])
+        .filter((tenancy) => tenancy.property_id === property.id)
+        .map((tenancy) => ({
+          id: tenancy.id,
+          tenantName: tenancy.tenant_name,
+          tenantContact: tenancy.tenant_contact,
+          startDate: tenancy.tenancy_start_date,
+          endDate: tenancy.tenancy_end_date,
+          rent: Number(tenancy.monthly_rent),
+          documents: tenancy.document_names || [],
+        })),
+      remortgages: (remortgages || [])
+        .filter((event) => event.property_id === property.id)
+        .map((event) => ({
+          id: event.id,
+          productType: event.product_type,
+          rate: Number(event.rate),
+          balance: Number(event.mortgage_balance),
+          termMonths: event.term_months,
+          startDate: event.start_date,
+          expiryDate: event.expiry_date,
+          equityRelease: Number(event.equity_released),
+          notes: event.notes,
+        })),
     }));
   }
 
@@ -673,15 +906,17 @@ async function loadSupabaseProperties(userId) {
 }
 
 async function savePropertyToSupabase(property) {
-  if (!supabaseClient) return;
+  if (!supabaseClient) return null;
 
   const {
     data: { user },
   } = await supabaseClient.auth.getUser();
 
-  if (!user) return;
+  if (!user) return null;
 
-  await supabaseClient.from("properties").insert({
+  const { data, error } = await supabaseClient
+    .from("properties")
+    .insert({
     user_id: user.id,
     name: property.name,
     region: property.region.toLowerCase(),
@@ -691,6 +926,7 @@ async function savePropertyToSupabase(property) {
     current_value: property.currentValue,
     deposit_paid: property.deposit,
     mortgage_balance: property.mortgageBalance,
+    mortgage_product_type: property.mortgageProductType,
     mortgage_rate: property.rate,
     mortgage_expiry_date: property.mortgageExpiry || null,
     monthly_rent: property.rent,
@@ -702,7 +938,83 @@ async function savePropertyToSupabase(property) {
     tenant_phone: property.tenantContact?.includes("@") ? null : property.tenantContact || null,
     landlord_registration_number: property.landlordRegistration || null,
     notes: property.documents || null,
-  });
+    })
+    .select("id")
+    .single();
+
+  if (error) return null;
+  return data?.id || null;
+}
+
+async function saveTenancyToSupabase(property, tenancy) {
+  if (!supabaseClient || !property.id || property.id.startsWith("demo-")) return null;
+
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabaseClient
+    .from("tenancy_periods")
+    .insert({
+      user_id: user.id,
+      property_id: property.id,
+      tenant_name: tenancy.tenantName || null,
+      tenant_contact: tenancy.tenantContact || null,
+      tenancy_start_date: tenancy.startDate || null,
+      tenancy_end_date: tenancy.endDate || null,
+      monthly_rent: tenancy.rent || 0,
+      document_names: tenancy.documents || [],
+    })
+    .select("id")
+    .single();
+
+  if (error) return null;
+  return data?.id || null;
+}
+
+async function saveRemortgageToSupabase(property, remortgage) {
+  if (!supabaseClient || !property.id || property.id.startsWith("demo-")) return null;
+
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabaseClient
+    .from("remortgage_events")
+    .insert({
+      user_id: user.id,
+      property_id: property.id,
+      product_type: remortgage.productType,
+      rate: remortgage.rate || 0,
+      mortgage_balance: remortgage.balance || 0,
+      term_months: remortgage.termMonths || null,
+      start_date: remortgage.startDate || null,
+      expiry_date: remortgage.expiryDate || null,
+      equity_released: remortgage.equityRelease || 0,
+      notes: remortgage.notes || null,
+    })
+    .select("id")
+    .single();
+
+  if (error) return null;
+  return data?.id || null;
+}
+
+async function updateSupabasePropertySnapshot(property) {
+  if (!supabaseClient || !property.id || property.id.startsWith("demo-")) return;
+
+  await supabaseClient
+    .from("properties")
+    .update({
+      monthly_rent: property.rent,
+      mortgage_balance: property.mortgageBalance,
+      mortgage_product_type: property.mortgageProductType,
+      mortgage_rate: property.rate,
+      mortgage_expiry_date: property.mortgageExpiry || null,
+    })
+    .eq("id", property.id);
 }
 
 function getAuthRedirectUrl() {
@@ -1477,6 +1789,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     outputs.taxModal.hidden = true;
     premium.propertyModal.hidden = true;
+    premium.propertyDetailModal.hidden = true;
   }
 });
 
@@ -1593,9 +1906,100 @@ premium.propertyModal.addEventListener("click", (event) => {
   }
 });
 
-premium.propertyForm.addEventListener("submit", (event) => {
+premium.propertyList.addEventListener("click", (event) => {
+  const card = event.target.closest("[data-property-id]");
+  if (!card) return;
+  openPropertyDetail(card.dataset.propertyId);
+});
+
+premium.propertyList.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const card = event.target.closest("[data-property-id]");
+  if (!card) return;
+  event.preventDefault();
+  openPropertyDetail(card.dataset.propertyId);
+});
+
+premium.closePropertyDetailModal.addEventListener("click", () => {
+  premium.propertyDetailModal.hidden = true;
+});
+
+premium.propertyDetailModal.addEventListener("click", (event) => {
+  if (event.target === premium.propertyDetailModal) {
+    premium.propertyDetailModal.hidden = true;
+  }
+});
+
+premium.propertyDetailTabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    switchPropertyDetailTab(button.dataset.propertyDetailTab);
+  });
+});
+
+premium.deletePropertyButton.addEventListener("click", () => {
+  deleteActiveProperty();
+});
+
+premium.tenancyForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const property = activeProperty();
+  if (!property) return;
+
+  const files = Array.from(document.querySelector("#detailTenancyFiles").files || []).map((file) => file.name);
+  const tenancy = {
+    id: createId("tenancy"),
+    tenantName: document.querySelector("#detailTenantName").value,
+    tenantContact: document.querySelector("#detailTenantContact").value,
+    startDate: document.querySelector("#detailTenancyStart").value,
+    endDate: document.querySelector("#detailTenancyEnd").value,
+    rent: Number(document.querySelector("#detailTenancyRent").value) || 0,
+    documents: files,
+  };
+
+  const savedId = await saveTenancyToSupabase(property, tenancy);
+  if (savedId) tenancy.id = savedId;
+  property.tenancies = [tenancy, ...(property.tenancies || [])];
+  if (tenancy.rent) property.rent = tenancy.rent;
+  await updateSupabasePropertySnapshot(property);
+  renderPremiumDashboard();
+  renderPropertyDetail();
+  premium.tenancyForm.reset();
+});
+
+premium.remortgageForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const property = activeProperty();
+  if (!property) return;
+
+  const remortgage = {
+    id: createId("remortgage"),
+    productType: document.querySelector("#detailMortgageProduct").value,
+    rate: Number(document.querySelector("#detailMortgageRate").value) || 0,
+    balance: Number(document.querySelector("#detailMortgageBalance").value) || 0,
+    termMonths: Number(document.querySelector("#detailMortgageTermMonths").value) || null,
+    startDate: document.querySelector("#detailMortgageStart").value,
+    expiryDate: document.querySelector("#detailMortgageEnd").value,
+    equityRelease: Number(document.querySelector("#detailEquityRelease").value) || 0,
+    notes: document.querySelector("#detailMortgageNotes").value,
+  };
+
+  const savedId = await saveRemortgageToSupabase(property, remortgage);
+  if (savedId) remortgage.id = savedId;
+  property.remortgages = [remortgage, ...(property.remortgages || [])];
+  property.mortgageProductType = remortgage.productType;
+  if (remortgage.rate) property.rate = remortgage.rate;
+  if (remortgage.balance) property.mortgageBalance = remortgage.balance;
+  if (remortgage.expiryDate) property.mortgageExpiry = remortgage.expiryDate;
+  await updateSupabasePropertySnapshot(property);
+  renderPremiumDashboard();
+  renderPropertyDetail();
+  premium.remortgageForm.reset();
+});
+
+premium.propertyForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const property = {
+    id: createId("property"),
     name: document.querySelector("#propertyName").value,
     region: document.querySelector("#propertyRegion").value,
     letType: document.querySelector("#propertyLetType").value,
@@ -1604,20 +2008,25 @@ premium.propertyForm.addEventListener("submit", (event) => {
     currentValue: Number(document.querySelector("#propertyCurrentValue").value) || 0,
     deposit: Number(document.querySelector("#propertyDeposit").value) || 0,
     mortgageBalance: Number(document.querySelector("#propertyMortgage").value) || 0,
+    mortgageProductType: document.querySelector("#propertyMortgageProduct").value,
     rate: Number(document.querySelector("#propertyRate").value) || 0,
     mortgageExpiry: document.querySelector("#propertyMortgageExpiry").value,
     rent: Number(document.querySelector("#propertyRent").value) || 0,
     expenses: Number(document.querySelector("#propertyExpenses").value) || 0,
-    tenantName: document.querySelector("#tenantName").value,
-    tenantContact: document.querySelector("#tenantContact").value,
-    rentDueDay: Number(document.querySelector("#rentDueDay").value) || 1,
-    rentReminder: document.querySelector("#rentReminder").value,
+    tenantName: "",
+    tenantContact: "",
+    rentDueDay: 1,
+    rentReminder: "Off",
     landlordRegistration: document.querySelector("#landlordRegistration").value,
-    documents: document.querySelector("#propertyDocuments").value,
+    documents: "",
+    tenancies: [],
+    remortgages: [],
   };
 
+  const savedId = await savePropertyToSupabase(property);
+  if (savedId) property.id = savedId;
+
   properties = [property, ...properties];
-  savePropertyToSupabase(property);
   trackEvent("property_added", { property_name: property.name, region: property.region });
   premium.propertyModal.hidden = true;
   renderPremiumDashboard();

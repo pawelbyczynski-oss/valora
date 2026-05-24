@@ -537,6 +537,14 @@
             </div>
           </label>
           <label>
+            <span>Mortgage product</span>
+            <select id="propertyMortgageProduct">
+              <option>Fixed</option>
+              <option>Tracker</option>
+              <option>Variable</option>
+            </select>
+          </label>
+          <label>
             <span>Deal expiry</span>
             <input id="propertyMortgageExpiry" type="date" value="2026-09-30" />
           </label>
@@ -549,34 +557,123 @@
             <input id="propertyExpenses" type="number" value="220" />
           </label>
           <label>
-            <span>Tenant name (optional)</span>
-            <input id="tenantName" value="Jamie Fraser" />
-          </label>
-          <label>
-            <span>Tenant contact (optional)</span>
-            <input id="tenantContact" value="jamie@example.com" />
-          </label>
-          <label>
-            <span>Rent due day</span>
-            <input id="rentDueDay" type="number" min="1" max="31" value="10" />
-          </label>
-          <label>
-            <span>Rent reminder</span>
-            <select id="rentReminder">
-              <option>On</option>
-              <option>Off</option>
-            </select>
-          </label>
-          <label>
             <span>Landlord registration number</span>
             <input id="landlordRegistration" value="123456/260/12340" />
           </label>
-          <label>
-            <span>Documents</span>
-            <input id="propertyDocuments" value="Tenancy agreement, mortgage offer, gas safety" />
-          </label>
           <button class="tax-button" type="submit">Save property</button>
         </form>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="propertyDetailModal" hidden>
+      <section class="tax-modal property-detail-modal" role="dialog" aria-modal="true" aria-labelledby="propertyDetailTitle">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Property record</p>
+            <h2 id="propertyDetailTitle">Property details</h2>
+          </div>
+          <button class="close-button" id="closePropertyDetailModal" type="button" aria-label="Close property details">×</button>
+        </div>
+
+        <div class="section-tabs detail-tabs" aria-label="Property detail sections">
+          <button class="section-tab active" type="button" data-property-detail-tab="overview">Overview</button>
+          <button class="section-tab" type="button" data-property-detail-tab="tenancies">Long-term rents</button>
+          <button class="section-tab" type="button" data-property-detail-tab="remortgages">Remortgage history</button>
+        </div>
+
+        <section class="property-detail-panel" data-property-detail-panel="overview">
+          <div class="property-detail-summary" id="propertyDetailSummary"></div>
+          <button class="secondary-button danger-button" id="deletePropertyButton" type="button">Delete property</button>
+          <p class="field-hint" id="deletePropertyMessage">Deleting a property removes it from your portfolio and lender export.</p>
+        </section>
+
+        <section class="property-detail-panel" data-property-detail-panel="tenancies" hidden>
+          <div class="section-heading">
+            <p class="eyebrow">Tenancy changes</p>
+            <h2>Long-term rent records</h2>
+          </div>
+          <form class="property-form compact-form" id="tenancyForm">
+            <label>
+              <span>Tenant name</span>
+              <input id="detailTenantName" placeholder="Tenant name" />
+            </label>
+            <label>
+              <span>Contact</span>
+              <input id="detailTenantContact" placeholder="Email or phone" />
+            </label>
+            <label>
+              <span>Tenancy start</span>
+              <input id="detailTenancyStart" type="date" />
+            </label>
+            <label>
+              <span>Move-out date</span>
+              <input id="detailTenancyEnd" type="date" />
+            </label>
+            <label>
+              <span>Monthly rent</span>
+              <input id="detailTenancyRent" type="number" step="25" />
+            </label>
+            <label>
+              <span>Contract files</span>
+              <input id="detailTenancyFiles" type="file" multiple />
+            </label>
+            <button class="tax-button" type="submit">Save tenancy record</button>
+          </form>
+          <div class="detail-list" id="tenancyHistoryList"></div>
+        </section>
+
+        <section class="property-detail-panel" data-property-detail-panel="remortgages" hidden>
+          <div class="section-heading">
+            <p class="eyebrow">Mortgage changes</p>
+            <h2>Remortgage history</h2>
+          </div>
+          <form class="property-form compact-form" id="remortgageForm">
+            <label>
+              <span>Product type</span>
+              <select id="detailMortgageProduct">
+                <option>Fixed</option>
+                <option>Tracker</option>
+                <option>Variable</option>
+              </select>
+            </label>
+            <label>
+              <span>New rate</span>
+              <div class="input-suffix">
+                <input id="detailMortgageRate" type="number" step="0.05" />
+                <span>%</span>
+              </div>
+            </label>
+            <label>
+              <span>New balance</span>
+              <input id="detailMortgageBalance" type="number" step="1000" />
+            </label>
+            <label>
+              <span>Length</span>
+              <div class="input-suffix">
+                <input id="detailMortgageTermMonths" type="number" step="1" />
+                <span>months</span>
+              </div>
+            </label>
+            <label>
+              <span>Start date</span>
+              <input id="detailMortgageStart" type="date" />
+            </label>
+            <label>
+              <span>Fixed/product end</span>
+              <input id="detailMortgageEnd" type="date" />
+            </label>
+            <label>
+              <span>Equity release</span>
+              <input id="detailEquityRelease" type="number" step="1000" />
+            </label>
+            <label>
+              <span>Lender / notes</span>
+              <input id="detailMortgageNotes" placeholder="Lender, broker or notes" />
+            </label>
+            <button class="tax-button" type="submit">Save remortgage record</button>
+          </form>
+          <div class="detail-list" id="remortgageHistoryList"></div>
+        </section>
       </section>
     </div>
 

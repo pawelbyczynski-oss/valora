@@ -453,6 +453,14 @@ select {
   padding: 14px;
   display: grid;
   gap: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.property-card:hover,
+.property-card:focus-visible {
+  border-color: rgba(90, 255, 217, 0.55);
+  outline: none;
 }
 
 .property-card-head {
@@ -601,8 +609,62 @@ select {
   gap: 12px;
 }
 
-.property-form .tax-button {
+.property-form .tax-button,
+.compact-form .tax-button {
   grid-column: 1 / -1;
+}
+
+.property-detail-modal {
+  max-width: 920px;
+}
+
+.detail-tabs {
+  position: static;
+  margin-bottom: 14px;
+}
+
+.property-detail-summary,
+.detail-list {
+  display: grid;
+  gap: 8px;
+}
+
+.property-detail-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.property-detail-summary div,
+.detail-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 10px;
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.property-detail-summary span,
+.detail-row span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.property-detail-summary strong,
+.detail-row strong {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.danger-button {
+  border-color: rgba(255, 112, 112, 0.45);
+  color: #ffc4c4;
 }
 
 .topbar {
@@ -1122,6 +1184,8 @@ li {
   .metrics-grid,
   .login-grid,
   .portfolio-metrics,
+  .property-detail-summary,
+  .detail-row,
   .subscription-grid,
   .admin-metrics,
   .admin-form,
@@ -1277,6 +1341,10 @@ li {
     background: transparent;
     border: 0;
     padding: 0;
+  }
+
+  .property-card > .field-hint {
+    display: none;
   }
 
   .property-meta {
