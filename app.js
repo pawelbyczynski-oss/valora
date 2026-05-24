@@ -132,6 +132,7 @@ const SUPABASE_URL = window.VALORA_CONFIG?.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = window.VALORA_CONFIG?.SUPABASE_ANON_KEY || "";
 const STRIPE_PRICE_LABEL = "£4.99/month";
 const CHECKOUT_FUNCTION = "create-checkout-session";
+const PORTAL_FUNCTION = "create-billing-portal-session";
 let passwordRecoveryPending =
   window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery");
 const supabaseClient =
@@ -175,6 +176,7 @@ let authMode = "signup";
 let authListenerAttached = false;
 let isAdminUser = false;
 let activePropertyId = null;
+let currentSubscription = null;
 
 function createId(prefix) {
   return `${prefix}-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
@@ -483,6 +485,8 @@ function renderInvoices(invoices = []) {
 }
 
 function renderSubscriptionFallback() {
+  currentSubscription = null;
+
   if (isAdminUser) {
     premium.subscriptionStatus.textContent = "Admin access";
     premium.subscriptionRenewal.textContent = "Not required";
@@ -500,6 +504,8 @@ function renderSubscriptionFallback() {
     premium.subscriptionPaid.textContent = "£0";
     premium.subscriptionSince.textContent = "Early access";
     premium.subscriptionNote.textContent = "Private access code applied. Stripe billing will not be required for this account in the MVP.";
+    premium.manageBilling.textContent = "Billing not required";
+    premium.manageBilling.disabled = true;
     return;
   }
 
@@ -513,6 +519,7 @@ function renderSubscriptionFallback() {
 }
 
 async function loadSubscriptionSummary() {
+  currentSubscription = null;
   renderSubscriptionFallback();
   renderInvoices();
 
@@ -551,6 +558,7 @@ async function loadSubscriptionSummary() {
 
   const subscription = subscriptions?.[0];
   if (!subscription || isAdminUser) return;
+  currentSubscription = subscription;
 
   premium.subscriptionStatus.textContent = subscription.cancel_at_period_end
     ? `${subscription.status} - canceling`
@@ -558,8 +566,8 @@ async function loadSubscriptionSummary() {
   premium.subscriptionRenewal.textContent = formatDate(subscription.current_period_end);
   premium.subscriptionPaid.textContent = moneyFromPence(subscription.total_paid_pence);
   premium.subscriptionSince.textContent = formatDate(subscription.created_at);
-  premium.subscriptionNote.textContent = `Plan: ${moneyFromPence(subscription.amount_monthly_pence || 499)} / month. Stripe billing portal will open here once connected.`;
-  premium.manageBilling.textContent = "Manage billing";
+  premium.subscriptionNote.textContent = `Plan: ${moneyFromPence(subscription.amount_monthly_pence || 499)} / month. Manage card details, invoices and cancellation in Stripe Customer Portal.`;
+  premium.manageBilling.textContent = "Manage subscription";
   premium.manageBilling.disabled = false;
 
   const { data: payments } = await supabaseClient
@@ -610,6 +618,57 @@ async function startStripeCheckout() {
   }
 
   window.location.href = data.url;
+}
+
+async function openStripePortal() {
+  if (isAdminUser) {
+    premium.subscriptionNote.textContent = "Admin accounts do not need Stripe billing.";
+    return;
+  }
+
+  if (!supabaseClient) {
+    premium.subscriptionNote.textContent = "Supabase is not configured yet, so Stripe Customer Portal cannot start.";
+    return;
+  }
+
+  const {
+    data: { session },
+  } = await supabaseClient.auth.getSession();
+
+  if (!session) {
+    premium.subscriptionNote.textContent = "Sign in first, then manage your subscription.";
+    premium.emailLoginForm.hidden = false;
+    premium.loginEmail.focus();
+    return;
+  }
+
+  premium.manageBilling.disabled = true;
+  premium.subscriptionNote.textContent = "Opening Stripe Customer Portal...";
+
+  const { data, error } = await supabaseClient.functions.invoke(PORTAL_FUNCTION, {
+    body: {},
+  });
+
+  premium.manageBilling.disabled = false;
+
+  if (error || !data?.url) {
+    premium.subscriptionNote.textContent =
+      "Stripe Customer Portal is not ready yet. Check STRIPE_SECRET_KEY and Stripe portal settings.";
+    return;
+  }
+
+  window.location.href = data.url;
+}
+
+function handleSubscriptionAction() {
+  const portalStatuses = ["active", "trialing", "past_due", "unpaid", "incomplete"];
+  const canManageSubscription = currentSubscription && portalStatuses.includes(currentSubscription.status);
+  if (canManageSubscription) {
+    openStripePortal();
+    return;
+  }
+
+  startStripeCheckout();
 }
 
 function renderAdminTable(target, rows, columns) {
@@ -1756,7 +1815,7 @@ premium.dashboardPromoForm.addEventListener("submit", async (event) => {
 });
 
 premium.manageBilling.addEventListener("click", () => {
-  startStripeCheckout();
+  handleSubscriptionAction();
 });
 
 premium.logoutButton.addEventListener("click", () => {
