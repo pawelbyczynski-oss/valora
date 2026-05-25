@@ -1,5 +1,5 @@
 alter table public.subscriptions
-add column if not exists plan_name text not null default 'Valora Premium',
+add column if not exists plan_name text not null default 'PropertyPanel Premium',
 add column if not exists amount_monthly_pence integer not null default 499,
 add column if not exists currency text not null default 'gbp',
 add column if not exists current_period_start timestamptz,

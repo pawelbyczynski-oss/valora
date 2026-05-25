@@ -1,4 +1,4 @@
-# Valora Live SaaS Checklist
+# PropertyPanel Live SaaS Checklist
 
 This prototype is currently a static product demo. These files add the production foundation for Supabase, Stripe and email reminders.
 
@@ -61,9 +61,9 @@ The UI is ready as a prototype, and `app.js` now persists demo properties in `lo
 
 Add clear disclaimers before launch:
 
-- Valora is not financial advice.
-- Valora is not tax advice.
-- Valora is not legal advice.
+- PropertyPanel is not financial advice.
+- PropertyPanel is not tax advice.
+- PropertyPanel is not legal advice.
 - Tax and mortgage calculations are estimates.
 - Users should confirm figures with a qualified adviser, accountant, solicitor or broker.
 

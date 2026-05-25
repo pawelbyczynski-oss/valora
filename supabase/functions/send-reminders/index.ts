@@ -19,7 +19,7 @@ Deno.serve(async () => {
   }
 
   const resendKey = Deno.env.get("RESEND_API_KEY");
-  const from = Deno.env.get("REMINDER_FROM_EMAIL") ?? "Valora <reminders@example.com>";
+  const from = Deno.env.get("REMINDER_FROM_EMAIL") ?? "PropertyPanel <reminders@example.com>";
 
   for (const reminder of reminders ?? []) {
     const email = reminder.profiles?.email;

@@ -1,6 +1,6 @@
-# Valora
+# PropertyPanel
 
-Valora is a UK property finance and portfolio prototype for BTL, commercial and portfolio tracking.
+PropertyPanel is a UK property finance and portfolio prototype for BTL, commercial and portfolio tracking.
 
 ## Local preview
 
@@ -24,6 +24,12 @@ This is currently a static HTML/CSS/JS app. In Vercel:
 - Framework preset: `Other`
 - Build command: leave empty
 - Output directory: `.`
+
+Production URL:
+
+```text
+https://valora-property-os.vercel.app
+```
 
 ## Environment variables
 

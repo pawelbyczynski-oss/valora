@@ -7,7 +7,7 @@ const config = {
 
 writeFileSync(
   "config.js",
-  `window.VALORA_CONFIG = ${JSON.stringify(config, null, 2)};\n`,
+  `window.PROPERTY_PANEL_CONFIG = ${JSON.stringify(config, null, 2)};\n`,
 );
 
 console.log("Generated config.js");

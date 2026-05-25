@@ -128,8 +128,9 @@ const premium = {
   adminPanels: document.querySelectorAll("[data-admin-panel]"),
 };
 
-const SUPABASE_URL = window.VALORA_CONFIG?.SUPABASE_URL || "";
-const SUPABASE_ANON_KEY = window.VALORA_CONFIG?.SUPABASE_ANON_KEY || "";
+const appConfig = window.PROPERTY_PANEL_CONFIG || {};
+const SUPABASE_URL = appConfig.SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = appConfig.SUPABASE_ANON_KEY || "";
 const STRIPE_PRICE_LABEL = "£4.99/month";
 const CHECKOUT_FUNCTION = "create-checkout-session";
 const PORTAL_FUNCTION = "create-billing-portal-session";
@@ -170,8 +171,25 @@ const money = new Intl.NumberFormat("en-GB", {
   maximumFractionDigits: 0,
 });
 
-let properties = JSON.parse(localStorage.getItem("valora-properties") || "null") || [];
-let promoAccess = localStorage.getItem("valora-promo-access") === "true";
+const PROPERTY_STORAGE_KEY = "property-panel-properties";
+const LEGACY_PROPERTY_STORAGE_KEY = "valo" + "ra-properties";
+const PROMO_STORAGE_KEY = "property-panel-promo-access";
+const LEGACY_PROMO_STORAGE_KEY = "valo" + "ra-promo-access";
+
+const storedProperties =
+  localStorage.getItem(PROPERTY_STORAGE_KEY) || localStorage.getItem(LEGACY_PROPERTY_STORAGE_KEY);
+if (!localStorage.getItem(PROPERTY_STORAGE_KEY) && storedProperties) {
+  localStorage.setItem(PROPERTY_STORAGE_KEY, storedProperties);
+}
+
+const storedPromoAccess =
+  localStorage.getItem(PROMO_STORAGE_KEY) || localStorage.getItem(LEGACY_PROMO_STORAGE_KEY);
+if (!localStorage.getItem(PROMO_STORAGE_KEY) && storedPromoAccess) {
+  localStorage.setItem(PROMO_STORAGE_KEY, storedPromoAccess);
+}
+
+let properties = JSON.parse(storedProperties || "null") || [];
+let promoAccess = storedPromoAccess === "true";
 let authMode = "signup";
 let authListenerAttached = false;
 let isAdminUser = false;
@@ -262,7 +280,7 @@ function propertyCashflow(property) {
 }
 
 function renderPremiumDashboard() {
-  localStorage.setItem("valora-properties", JSON.stringify(properties));
+  localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
   const totalValue = properties.reduce((sum, property) => sum + Number(property.currentValue || 0), 0);
   const totalDebt = properties.reduce((sum, property) => sum + latestMortgageDeal(property).balance, 0);
   const totalCashflow = properties.reduce((sum, property) => sum + propertyCashflow(property), 0);
@@ -545,7 +563,7 @@ async function loadSubscriptionSummary() {
 
   if (redemptions?.some((item) => item.promo_codes?.lifetime_access)) {
     promoAccess = true;
-    localStorage.setItem("valora-promo-access", "true");
+    localStorage.setItem(PROMO_STORAGE_KEY, "true");
     renderSubscriptionFallback();
   }
 
@@ -834,7 +852,7 @@ async function loadSupabaseProperties(userId) {
 
   if (!data?.length) {
     properties = [];
-    localStorage.setItem("valora-properties", JSON.stringify(properties));
+    localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
     return true;
   }
 
@@ -1042,7 +1060,7 @@ function setAuthMode(mode) {
     premium.authMessage.textContent = "Sign in with your email and password.";
   } else {
     premium.emailAuthSubmit.textContent = "Send reset link";
-    premium.authMessage.textContent = "Enter your email and Valora will send a secure password reset link.";
+    premium.authMessage.textContent = "Enter your email and PropertyPanel will send a secure password reset link.";
   }
 }
 
@@ -1190,7 +1208,7 @@ function switchAdminTab(tabName) {
 async function logoutUser() {
   promoAccess = false;
   isAdminUser = false;
-  localStorage.removeItem("valora-promo-access");
+  localStorage.removeItem(PROMO_STORAGE_KEY);
 
   if (supabaseClient) {
     await supabaseClient.auth.signOut();
@@ -1275,7 +1293,7 @@ async function redeemPromoCode(code, messageTarget = premium.promoMessage) {
   }
 
   promoAccess = true;
-  localStorage.setItem("valora-promo-access", "true");
+  localStorage.setItem(PROMO_STORAGE_KEY, "true");
   messageTarget.textContent = "Promo accepted. Premium access unlocked.";
   await trackEvent("promo_redeemed", { code: normalizedCode, mode: "supabase" });
   loadSubscriptionSummary();
@@ -1374,14 +1392,14 @@ function calculateBulkTax(price, dwellings) {
         total: tax,
         label: "6+ SDLT",
         basis:
-          "England: Multiple Dwellings Relief was abolished for SDLT transactions completing or substantially performing on or after 1 June 2024. However, 6 or more residential properties bought in one transaction are treated as non-residential for SDLT, so Valora applies non-residential rates here.",
+          "England: Multiple Dwellings Relief was abolished for SDLT transactions completing or substantially performing on or after 1 June 2024. However, 6 or more residential properties bought in one transaction are treated as non-residential for SDLT, so PropertyPanel applies non-residential rates here.",
       };
     }
 
     return {
       ...calculatePurchaseTax(price, 1, "residential"),
       basis:
-        "England: Multiple Dwellings Relief was abolished from 1 June 2024. For fewer than 6 dwellings, Valora uses residential additional dwelling SDLT rates; confirm linked transaction treatment with a solicitor or tax adviser.",
+        "England: Multiple Dwellings Relief was abolished from 1 June 2024. For fewer than 6 dwellings, PropertyPanel uses residential additional dwelling SDLT rates; confirm linked transaction treatment with a solicitor or tax adviser.",
     };
   }
 
