@@ -973,8 +973,13 @@ async function startStripeCheckout() {
   premium.manageBilling.disabled = false;
 
   if (error || !data?.url) {
-    premium.subscriptionNote.textContent =
-      "Stripe Checkout is not ready yet. Check Supabase Edge Function secrets and STRIPE_PRICE_ID_MONTHLY.";
+    const context = error?.context;
+    const responseText =
+      context && typeof context.text === "function"
+        ? await context.text().catch(() => "")
+        : "";
+    const message = responseText || error?.message || "No checkout URL returned.";
+    premium.subscriptionNote.textContent = `Stripe Checkout error: ${message}`;
     return;
   }
 
