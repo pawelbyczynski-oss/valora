@@ -45,20 +45,28 @@ Deno.serve(async (request) => {
   if (event.type === "customer.subscription.created" || event.type === "customer.subscription.updated") {
     const subscription = event.data.object as Stripe.Subscription;
     const customerId = String(subscription.customer);
+    const metadataUserId = subscription.metadata?.user_id;
 
     const { data: profile } = await supabase
       .from("profiles")
       .select("id")
       .eq("stripe_customer_id", customerId)
-      .single();
+      .maybeSingle();
 
     const priceId = subscription.items.data[0]?.price.id;
     const amountMonthlyPence = subscription.items.data[0]?.price.unit_amount ?? 499;
     const currency = subscription.items.data[0]?.price.currency ?? "gbp";
 
-    if (profile && priceId) {
+    const userId = profile?.id ?? metadataUserId;
+
+    if (userId && priceId) {
+      await supabase
+        .from("profiles")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", userId);
+
       await supabase.from("subscriptions").upsert({
-        user_id: profile.id,
+        user_id: userId,
         stripe_subscription_id: subscription.id,
         stripe_price_id: priceId,
         status: subscription.status,

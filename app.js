@@ -147,6 +147,8 @@ const SUPABASE_URL = appConfig.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = appConfig.SUPABASE_ANON_KEY || "";
 const CHECKOUT_FUNCTION = "create-checkout-session";
 const PORTAL_FUNCTION = "create-billing-portal-session";
+const SYNC_SUBSCRIPTION_FUNCTION = "sync-subscription";
+const ACTIVE_SUBSCRIPTION_STATUSES = ["active", "trialing"];
 let passwordRecoveryPending =
   window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery");
 const supabaseClient =
@@ -207,7 +209,7 @@ if (!localStorage.getItem(PROMO_STORAGE_KEY) && storedPromoAccess) {
 
 let properties = JSON.parse(storedProperties || "null") || [];
 let transactions = JSON.parse(localStorage.getItem(TRANSACTION_STORAGE_KEY) || "null") || [];
-let promoAccess = storedPromoAccess === "true";
+let promoAccess = false;
 let authMode = "signup";
 let authListenerAttached = false;
 let isAdminUser = false;
@@ -216,6 +218,7 @@ let editingTenancyId = null;
 let editingRemortgageId = null;
 let editingTransactionId = null;
 let currentSubscription = null;
+let subscriptionSyncAttempted = false;
 let selectedPlan = localStorage.getItem(SELECTED_PLAN_STORAGE_KEY) === "pro" ? "pro" : "premium";
 
 function applyTheme(theme) {
@@ -820,10 +823,40 @@ function switchView(viewId) {
 }
 
 function openDashboard() {
+  if (!hasPremiumAccess()) {
+    showSubscriptionRequired();
+    return;
+  }
+
   switchView("dashboardView");
   premium.dashboardPanel.hidden = false;
   switchDashboardTab("overview");
   renderPremiumDashboard();
+}
+
+function hasPremiumAccess() {
+  return (
+    isAdminUser ||
+    promoAccess ||
+    ACTIVE_SUBSCRIPTION_STATUSES.includes(currentSubscription?.status)
+  );
+}
+
+function clearPremiumDataForLockedAccount() {
+  properties = [];
+  transactions = [];
+  localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
+  localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(transactions));
+}
+
+function showSubscriptionRequired(message = "Sign in is working. Choose Premium or Pro to unlock the portfolio dashboard.") {
+  premium.dashboardPanel.hidden = true;
+  premium.propertyDetailModal.hidden = true;
+  premium.propertyModal.hidden = true;
+  switchView("premiumView");
+  document.querySelector("#selectedPlanCopy").textContent = message;
+  premium.subscriptionNote.textContent = message;
+  refreshPlanContinueButton();
 }
 
 function renderInvoices(invoices = []) {
@@ -877,9 +910,14 @@ function checkoutStatusFromUrl() {
   return new URLSearchParams(window.location.search).get("checkout");
 }
 
+function checkoutSessionIdFromUrl() {
+  return new URLSearchParams(window.location.search).get("session_id") || "";
+}
+
 function cleanCheckoutUrl() {
   const url = new URL(window.location.href);
   url.searchParams.delete("checkout");
+  url.searchParams.delete("session_id");
   if (url.href !== window.location.href) {
     window.history.replaceState({}, "", url.toString());
   }
@@ -937,6 +975,7 @@ function renderSubscriptionFallback() {
 
 async function loadSubscriptionSummary() {
   currentSubscription = null;
+  promoAccess = false;
   renderSubscriptionFallback();
   renderInvoices();
 
@@ -995,6 +1034,32 @@ async function loadSubscriptionSummary() {
     .limit(8);
 
   renderInvoices(payments || []);
+}
+
+async function syncSubscriptionFromStripe(sessionId = "") {
+  if (!supabaseClient) return false;
+
+  const {
+    data: { session },
+  } = await supabaseClient.auth.getSession();
+  if (!session) return false;
+
+  const { data, error } = await supabaseClient.functions.invoke(SYNC_SUBSCRIPTION_FUNCTION, {
+    body: { session_id: sessionId },
+  });
+
+  if (error || data?.error) {
+    const context = error?.context;
+    const responseText =
+      context && typeof context.text === "function"
+        ? await context.text().catch(() => "")
+        : "";
+    const message = data?.error || responseText || error?.message || "Could not sync Stripe subscription yet.";
+    premium.subscriptionNote.textContent = `Payment completed, but subscription sync failed: ${message}`;
+    return false;
+  }
+
+  return data?.synced === true;
 }
 
 async function startStripeCheckout(plan = selectedPlan) {
@@ -1790,6 +1855,7 @@ async function initAuth() {
     data: { session },
   } = await supabaseClient.auth.getSession();
   const checkoutStatus = checkoutStatusFromUrl();
+  const checkoutSessionId = checkoutSessionIdFromUrl();
 
   if (isPasswordRecoveryUrl()) {
     showPasswordRecoveryForm();
@@ -1797,9 +1863,18 @@ async function initAuth() {
   }
 
   if (session?.user) {
-    await loadSupabaseProperties(session.user.id);
-    await loadSupabaseTransactions(session.user.id);
+    if (checkoutStatus === "success") {
+      premium.subscriptionNote.textContent = "Payment completed. Syncing your subscription...";
+      await syncSubscriptionFromStripe(checkoutSessionId);
+    }
+
     await loadSubscriptionSummary();
+    if (!hasPremiumAccess() && !subscriptionSyncAttempted) {
+      subscriptionSyncAttempted = true;
+      await syncSubscriptionFromStripe(checkoutSessionId);
+      await loadSubscriptionSummary();
+    }
+
     if (checkoutStatus === "success") {
       premium.subscriptionNote.textContent = "Payment completed. Refreshing your subscription status...";
       setTimeout(() => loadSubscriptionSummary(), 2500);
@@ -1808,6 +1883,35 @@ async function initAuth() {
     }
     await loadAdminOverview();
     await refreshPlanContinueButton();
+
+    if (!hasPremiumAccess()) {
+      clearPremiumDataForLockedAccount();
+      showSubscriptionRequired(
+        checkoutStatus === "success"
+          ? "Payment completed, but Stripe has not confirmed an active subscription yet. Try refresh in a moment or check the Stripe webhook."
+          : "Your account is signed in, but the portfolio dashboard needs an active Premium or Pro subscription.",
+      );
+      if (checkoutStatus === "success") {
+        setTimeout(async () => {
+          await syncSubscriptionFromStripe(checkoutSessionId);
+          await loadSubscriptionSummary();
+          if (hasPremiumAccess()) {
+            await loadSupabaseProperties(session.user.id);
+            await loadSupabaseTransactions(session.user.id);
+            openDashboard();
+            switchDashboardTab("subscription");
+          }
+        }, 3000);
+      }
+      if (checkoutStatus) {
+        sessionStorage.removeItem(CHECKOUT_PENDING_STORAGE_KEY);
+        cleanCheckoutUrl();
+      }
+      return;
+    }
+
+    await loadSupabaseProperties(session.user.id);
+    await loadSupabaseTransactions(session.user.id);
     openDashboard();
     if (checkoutStatus) {
       switchDashboardTab("subscription");
