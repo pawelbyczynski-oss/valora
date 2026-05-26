@@ -602,7 +602,17 @@ function renderDocuments() {
     return;
   }
 
+  const heading = document.createElement("div");
+  heading.className = "document-row document-row-head";
+  heading.innerHTML = `
+    <span>Document</span>
+    <span>Property</span>
+    <span>Status</span>
+    <span>Actions</span>
+  `;
+
   premium.documentList.replaceChildren(
+    heading,
     ...documents.map((document) => {
       const row = document.createElement("div");
       row.className = "document-row";
@@ -616,12 +626,19 @@ function renderDocuments() {
               ? "AI processing"
               : "Stored";
 
+      const aiSummary = document.aiResult?.transactions?.length
+        ? `${document.aiResult.transactions.length} drafts`
+        : document.aiResult?.amount
+          ? `${money.format(Number(document.aiResult.amount || 0))} draft`
+          : "";
+
       row.innerHTML = `
-        <span>${document.label}<small>${documentPropertyName(document.propertyId)} · ${document.documentType} · ${fileSizeLabel(document.fileSize)}${document.expiryDate ? ` · expires ${formatDate(document.expiryDate)}` : ""}</small></span>
-        <strong>${aiText}</strong>
+        <span>${document.label}<small>${document.documentType} · ${document.fileName || "File"} · ${fileSizeLabel(document.fileSize)}</small></span>
+        <span>${documentPropertyName(document.propertyId)}<small>${document.expiryDate ? `Expires ${formatDate(document.expiryDate)}` : "No expiry"}</small></span>
+        <strong>${aiText}<small>${aiSummary}</small></strong>
         <div class="detail-actions">
           <button class="secondary-button small-button" type="button" data-download-document="${document.id}">Open</button>
-          <button class="secondary-button small-button" type="button" data-analyze-document="${document.id}">AI scan</button>
+          <button class="tax-button small-button" type="button" data-analyze-document="${document.id}">Scan & split</button>
           <button class="secondary-button small-button danger-button" type="button" data-delete-document="${document.id}">Delete</button>
         </div>
       `;
@@ -1820,6 +1837,7 @@ async function deleteDocumentFromSupabase(document) {
 
 async function openDocument(document) {
   if (!supabaseClient || !document.storagePath) return;
+  premium.documentMessage.textContent = "Opening document...";
   const { data, error } = await supabaseClient.storage
     .from("property-documents")
     .createSignedUrl(document.storagePath, 300);
@@ -1827,7 +1845,14 @@ async function openDocument(document) {
     premium.documentMessage.textContent = error?.message || "Could not open document.";
     return;
   }
-  window.open(data.signedUrl, "_blank", "noreferrer");
+  const link = document.createElement("a");
+  link.href = data.signedUrl;
+  link.target = "_blank";
+  link.rel = "noreferrer";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  premium.documentMessage.textContent = "Document opened in a new tab.";
 }
 
 async function analyzeDocument(documentId) {
@@ -1844,7 +1869,7 @@ async function analyzeDocument(documentId) {
     return;
   }
 
-  premium.documentMessage.textContent = `Scanning ${document.label}...`;
+  premium.documentMessage.textContent = `Scanning and splitting ${document.label} into draft transactions...`;
   document.aiStatus = "processing";
   renderDocuments();
 
@@ -1865,10 +1890,12 @@ async function analyzeDocument(documentId) {
     return;
   }
 
-  premium.documentMessage.textContent = "AI draft created. Review it in Transactions.";
+  const draftCount = data?.draft_transaction_ids?.length || (data?.draft_transaction_id ? 1 : 0);
+  premium.documentMessage.textContent = `AI created ${draftCount} draft ${draftCount === 1 ? "transaction" : "transactions"}. Review before approving.`;
   await loadSupabaseDocuments((await supabaseClient.auth.getUser()).data.user.id);
   await loadSupabaseTransactions((await supabaseClient.auth.getUser()).data.user.id);
   renderPremiumDashboard();
+  switchDashboardTab("transactions");
 }
 
 async function saveTenancyToSupabase(property, tenancy) {

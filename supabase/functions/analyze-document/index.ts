@@ -37,6 +37,39 @@ function parseJsonObject(text: string) {
   }
 }
 
+function normaliseDrafts(parsed: any, fallbackType: string) {
+  const rawTransactions = Array.isArray(parsed?.transactions)
+    ? parsed.transactions
+    : Array.isArray(parsed?.items)
+      ? parsed.items
+      : parsed?.amount
+        ? [parsed]
+        : [];
+
+  return rawTransactions
+    .map((item: any) => {
+      const amount = Number(item.amount || item.total || item.value || 0);
+      if (!amount || amount <= 0) return null;
+
+      const transactionType = item.transaction_type === "income" ? "income" : "expense";
+      const taxTreatment = ["revenue", "capital", "review"].includes(item.tax_treatment)
+        ? item.tax_treatment
+        : "review";
+
+      return {
+        transaction_date: item.transaction_date || item.date || parsed.transaction_date || new Date().toISOString().slice(0, 10),
+        amount,
+        transaction_type: transactionType,
+        category: item.category || parsed.category || fallbackType || "Document draft",
+        tax_treatment: taxTreatment,
+        supplier: item.supplier || parsed.supplier || "",
+        summary: item.summary || item.description || parsed.summary || "",
+        confidence: item.confidence || parsed.confidence || "review",
+      };
+    })
+    .filter(Boolean);
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return response({ error: "Method not allowed" }, 405);
@@ -110,7 +143,7 @@ Deno.serve(async (request) => {
     const base64 = bytesToBase64(bytes);
 
     const prompt =
-      "Extract a landlord bookkeeping draft from this UK property document. Return only JSON with keys: transaction_date, amount, transaction_type, category, tax_treatment, supplier, summary, confidence. transaction_type must be income or expense. tax_treatment must be revenue, capital, or review. Use review if unsure.";
+      "Extract UK landlord bookkeeping draft transactions from this property document. Split separate charge lines into separate transactions where useful, for example repairs, cleaning, management fees, insurance, service charge, ground rent, utilities or rent income. Assign all transactions to the uploaded property. Return only JSON with keys: document_summary and transactions. transactions must be an array of objects with transaction_date, amount, transaction_type, category, tax_treatment, supplier, summary, confidence. transaction_type must be income or expense. tax_treatment must be revenue, capital, or review. Use review if unsure.";
 
     const aiResponse = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
@@ -145,45 +178,44 @@ Deno.serve(async (request) => {
     const parsed = parseJsonObject(outputTextFromResponse(payload));
     if (!parsed) throw new Error("AI did not return a JSON draft.");
 
-    const amount = Number(parsed.amount || 0);
-    const transactionType = parsed.transaction_type === "income" ? "income" : "expense";
-    const taxTreatment = ["revenue", "capital", "review"].includes(parsed.tax_treatment)
-      ? parsed.tax_treatment
-      : "review";
+    const drafts = normaliseDrafts(parsed, document.document_type);
+    if (!drafts.length) throw new Error("AI did not find any transaction lines to draft.");
 
-    let draftTransactionId = null;
-    if (amount > 0) {
+    const draftTransactionIds = [];
+    for (const draft of drafts) {
       const { data: transaction } = await supabaseAdmin
         .from("property_transactions")
         .insert({
           user_id: user.id,
           property_id: document.property_id,
           document_id: document.id,
-          transaction_date: parsed.transaction_date || new Date().toISOString().slice(0, 10),
-          amount,
-          transaction_type: transactionType,
-          category: parsed.category || document.document_type || "Document draft",
-          tax_treatment: taxTreatment,
+          transaction_date: draft.transaction_date,
+          amount: draft.amount,
+          transaction_type: draft.transaction_type,
+          category: draft.category,
+          tax_treatment: draft.tax_treatment,
           source: "ai",
           status: "draft",
-          notes: parsed.summary || parsed.supplier || null,
+          notes: [draft.supplier, draft.summary, `AI confidence: ${draft.confidence}`].filter(Boolean).join(" - ") || null,
         })
         .select("id")
         .single();
-      draftTransactionId = transaction?.id || null;
+      if (transaction?.id) draftTransactionIds.push(transaction.id);
     }
+
+    const result = { ...parsed, transactions: drafts };
 
     await supabaseAdmin
       .from("documents")
       .update({
         ai_status: "review",
-        ai_result: parsed,
+        ai_result: result,
         ai_error: null,
         ai_scanned_at: new Date().toISOString(),
       })
       .eq("id", document.id);
 
-    return response({ result: parsed, draft_transaction_id: draftTransactionId });
+    return response({ result, draft_transaction_ids: draftTransactionIds });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown AI extraction error";
     await supabaseAdmin
