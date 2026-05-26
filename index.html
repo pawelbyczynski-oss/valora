@@ -20,6 +20,7 @@
         <button class="nav-button active" type="button" data-view="homeView">Calculator</button>
         <button class="nav-button" type="button" data-view="premiumView">Premium</button>
         <button class="nav-button" type="button" data-view="loginView">Sign in</button>
+        <button class="nav-button theme-toggle" id="themeToggle" type="button" aria-pressed="false">Dark</button>
         <button class="nav-button admin-nav" type="button" data-view="adminView" hidden>Admin</button>
       </div>
     </nav>
@@ -705,8 +706,24 @@
 
         <form class="property-form" id="propertyForm">
           <label>
-            <span>Property name</span>
-            <input id="propertyName" required value="Flat 4, Glasgow" />
+            <span>Display name</span>
+            <input id="propertyName" placeholder="e.g. Oakfield Road" />
+          </label>
+          <label>
+            <span>Address line 1</span>
+            <input id="propertyAddress1" required placeholder="e.g. Flat 2, 12 Oakfield Road" />
+          </label>
+          <label>
+            <span>Address line 2</span>
+            <input id="propertyAddress2" placeholder="Optional" />
+          </label>
+          <label>
+            <span>Town / City</span>
+            <input id="propertyTown" required placeholder="e.g. Bristol" />
+          </label>
+          <label>
+            <span>Postcode</span>
+            <input id="propertyPostcode" required placeholder="e.g. BS8 2AA" autocomplete="postal-code" />
           </label>
           <label>
             <span>Region</span>
@@ -723,24 +740,47 @@
             </select>
           </label>
           <label>
+            <span>Ownership model</span>
+            <select id="propertyOwnershipModel">
+              <option>Owned</option>
+              <option>Managed</option>
+              <option>Rent-to-rent</option>
+            </select>
+          </label>
+          <label>
+            <span>Guaranteed rent to landlord</span>
+            <input id="propertyGuaranteedRent" type="number" step="25" />
+          </label>
+          <label>
+            <span>Maintenance model</span>
+            <select id="propertyMaintenanceModel">
+              <option>Landlord charged for repairs</option>
+              <option>Operator covers repairs for monthly fee</option>
+            </select>
+          </label>
+          <label>
+            <span>Monthly maintenance fee</span>
+            <input id="propertyMaintenanceFee" type="number" step="25" />
+          </label>
+          <label>
             <span>Purchase date</span>
-            <input id="propertyPurchaseDate" type="date" value="2024-06-10" />
+            <input id="propertyPurchaseDate" type="date" />
           </label>
           <label>
             <span>Purchase price</span>
-            <input id="propertyPurchasePrice" type="number" value="245000" />
+            <input id="propertyPurchasePrice" type="number" />
           </label>
           <label>
             <span>Current value</span>
-            <input id="propertyCurrentValue" type="number" value="265000" />
+            <input id="propertyCurrentValue" type="number" />
           </label>
           <label>
             <span>Deposit paid</span>
-            <input id="propertyDeposit" type="number" value="61250" />
+            <input id="propertyDeposit" type="number" />
           </label>
           <label>
             <span>Mortgage balance</span>
-            <input id="propertyMortgage" type="number" value="183750" />
+            <input id="propertyMortgage" type="number" />
           </label>
           <div class="form-note">
             <span>Initial mortgage deal</span>
@@ -749,7 +789,7 @@
           <label>
             <span>Mortgage rate</span>
             <div class="input-suffix">
-              <input id="propertyRate" type="number" step="0.05" value="5.35" />
+              <input id="propertyRate" type="number" step="0.05" />
               <span>%</span>
             </div>
           </label>
@@ -763,19 +803,19 @@
           </label>
           <label>
             <span>Deal expiry</span>
-            <input id="propertyMortgageExpiry" type="date" value="2026-09-30" />
+            <input id="propertyMortgageExpiry" type="date" />
           </label>
           <label>
             <span>Monthly rent</span>
-            <input id="propertyRent" type="number" value="1350" />
+            <input id="propertyRent" type="number" />
           </label>
           <label>
             <span>Operating expenses</span>
-            <input id="propertyExpenses" type="number" value="220" />
+            <input id="propertyExpenses" type="number" />
           </label>
           <label>
             <span>Landlord registration number</span>
-            <input id="landlordRegistration" value="123456/260/12340" />
+            <input id="landlordRegistration" />
           </label>
           <button class="tax-button" type="submit">Save property</button>
         </form>

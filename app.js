@@ -68,6 +68,7 @@ const premium = {
   newPassword: document.querySelector("#newPassword"),
   resetPasswordSubmit: document.querySelector("#resetPasswordSubmit"),
   resetMessage: document.querySelector("#resetMessage"),
+  themeToggle: document.querySelector("#themeToggle"),
   accountPasswordForm: document.querySelector("#accountPasswordForm"),
   accountPassword: document.querySelector("#accountPassword"),
   accountPasswordMessage: document.querySelector("#accountPasswordMessage"),
@@ -175,6 +176,7 @@ const PROPERTY_STORAGE_KEY = "property-panel-properties";
 const LEGACY_PROPERTY_STORAGE_KEY = "valo" + "ra-properties";
 const PROMO_STORAGE_KEY = "property-panel-promo-access";
 const LEGACY_PROMO_STORAGE_KEY = "valo" + "ra-promo-access";
+const THEME_STORAGE_KEY = "property-panel-theme";
 
 const storedProperties =
   localStorage.getItem(PROPERTY_STORAGE_KEY) || localStorage.getItem(LEGACY_PROPERTY_STORAGE_KEY);
@@ -194,7 +196,23 @@ let authMode = "signup";
 let authListenerAttached = false;
 let isAdminUser = false;
 let activePropertyId = null;
+let editingTenancyId = null;
+let editingRemortgageId = null;
 let currentSubscription = null;
+
+function applyTheme(theme) {
+  const resolvedTheme = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = resolvedTheme;
+  premium.themeToggle.textContent = resolvedTheme === "dark" ? "Light" : "Dark";
+  premium.themeToggle.setAttribute("aria-pressed", resolvedTheme === "dark" ? "true" : "false");
+}
+
+function initTheme() {
+  const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+  const preferredTheme =
+    storedTheme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  applyTheme(preferredTheme);
+}
 
 function createId(prefix) {
   return `${prefix}-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
@@ -204,6 +222,10 @@ function normalizePropertyRecord(property) {
   return {
     ...property,
     id: property.id || createId("property"),
+    ownershipModel: property.ownershipModel || "Owned",
+    guaranteedRent: Number(property.guaranteedRent || 0),
+    maintenanceModel: property.maintenanceModel || "Landlord charged for repairs",
+    maintenanceFee: Number(property.maintenanceFee || 0),
     mortgageProductType: property.mortgageProductType || "Fixed",
     tenancies: property.tenancies || [],
     remortgages: property.remortgages || [],
@@ -334,6 +356,24 @@ function activeProperty() {
   return properties.find((property) => property.id === activePropertyId);
 }
 
+function propertyDisplayNameFromAddress() {
+  const address1 = document.querySelector("#propertyAddress1").value.trim();
+  const town = document.querySelector("#propertyTown").value.trim();
+  return [address1, town].filter(Boolean).join(", ");
+}
+
+function resetTenancyForm() {
+  editingTenancyId = null;
+  premium.tenancyForm.reset();
+  premium.tenancyForm.querySelector("button[type='submit']").textContent = "Save tenancy record";
+}
+
+function resetRemortgageForm() {
+  editingRemortgageId = null;
+  premium.remortgageForm.reset();
+  premium.remortgageForm.querySelector("button[type='submit']").textContent = "Save remortgage record";
+}
+
 function switchPropertyDetailTab(tabName) {
   switchSection(
     premium.propertyDetailTabButtons,
@@ -356,6 +396,8 @@ function renderPropertyDetail() {
   document.querySelector("#detailMortgageBalance").value = mortgageDeal.balance || "";
   document.querySelector("#detailMortgageEnd").value = mortgageDeal.expiryDate || "";
   premium.propertyDetailSummary.innerHTML = `
+    <div><span>Address</span><strong>${[property.addressLine1, property.addressLine2, property.town, property.postcode].filter(Boolean).join(", ") || property.name}</strong></div>
+    <div><span>Ownership</span><strong>${property.ownershipModel || "Owned"}</strong></div>
     <div><span>Region</span><strong>${property.region}</strong></div>
     <div><span>Let type</span><strong>${property.letType}</strong></div>
     <div><span>Purchase price</span><strong>${money.format(property.purchasePrice)}</strong></div>
@@ -364,6 +406,8 @@ function renderPropertyDetail() {
     <div><span>Mortgage product</span><strong>${mortgageDeal.productType || "Fixed"}</strong></div>
     <div><span>Rate</span><strong>${Number(mortgageDeal.rate || 0).toFixed(2)}%</strong></div>
     <div><span>Expiry</span><strong>${mortgageDeal.expiryDate || "-"}</strong></div>
+    <div><span>Guaranteed rent</span><strong>${property.guaranteedRent ? money.format(property.guaranteedRent) : "-"}</strong></div>
+    <div><span>Maintenance</span><strong>${property.maintenanceFee ? `${property.maintenanceModel} (${money.format(property.maintenanceFee)})` : property.maintenanceModel || "-"}</strong></div>
   `;
 
   premium.tenancyHistoryList.replaceChildren(
@@ -377,6 +421,10 @@ function renderPropertyDetail() {
         <div><span>Move-out</span><strong>${formatDate(tenancy.endDate)}</strong></div>
         <div><span>Rent</span><strong>${money.format(Number(tenancy.rent || 0))}</strong></div>
         <div><span>Contracts</span><strong>${(tenancy.documents || []).join(", ") || "-"}</strong></div>
+        <div class="detail-actions">
+          <button class="secondary-button small-button" type="button" data-edit-tenancy="${tenancy.id}">Edit</button>
+          <button class="secondary-button small-button danger-button" type="button" data-delete-tenancy="${tenancy.id}">Delete</button>
+        </div>
       `;
       return row;
     })),
@@ -399,6 +447,10 @@ function renderPropertyDetail() {
         <div><span>End</span><strong>${formatDate(event.expiryDate)}</strong></div>
         <div><span>Equity release</span><strong>${money.format(Number(event.equityRelease || 0))}</strong></div>
         <div><span>Notes</span><strong>${event.notes || "-"}</strong></div>
+        <div class="detail-actions">
+          <button class="secondary-button small-button" type="button" data-edit-remortgage="${event.id}">Edit</button>
+          <button class="secondary-button small-button danger-button" type="button" data-delete-remortgage="${event.id}">Delete</button>
+        </div>
       `;
       return row;
     })),
@@ -414,6 +466,8 @@ function openPropertyDetail(propertyId) {
   renderPropertyDetail();
   switchPropertyDetailTab("overview");
   premium.deletePropertyMessage.textContent = "Deleting a property removes it from your portfolio and lender export.";
+  resetTenancyForm();
+  resetRemortgageForm();
   premium.propertyDetailModal.hidden = false;
 }
 
@@ -448,8 +502,12 @@ function renderReminders() {
 
   properties.forEach((property) => {
     const expiryDays = daysUntil(latestMortgageDeal(property).expiryDate);
-    if (expiryDays <= 180) {
-      reminders.push(`Mortgage deal for ${property.name} expires in ${expiryDays} days. Prepare remortgage options.`);
+    if (expiryDays <= 7) {
+      reminders.push(`Mortgage deal for ${property.name} expires within 1 week. Review remortgage options now.`);
+    } else if (expiryDays <= 31) {
+      reminders.push(`Mortgage deal for ${property.name} expires within 1 month. Start remortgage checks.`);
+    } else if (expiryDays <= 93) {
+      reminders.push(`Mortgage deal for ${property.name} expires within 3 months. Prepare remortgage options.`);
     }
     if (property.rentReminder === "On") {
       reminders.push(`On the ${property.rentDueDay}${ordinalSuffix(property.rentDueDay)}: check if ${property.tenantName || "your tenant"} paid ${money.format(property.rent)} for ${property.name}.`);
@@ -860,6 +918,10 @@ async function loadSupabaseProperties(userId) {
     name: property.name,
     region: property.region === "scotland" ? "Scotland" : "England",
     letType: property.let_type === "short_term" ? "Short-term let" : "Long-term let",
+    ownershipModel: "Owned",
+    guaranteedRent: 0,
+    maintenanceModel: "Landlord charged for repairs",
+    maintenanceFee: 0,
     purchaseDate: property.purchase_date,
     purchasePrice: Number(property.purchase_price),
     currentValue: Number(property.current_value),
@@ -973,6 +1035,27 @@ async function saveTenancyToSupabase(property, tenancy) {
   return data?.id || null;
 }
 
+async function updateTenancyInSupabase(property, tenancy) {
+  if (!supabaseClient || !isPersistedProperty(property) || !isPersistedProperty(tenancy)) return;
+
+  await supabaseClient
+    .from("tenancy_periods")
+    .update({
+      tenant_name: tenancy.tenantName || null,
+      tenant_contact: tenancy.tenantContact || null,
+      tenancy_start_date: tenancy.startDate || null,
+      tenancy_end_date: tenancy.endDate || null,
+      monthly_rent: tenancy.rent || 0,
+      document_names: tenancy.documents || [],
+    })
+    .eq("id", tenancy.id);
+}
+
+async function deleteTenancyFromSupabase(property, tenancyId) {
+  if (!supabaseClient || !isPersistedProperty(property) || !isPersistedProperty({ id: tenancyId })) return;
+  await supabaseClient.from("tenancy_periods").delete().eq("id", tenancyId);
+}
+
 async function saveRemortgageToSupabase(property, remortgage) {
   if (!supabaseClient || !isPersistedProperty(property)) return null;
 
@@ -1000,6 +1083,29 @@ async function saveRemortgageToSupabase(property, remortgage) {
 
   if (error) return null;
   return data?.id || null;
+}
+
+async function updateRemortgageInSupabase(property, remortgage) {
+  if (!supabaseClient || !isPersistedProperty(property) || !isPersistedProperty(remortgage)) return;
+
+  await supabaseClient
+    .from("remortgage_events")
+    .update({
+      product_type: remortgage.productType,
+      rate: remortgage.rate || 0,
+      mortgage_balance: remortgage.balance || 0,
+      term_months: remortgage.termMonths || null,
+      start_date: remortgage.startDate || null,
+      expiry_date: remortgage.expiryDate || null,
+      equity_released: remortgage.equityRelease || 0,
+      notes: remortgage.notes || null,
+    })
+    .eq("id", remortgage.id);
+}
+
+async function deleteRemortgageFromSupabase(property, remortgageId) {
+  if (!supabaseClient || !isPersistedProperty(property) || !isPersistedProperty({ id: remortgageId })) return;
+  await supabaseClient.from("remortgage_events").delete().eq("id", remortgageId);
 }
 
 async function updateSupabasePropertySnapshot(property) {
@@ -1803,6 +1909,12 @@ premium.showLogin.addEventListener("click", () => {
   premium.loginEmail.focus();
 });
 
+premium.themeToggle.addEventListener("click", () => {
+  const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+  applyTheme(nextTheme);
+});
+
 document.querySelectorAll("[data-plan]").forEach((button) => {
   button.addEventListener("click", () => {
     const plan = button.dataset.plan === "pro" ? "Pro" : "Premium";
@@ -1943,6 +2055,67 @@ premium.propertyDetailTabButtons.forEach((button) => {
   });
 });
 
+premium.tenancyHistoryList.addEventListener("click", async (event) => {
+  const property = activeProperty();
+  if (!property) return;
+
+  const editButton = event.target.closest("[data-edit-tenancy]");
+  if (editButton) {
+    const tenancy = (property.tenancies || []).find((item) => item.id === editButton.dataset.editTenancy);
+    if (!tenancy) return;
+    editingTenancyId = tenancy.id;
+    document.querySelector("#detailTenantName").value = tenancy.tenantName || "";
+    document.querySelector("#detailTenantContact").value = tenancy.tenantContact || "";
+    document.querySelector("#detailTenancyStart").value = tenancy.startDate || "";
+    document.querySelector("#detailTenancyEnd").value = tenancy.endDate || "";
+    document.querySelector("#detailTenancyRent").value = tenancy.rent || "";
+    premium.tenancyForm.querySelector("button[type='submit']").textContent = "Update tenancy record";
+    return;
+  }
+
+  const deleteButton = event.target.closest("[data-delete-tenancy]");
+  if (!deleteButton) return;
+  await deleteTenancyFromSupabase(property, deleteButton.dataset.deleteTenancy);
+  property.tenancies = (property.tenancies || []).filter((item) => item.id !== deleteButton.dataset.deleteTenancy);
+  resetTenancyForm();
+  await updateSupabasePropertySnapshot(property);
+  renderPremiumDashboard();
+  renderPropertyDetail();
+});
+
+premium.remortgageHistoryList.addEventListener("click", async (event) => {
+  const property = activeProperty();
+  if (!property) return;
+
+  const editButton = event.target.closest("[data-edit-remortgage]");
+  if (editButton) {
+    const remortgage = (property.remortgages || []).find((item) => item.id === editButton.dataset.editRemortgage);
+    if (!remortgage) return;
+    editingRemortgageId = remortgage.id;
+    document.querySelector("#detailMortgageProduct").value = remortgage.productType || "Fixed";
+    document.querySelector("#detailMortgageRate").value = remortgage.rate || "";
+    document.querySelector("#detailMortgageBalance").value = remortgage.balance || "";
+    document.querySelector("#detailMortgageTermMonths").value = remortgage.termMonths || "";
+    document.querySelector("#detailMortgageStart").value = remortgage.startDate || "";
+    document.querySelector("#detailMortgageEnd").value = remortgage.expiryDate || "";
+    document.querySelector("#detailEquityRelease").value = remortgage.equityRelease || "";
+    document.querySelector("#detailMortgageNotes").value = remortgage.notes || "";
+    premium.remortgageForm.querySelector("button[type='submit']").textContent = "Update remortgage record";
+    return;
+  }
+
+  const deleteButton = event.target.closest("[data-delete-remortgage]");
+  if (!deleteButton) return;
+  const confirmed = window.confirm("Are you sure you want to delete this remortgage record?");
+  if (!confirmed) return;
+  await deleteRemortgageFromSupabase(property, deleteButton.dataset.deleteRemortgage);
+  property.remortgages = (property.remortgages || []).filter((item) => item.id !== deleteButton.dataset.deleteRemortgage);
+  resetRemortgageForm();
+  await updateSupabasePropertySnapshot(property);
+  renderPremiumDashboard();
+  renderPropertyDetail();
+});
+
 premium.deletePropertyButton.addEventListener("click", () => {
   deleteActiveProperty();
 });
@@ -1954,7 +2127,7 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
 
   const files = Array.from(document.querySelector("#detailTenancyFiles").files || []).map((file) => file.name);
   const tenancy = {
-    id: createId("tenancy"),
+    id: editingTenancyId || createId("tenancy"),
     tenantName: document.querySelector("#detailTenantName").value,
     tenantContact: document.querySelector("#detailTenantContact").value,
     startDate: document.querySelector("#detailTenancyStart").value,
@@ -1963,14 +2136,23 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
     documents: files,
   };
 
-  const savedId = await saveTenancyToSupabase(property, tenancy);
-  if (savedId) tenancy.id = savedId;
-  property.tenancies = [tenancy, ...(property.tenancies || [])];
+  if (editingTenancyId) {
+    const index = (property.tenancies || []).findIndex((item) => item.id === editingTenancyId);
+    if (index >= 0) {
+      tenancy.documents = files.length ? files : property.tenancies[index].documents || [];
+      property.tenancies[index] = tenancy;
+      await updateTenancyInSupabase(property, tenancy);
+    }
+  } else {
+    const savedId = await saveTenancyToSupabase(property, tenancy);
+    if (savedId) tenancy.id = savedId;
+    property.tenancies = [tenancy, ...(property.tenancies || [])];
+  }
   if (tenancy.rent) property.rent = tenancy.rent;
   await updateSupabasePropertySnapshot(property);
   renderPremiumDashboard();
   renderPropertyDetail();
-  premium.tenancyForm.reset();
+  resetTenancyForm();
 });
 
 premium.remortgageForm.addEventListener("submit", async (event) => {
@@ -1979,7 +2161,7 @@ premium.remortgageForm.addEventListener("submit", async (event) => {
   if (!property) return;
 
   const remortgage = {
-    id: createId("remortgage"),
+    id: editingRemortgageId || createId("remortgage"),
     productType: document.querySelector("#detailMortgageProduct").value,
     rate: Number(document.querySelector("#detailMortgageRate").value) || 0,
     balance: Number(document.querySelector("#detailMortgageBalance").value) || 0,
@@ -1990,22 +2172,43 @@ premium.remortgageForm.addEventListener("submit", async (event) => {
     notes: document.querySelector("#detailMortgageNotes").value,
   };
 
-  const savedId = await saveRemortgageToSupabase(property, remortgage);
-  if (savedId) remortgage.id = savedId;
-  property.remortgages = [remortgage, ...(property.remortgages || [])];
+  if (editingRemortgageId) {
+    const index = (property.remortgages || []).findIndex((item) => item.id === editingRemortgageId);
+    if (index >= 0) {
+      property.remortgages[index] = remortgage;
+      await updateRemortgageInSupabase(property, remortgage);
+    }
+  } else {
+    const savedId = await saveRemortgageToSupabase(property, remortgage);
+    if (savedId) remortgage.id = savedId;
+    property.remortgages = [remortgage, ...(property.remortgages || [])];
+  }
   await updateSupabasePropertySnapshot(property);
   renderPremiumDashboard();
   renderPropertyDetail();
-  premium.remortgageForm.reset();
+  resetRemortgageForm();
 });
 
 premium.propertyForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  const displayName = document.querySelector("#propertyName").value.trim();
+  const addressLine1 = document.querySelector("#propertyAddress1").value.trim();
+  const addressLine2 = document.querySelector("#propertyAddress2").value.trim();
+  const town = document.querySelector("#propertyTown").value.trim();
+  const postcode = document.querySelector("#propertyPostcode").value.trim().toUpperCase();
   const property = {
     id: createId("property"),
-    name: document.querySelector("#propertyName").value,
+    name: displayName || propertyDisplayNameFromAddress(),
+    addressLine1,
+    addressLine2,
+    town,
+    postcode,
     region: document.querySelector("#propertyRegion").value,
     letType: document.querySelector("#propertyLetType").value,
+    ownershipModel: document.querySelector("#propertyOwnershipModel").value,
+    guaranteedRent: Number(document.querySelector("#propertyGuaranteedRent").value) || 0,
+    maintenanceModel: document.querySelector("#propertyMaintenanceModel").value,
+    maintenanceFee: Number(document.querySelector("#propertyMaintenanceFee").value) || 0,
     purchaseDate: document.querySelector("#propertyPurchaseDate").value,
     purchasePrice: Number(document.querySelector("#propertyPurchasePrice").value) || 0,
     currentValue: Number(document.querySelector("#propertyCurrentValue").value) || 0,
@@ -2023,30 +2226,35 @@ premium.propertyForm.addEventListener("submit", async (event) => {
     landlordRegistration: document.querySelector("#landlordRegistration").value,
     documents: "",
     tenancies: [],
-    remortgages: [
-      {
-        id: createId("remortgage"),
-        productType: document.querySelector("#propertyMortgageProduct").value,
-        rate: Number(document.querySelector("#propertyRate").value) || 0,
-        balance: Number(document.querySelector("#propertyMortgage").value) || 0,
-        termMonths: null,
-        startDate: document.querySelector("#propertyPurchaseDate").value,
-        expiryDate: document.querySelector("#propertyMortgageExpiry").value,
-        equityRelease: 0,
-        notes: "Initial mortgage deal",
-      },
-    ],
+    remortgages: [],
   };
+
+  if (property.mortgageBalance || property.rate || property.mortgageExpiry) {
+    property.remortgages.push({
+      id: createId("remortgage"),
+      productType: document.querySelector("#propertyMortgageProduct").value,
+      rate: property.rate,
+      balance: property.mortgageBalance,
+      termMonths: null,
+      startDate: property.purchaseDate,
+      expiryDate: property.mortgageExpiry,
+      equityRelease: 0,
+      notes: "Initial mortgage deal",
+    });
+  }
 
   const savedId = await savePropertyToSupabase(property);
   if (savedId) property.id = savedId;
   const initialMortgage = property.remortgages[0];
-  const savedMortgageId = await saveRemortgageToSupabase(property, initialMortgage);
-  if (savedMortgageId) initialMortgage.id = savedMortgageId;
+  if (initialMortgage) {
+    const savedMortgageId = await saveRemortgageToSupabase(property, initialMortgage);
+    if (savedMortgageId) initialMortgage.id = savedMortgageId;
+  }
 
   properties = [property, ...properties];
   trackEvent("property_added", { property_name: property.name, region: property.region });
   premium.propertyModal.hidden = true;
+  premium.propertyForm.reset();
   renderPremiumDashboard();
 });
 
@@ -2056,6 +2264,7 @@ premium.exportPortfolio.addEventListener("click", () => {
 });
 
 renderTaxBands("higher");
+initTheme();
 switchDashboardTab("overview");
 switchAdminTab("overview");
 renderPremiumDashboard();
