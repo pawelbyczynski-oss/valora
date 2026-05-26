@@ -1256,6 +1256,36 @@ select {
   gap: 8px;
 }
 
+.document-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 14px;
+  border: 1px solid rgba(15, 118, 110, 0.28);
+  border-radius: 8px;
+  background: rgba(15, 118, 110, 0.08);
+}
+
+.document-action-bar:empty {
+  display: none;
+}
+
+.document-action-bar span,
+.document-action-bar small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.document-action-bar strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 1rem;
+}
+
 .document-list > div {
   display: grid;
   grid-template-columns: minmax(160px, 1.4fr) minmax(130px, 1fr) minmax(110px, 0.8fr) minmax(260px, auto);

@@ -149,6 +149,7 @@ const premium = {
   documentReminder: document.querySelector("#documentReminder"),
   documentMessage: document.querySelector("#documentMessage"),
   documentCount: document.querySelector("#documentCount"),
+  documentActionBar: document.querySelector("#documentActionBar"),
   documentList: document.querySelector("#documentList"),
   adminTabButtons: document.querySelectorAll("[data-admin-tab]"),
   adminPanels: document.querySelectorAll("[data-admin-panel]"),
@@ -598,8 +599,24 @@ function renderDocuments() {
   }
 
   if (!documents.length) {
+    if (premium.documentActionBar) premium.documentActionBar.replaceChildren();
     premium.documentList.innerHTML = '<p class="field-hint">No documents uploaded yet.</p>';
     return;
+  }
+
+  if (premium.documentActionBar) {
+    const latestDocument = documents[0];
+    premium.documentActionBar.innerHTML = `
+      <div>
+        <span>Latest document</span>
+        <strong>${latestDocument.label}</strong>
+        <small>${documentPropertyName(latestDocument.propertyId)} · ${latestDocument.documentType} · ${latestDocument.fileName || "File"}</small>
+      </div>
+      <div class="detail-actions">
+        <button class="secondary-button small-button" type="button" data-download-document="${latestDocument.id}">Open</button>
+        <button class="tax-button small-button" type="button" data-analyze-document="${latestDocument.id}">Scan & split</button>
+      </div>
+    `;
   }
 
   const heading = document.createElement("div");
