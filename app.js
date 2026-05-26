@@ -3096,7 +3096,7 @@ premium.documentForm.addEventListener("submit", async (event) => {
   uploadedRow?.scrollIntoView({ behavior: "smooth", block: "center" });
 });
 
-premium.documentList.addEventListener("click", async (event) => {
+async function handleDocumentActionClick(event) {
   const downloadButton = event.target.closest("[data-download-document]");
   if (downloadButton) {
     const document = documents.find((item) => item.id === downloadButton.dataset.downloadDocument);
@@ -3122,7 +3122,10 @@ premium.documentList.addEventListener("click", async (event) => {
   documents = documents.filter((item) => item.id !== document.id);
   premium.documentMessage.textContent = "Document deleted.";
   renderDocuments();
-});
+}
+
+premium.documentList.addEventListener("click", handleDocumentActionClick);
+premium.documentActionBar.addEventListener("click", handleDocumentActionClick);
 
 premium.adminTabButtons.forEach((button) => {
   button.addEventListener("click", () => {
