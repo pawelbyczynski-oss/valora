@@ -148,6 +148,7 @@ const premium = {
   documentFile: document.querySelector("#documentFile"),
   documentReminder: document.querySelector("#documentReminder"),
   documentMessage: document.querySelector("#documentMessage"),
+  documentCount: document.querySelector("#documentCount"),
   documentList: document.querySelector("#documentList"),
   adminTabButtons: document.querySelectorAll("[data-admin-tab]"),
   adminPanels: document.querySelectorAll("[data-admin-panel]"),
@@ -580,6 +581,9 @@ function renderDocuments() {
 
   localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
   renderDocumentPropertyOptions();
+  if (premium.documentCount) {
+    premium.documentCount.textContent = `${documents.length} ${documents.length === 1 ? "file" : "files"}`;
+  }
 
   if (!properties.length) {
     premium.documentList.innerHTML = '<p class="field-hint">Add a property before uploading documents.</p>';
@@ -601,6 +605,8 @@ function renderDocuments() {
   premium.documentList.replaceChildren(
     ...documents.map((document) => {
       const row = document.createElement("div");
+      row.className = "document-row";
+      row.dataset.documentRow = document.id;
       const aiText =
         document.aiStatus === "review"
           ? "AI draft ready"
@@ -3029,11 +3035,21 @@ premium.documentForm.addEventListener("submit", async (event) => {
   const savedDocument = await saveDocumentToSupabase(document, file);
   if (!savedDocument) return;
 
-  documents = [savedDocument, ...documents];
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+  if (user) {
+    await loadSupabaseDocuments(user.id);
+  } else {
+    documents = [savedDocument, ...documents];
+  }
+
   premium.documentForm.reset();
   premium.documentPages.value = 1;
   premium.documentMessage.textContent = "Document uploaded.";
   renderDocuments();
+  const uploadedRow = premium.documentList.querySelector(`[data-document-row="${savedDocument.id}"]`);
+  uploadedRow?.scrollIntoView({ behavior: "smooth", block: "center" });
 });
 
 premium.documentList.addEventListener("click", async (event) => {

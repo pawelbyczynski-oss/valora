@@ -1256,7 +1256,7 @@ select {
   gap: 8px;
 }
 
-.document-list div {
+.document-list > div {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1266,6 +1266,14 @@ select {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #f8fbfa;
+}
+
+.document-list-heading {
+  margin: 18px 0 8px;
+}
+
+.document-row {
+  scroll-margin: 96px;
 }
 
 .document-list small {
