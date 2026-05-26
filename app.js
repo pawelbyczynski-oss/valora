@@ -213,6 +213,7 @@ let isAdminUser = false;
 let activePropertyId = null;
 let editingTenancyId = null;
 let editingRemortgageId = null;
+let editingTransactionId = null;
 let currentSubscription = null;
 
 function applyTheme(theme) {
@@ -419,6 +420,8 @@ function renderTransactions() {
       const category = document.createElement("strong");
       const status = document.createElement("small");
       const amount = document.createElement("div");
+      const actions = document.createElement("div");
+      const editButton = document.createElement("button");
       const deleteButton = document.createElement("button");
 
       meta.textContent = `${formatDate(transaction.date)} · ${transactionPropertyName(transaction.propertyId)}`;
@@ -426,17 +429,30 @@ function renderTransactions() {
       status.textContent = `${transaction.taxTreatment} · ${transaction.status}${transaction.notes ? ` · ${transaction.notes}` : ""}`;
       amount.className = `transaction-amount ${transaction.type === "expense" ? "expense" : "income"}`;
       amount.textContent = `${transaction.type === "expense" ? "-" : "+"}${money.format(transaction.amount)}`;
+      actions.className = "detail-actions";
+      editButton.className = "secondary-button small-button";
+      editButton.type = "button";
+      editButton.dataset.editTransaction = transaction.id;
+      editButton.textContent = "Edit";
       deleteButton.className = "secondary-button small-button danger-button";
       deleteButton.type = "button";
       deleteButton.dataset.deleteTransaction = transaction.id;
       deleteButton.textContent = "Delete";
 
       detail.append(meta, category, status);
-      row.append(detail, amount, deleteButton);
+      actions.append(editButton, deleteButton);
+      row.append(detail, amount, actions);
       return row;
     }),
   );
   renderQuarterSummary();
+}
+
+function resetTransactionForm() {
+  editingTransactionId = null;
+  premium.transactionForm.reset();
+  premium.transactionDate.value = new Date().toISOString().slice(0, 10);
+  premium.transactionForm.querySelector("button[type='submit']").textContent = "Save transaction";
 }
 
 function createReportMetric(label, value) {
@@ -1346,6 +1362,24 @@ async function saveTransactionToSupabase(transaction) {
 
   if (error) return null;
   return data?.id || null;
+}
+
+async function updateTransactionInSupabase(transaction) {
+  if (!supabaseClient || !isPersistedProperty(transaction)) return;
+
+  await supabaseClient
+    .from("property_transactions")
+    .update({
+      property_id: isPersistedProperty({ id: transaction.propertyId }) ? transaction.propertyId : null,
+      transaction_date: transaction.date,
+      amount: transaction.amount,
+      transaction_type: transaction.type,
+      category: transaction.category,
+      tax_treatment: transaction.taxTreatment,
+      status: transaction.status,
+      notes: transaction.notes || null,
+    })
+    .eq("id", transaction.id);
 }
 
 async function deleteTransactionFromSupabase(transactionId) {
@@ -2334,7 +2368,7 @@ premium.transactionForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const transaction = normalizeTransactionRecord({
-    id: createId("transaction"),
+    id: editingTransactionId || createId("transaction"),
     propertyId: premium.transactionProperty.value,
     date: premium.transactionDate.value,
     amount: Number(premium.transactionAmount.value) || 0,
@@ -2346,20 +2380,48 @@ premium.transactionForm.addEventListener("submit", async (event) => {
     notes: premium.transactionNotes.value.trim(),
   });
 
-  const savedId = await saveTransactionToSupabase(transaction);
-  if (savedId) transaction.id = savedId;
-  transactions = [transaction, ...transactions];
-  premium.transactionForm.reset();
-  premium.transactionDate.value = new Date().toISOString().slice(0, 10);
+  if (editingTransactionId) {
+    const index = transactions.findIndex((item) => item.id === editingTransactionId);
+    if (index >= 0) {
+      transactions[index] = transaction;
+      await updateTransactionInSupabase(transaction);
+    }
+  } else {
+    const savedId = await saveTransactionToSupabase(transaction);
+    if (savedId) transaction.id = savedId;
+    transactions = [transaction, ...transactions];
+  }
+
+  resetTransactionForm();
   renderTransactions();
 });
 
 premium.transactionList.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-delete-transaction]");
-  if (!button) return;
+  const editButton = event.target.closest("[data-edit-transaction]");
+  if (editButton) {
+    const transaction = transactions.find((item) => item.id === editButton.dataset.editTransaction);
+    if (!transaction) return;
+    editingTransactionId = transaction.id;
+    premium.transactionProperty.value = transaction.propertyId || "";
+    premium.transactionDate.value = transaction.date || new Date().toISOString().slice(0, 10);
+    premium.transactionAmount.value = transaction.amount || "";
+    premium.transactionType.value = transaction.type || "income";
+    premium.transactionCategory.value = transaction.category || "";
+    premium.transactionTaxTreatment.value = transaction.taxTreatment || "review";
+    premium.transactionStatus.value = transaction.status || "approved";
+    premium.transactionNotes.value = transaction.notes || "";
+    premium.transactionForm.querySelector("button[type='submit']").textContent = "Update transaction";
+    switchDashboardTab("transactions");
+    premium.transactionForm.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
 
-  await deleteTransactionFromSupabase(button.dataset.deleteTransaction);
-  transactions = transactions.filter((transaction) => transaction.id !== button.dataset.deleteTransaction);
+  const deleteButton = event.target.closest("[data-delete-transaction]");
+  if (!deleteButton) return;
+
+  await deleteTransactionFromSupabase(deleteButton.dataset.deleteTransaction);
+  transactions = transactions.filter((transaction) => transaction.id !== deleteButton.dataset.deleteTransaction);
+  if (editingTransactionId === deleteButton.dataset.deleteTransaction) resetTransactionForm();
   renderTransactions();
 });
 
