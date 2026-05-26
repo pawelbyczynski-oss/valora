@@ -51,14 +51,27 @@ Deno.serve(async (request) => {
     return new Response("Missing STRIPE_PRICE_ID_MONTHLY", { status: 500, headers: corsHeaders });
   }
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer_email: user.email,
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appBaseUrl}/?checkout=success`,
-    cancel_url: `${appBaseUrl}/?checkout=cancelled`,
-    metadata: { user_id: user.id },
-  });
+  if (!priceId.startsWith("price_")) {
+    return new Response("STRIPE_PRICE_ID_MONTHLY must start with price_, not prod_.", {
+      status: 500,
+      headers: corsHeaders,
+    });
+  }
 
-  return Response.json({ url: session.url }, { headers: corsHeaders });
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer_email: user.email,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${appBaseUrl}/?checkout=success`,
+      cancel_url: `${appBaseUrl}/?checkout=cancelled`,
+      metadata: { user_id: user.id },
+    });
+
+    return Response.json({ url: session.url }, { headers: corsHeaders });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown Stripe checkout error";
+    console.error("Stripe checkout failed", message);
+    return new Response(`Stripe checkout failed: ${message}`, { status: 500, headers: corsHeaders });
+  }
 });
