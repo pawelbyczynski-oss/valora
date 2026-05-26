@@ -1852,21 +1852,31 @@ async function deleteDocumentFromSupabase(document) {
   }
 }
 
-async function openDocument(document) {
-  if (!supabaseClient || !document.storagePath) return;
+async function openDocument(documentRecord) {
+  if (!supabaseClient || !documentRecord.storagePath) return;
   premium.documentMessage.textContent = "Opening document...";
+  const targetWindow = window.open("", "_blank", "noopener,noreferrer");
   const { data, error } = await supabaseClient.storage
     .from("property-documents")
-    .createSignedUrl(document.storagePath, 300);
+    .createSignedUrl(documentRecord.storagePath, 300);
   if (error || !data?.signedUrl) {
+    targetWindow?.close();
     premium.documentMessage.textContent = error?.message || "Could not open document.";
     return;
   }
-  const link = document.createElement("a");
+
+  if (targetWindow) {
+    targetWindow.location.href = data.signedUrl;
+    premium.documentMessage.textContent = "Document opened in a new tab.";
+    return;
+  }
+
+  const link = window.document.createElement("a");
   link.href = data.signedUrl;
   link.target = "_blank";
   link.rel = "noreferrer";
-  document.body.append(link);
+  link.textContent = "Open document";
+  window.document.body.append(link);
   link.click();
   link.remove();
   premium.documentMessage.textContent = "Document opened in a new tab.";
@@ -1879,16 +1889,16 @@ async function analyzeDocument(documentId) {
     return;
   }
 
-  const document = documents.find((item) => item.id === documentId);
-  if (!document) return;
-  if (document.pageCount > 5) {
+  const documentRecord = documents.find((item) => item.id === documentId);
+  if (!documentRecord) return;
+  if (documentRecord.pageCount > 5) {
     premium.documentMessage.textContent = "Smart document scans are limited to 5 pages per document.";
     return;
   }
 
-  premium.documentMessage.textContent = `Scanning and splitting ${document.label} into draft transactions...`;
-  document.aiStatus = "processing";
+  documentRecord.aiStatus = "processing";
   renderDocuments();
+  premium.documentMessage.textContent = `Scanning and splitting ${documentRecord.label} into draft transactions. This can take up to 30 seconds.`;
 
   const { data, error } = await supabaseClient.functions.invoke(ANALYZE_DOCUMENT_FUNCTION, {
     body: { document_id: documentId },
@@ -1900,18 +1910,18 @@ async function analyzeDocument(documentId) {
       context && typeof context.text === "function"
         ? await context.text().catch(() => "")
         : "";
-    document.aiStatus = "failed";
-    document.aiError = data?.error || responseText || error?.message || "AI scan failed.";
-    premium.documentMessage.textContent = document.aiError;
+    documentRecord.aiStatus = "failed";
+    documentRecord.aiError = data?.error || responseText || error?.message || "AI scan failed.";
     renderDocuments();
+    premium.documentMessage.textContent = documentRecord.aiError;
     return;
   }
 
   const draftCount = data?.draft_transaction_ids?.length || (data?.draft_transaction_id ? 1 : 0);
-  premium.documentMessage.textContent = `AI created ${draftCount} draft ${draftCount === 1 ? "transaction" : "transactions"}. Review before approving.`;
   await loadSupabaseDocuments((await supabaseClient.auth.getUser()).data.user.id);
   await loadSupabaseTransactions((await supabaseClient.auth.getUser()).data.user.id);
   renderPremiumDashboard();
+  premium.documentMessage.textContent = `AI created ${draftCount} draft ${draftCount === 1 ? "transaction" : "transactions"}. Review before approving.`;
   switchDashboardTab("transactions");
 }
 
@@ -3099,6 +3109,7 @@ premium.documentForm.addEventListener("submit", async (event) => {
 async function handleDocumentActionClick(event) {
   const downloadButton = event.target.closest("[data-download-document]");
   if (downloadButton) {
+    event.preventDefault();
     const document = documents.find((item) => item.id === downloadButton.dataset.downloadDocument);
     if (document) await openDocument(document);
     return;
@@ -3106,12 +3117,14 @@ async function handleDocumentActionClick(event) {
 
   const analyzeButton = event.target.closest("[data-analyze-document]");
   if (analyzeButton) {
+    event.preventDefault();
     await analyzeDocument(analyzeButton.dataset.analyzeDocument);
     return;
   }
 
   const deleteButton = event.target.closest("[data-delete-document]");
   if (!deleteButton) return;
+  event.preventDefault();
 
   const document = documents.find((item) => item.id === deleteButton.dataset.deleteDocument);
   if (!document) return;
