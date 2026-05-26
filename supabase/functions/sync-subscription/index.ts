@@ -27,6 +27,7 @@ async function upsertSubscription(
 
   const amountMonthlyPence = item.price.unit_amount ?? 499;
   const currency = item.price.currency ?? "gbp";
+  const planCode = subscription.metadata?.plan === "pro" || amountMonthlyPence >= 999 ? "pro" : "premium";
 
   const { error } = await supabaseAdmin.from("subscriptions").upsert(
     {
@@ -34,6 +35,8 @@ async function upsertSubscription(
       stripe_subscription_id: subscription.id,
       stripe_price_id: priceId,
       status: subscription.status,
+      plan_code: planCode,
+      plan_name: planCode === "pro" ? "PropertyPanel Pro" : "PropertyPanel Premium",
       amount_monthly_pence: amountMonthlyPence,
       currency,
       current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),

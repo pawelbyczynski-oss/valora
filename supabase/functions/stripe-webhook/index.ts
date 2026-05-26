@@ -56,6 +56,7 @@ Deno.serve(async (request) => {
     const priceId = subscription.items.data[0]?.price.id;
     const amountMonthlyPence = subscription.items.data[0]?.price.unit_amount ?? 499;
     const currency = subscription.items.data[0]?.price.currency ?? "gbp";
+    const planCode = subscription.metadata?.plan === "pro" || amountMonthlyPence >= 999 ? "pro" : "premium";
 
     const userId = profile?.id ?? metadataUserId;
 
@@ -70,6 +71,8 @@ Deno.serve(async (request) => {
         stripe_subscription_id: subscription.id,
         stripe_price_id: priceId,
         status: subscription.status,
+        plan_code: planCode,
+        plan_name: planCode === "pro" ? "PropertyPanel Pro" : "PropertyPanel Premium",
         amount_monthly_pence: amountMonthlyPence,
         currency,
         current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),

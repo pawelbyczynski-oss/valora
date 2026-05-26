@@ -138,6 +138,17 @@ const premium = {
   transactionNotes: document.querySelector("#transactionNotes"),
   transactionList: document.querySelector("#transactionList"),
   quarterSummary: document.querySelector("#quarterSummary"),
+  exportQuarterPack: document.querySelector("#exportQuarterPack"),
+  documentForm: document.querySelector("#documentForm"),
+  documentProperty: document.querySelector("#documentProperty"),
+  documentLabel: document.querySelector("#documentLabel"),
+  documentType: document.querySelector("#documentType"),
+  documentExpiry: document.querySelector("#documentExpiry"),
+  documentPages: document.querySelector("#documentPages"),
+  documentFile: document.querySelector("#documentFile"),
+  documentReminder: document.querySelector("#documentReminder"),
+  documentMessage: document.querySelector("#documentMessage"),
+  documentList: document.querySelector("#documentList"),
   adminTabButtons: document.querySelectorAll("[data-admin-tab]"),
   adminPanels: document.querySelectorAll("[data-admin-panel]"),
 };
@@ -148,6 +159,7 @@ const SUPABASE_ANON_KEY = appConfig.SUPABASE_ANON_KEY || "";
 const CHECKOUT_FUNCTION = "create-checkout-session";
 const PORTAL_FUNCTION = "create-billing-portal-session";
 const SYNC_SUBSCRIPTION_FUNCTION = "sync-subscription";
+const ANALYZE_DOCUMENT_FUNCTION = "analyze-document";
 const ACTIVE_SUBSCRIPTION_STATUSES = ["active", "trialing"];
 let passwordRecoveryPending =
   window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery");
@@ -188,6 +200,7 @@ const money = new Intl.NumberFormat("en-GB", {
 
 const PROPERTY_STORAGE_KEY = "property-panel-properties";
 const TRANSACTION_STORAGE_KEY = "property-panel-transactions";
+const DOCUMENT_STORAGE_KEY = "property-panel-documents";
 const SELECTED_PLAN_STORAGE_KEY = "property-panel-selected-plan";
 const CHECKOUT_PENDING_STORAGE_KEY = "property-panel-checkout-pending";
 const LEGACY_PROPERTY_STORAGE_KEY = "valo" + "ra-properties";
@@ -209,6 +222,7 @@ if (!localStorage.getItem(PROMO_STORAGE_KEY) && storedPromoAccess) {
 
 let properties = JSON.parse(storedProperties || "null") || [];
 let transactions = JSON.parse(localStorage.getItem(TRANSACTION_STORAGE_KEY) || "null") || [];
+let documents = JSON.parse(localStorage.getItem(DOCUMENT_STORAGE_KEY) || "null") || [];
 let promoAccess = false;
 let authMode = "signup";
 let authListenerAttached = false;
@@ -272,6 +286,30 @@ function normalizeTransactionRecord(transaction) {
 }
 
 transactions = transactions.map(normalizeTransactionRecord);
+
+function normalizeDocumentRecord(document) {
+  return {
+    ...document,
+    id: document.id || createId("document"),
+    propertyId: document.propertyId || "",
+    label: document.label || "Document",
+    documentType: document.documentType || "Other",
+    fileName: document.fileName || "",
+    fileSize: Number(document.fileSize || 0),
+    mimeType: document.mimeType || "",
+    storagePath: document.storagePath || "",
+    expiryDate: document.expiryDate || "",
+    reminderEnabled: document.reminderEnabled === true,
+    pageCount: Math.min(Math.max(Number(document.pageCount || 1), 1), 5),
+    aiStatus: document.aiStatus || "not_requested",
+    aiResult: document.aiResult || null,
+    aiError: document.aiError || "",
+    aiScannedAt: document.aiScannedAt || "",
+    createdAt: document.createdAt || new Date().toISOString(),
+  };
+}
+
+documents = documents.map(normalizeDocumentRecord);
 
 function isPersistedProperty(property) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(property.id || "");
@@ -353,6 +391,19 @@ function renderTransactionPropertyOptions() {
   );
 }
 
+function renderDocumentPropertyOptions() {
+  if (!premium.documentProperty) return;
+
+  premium.documentProperty.replaceChildren(
+    ...properties.map((property) => {
+      const option = document.createElement("option");
+      option.value = property.id;
+      option.textContent = property.name;
+      return option;
+    }),
+  );
+}
+
 function quarterKey(dateString) {
   const date = new Date(`${dateString}T12:00:00`);
   const quarter = Math.floor(date.getMonth() / 3) + 1;
@@ -399,6 +450,60 @@ function renderQuarterSummary() {
       return item;
     }),
   );
+}
+
+function currentQuarterRange() {
+  const now = new Date();
+  const quarter = Math.floor(now.getMonth() / 3);
+  const start = new Date(now.getFullYear(), quarter * 3, 1);
+  const end = new Date(now.getFullYear(), quarter * 3 + 3, 0);
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+    label: `Q${quarter + 1} ${now.getFullYear()}`,
+  };
+}
+
+function exportQuarterPackCsv() {
+  if (!hasProAccess()) {
+    premium.subscriptionNote.textContent = "Quarterly accountant exports are included in PropertyPanel Pro.";
+    switchDashboardTab("subscription");
+    return;
+  }
+
+  const range = currentQuarterRange();
+  const rows = transactions
+    .filter((transaction) => transaction.date >= range.start && transaction.date <= range.end)
+    .map((transaction) => ({
+      date: transaction.date,
+      property: transactionPropertyName(transaction.propertyId),
+      type: transaction.type,
+      amount: transaction.amount,
+      category: transaction.category,
+      tax_treatment: transaction.taxTreatment,
+      status: transaction.status,
+      source: transaction.source,
+      notes: transaction.notes || "",
+    }));
+
+  const headers = ["date", "property", "type", "amount", "category", "tax_treatment", "status", "source", "notes"];
+  const csv = [
+    headers.join(","),
+    ...rows.map((row) =>
+      headers
+        .map((header) => `"${String(row[header] ?? "").replaceAll('"', '""')}"`)
+        .join(","),
+    ),
+  ].join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `propertypanel-${range.label.toLowerCase().replace(" ", "-")}-accountant-pack.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+  trackEvent("quarter_pack_exported", { quarter: range.label, rows: rows.length });
 }
 
 function renderTransactions() {
@@ -451,6 +556,72 @@ function renderTransactions() {
     }),
   );
   renderQuarterSummary();
+}
+
+function documentPropertyName(propertyId) {
+  return properties.find((property) => property.id === propertyId)?.name || "No property";
+}
+
+function fileSizeLabel(size) {
+  const bytes = Number(size || 0);
+  if (!bytes) return "-";
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function monthlySmartScanCount() {
+  const now = new Date();
+  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return documents.filter((document) => (document.aiScannedAt || "").startsWith(month)).length;
+}
+
+function renderDocuments() {
+  if (!premium.documentList) return;
+
+  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
+  renderDocumentPropertyOptions();
+
+  if (!properties.length) {
+    premium.documentList.innerHTML = '<p class="field-hint">Add a property before uploading documents.</p>';
+    if (premium.documentMessage) premium.documentMessage.textContent = "Documents attach to a saved property.";
+    return;
+  }
+
+  if (premium.documentMessage) {
+    premium.documentMessage.textContent = hasProAccess()
+      ? `Pro smart scans used this month: ${monthlySmartScanCount()}/25. Each smart document is limited to 5 pages.`
+      : "Premium stores documents. Upgrade to Pro for AI draft transactions and quarterly packs.";
+  }
+
+  if (!documents.length) {
+    premium.documentList.innerHTML = '<p class="field-hint">No documents uploaded yet.</p>';
+    return;
+  }
+
+  premium.documentList.replaceChildren(
+    ...documents.map((document) => {
+      const row = document.createElement("div");
+      const aiText =
+        document.aiStatus === "review"
+          ? "AI draft ready"
+          : document.aiStatus === "failed"
+            ? `AI failed: ${document.aiError || "review required"}`
+            : document.aiStatus === "processing"
+              ? "AI processing"
+              : "Stored";
+
+      row.innerHTML = `
+        <span>${document.label}<small>${documentPropertyName(document.propertyId)} · ${document.documentType} · ${fileSizeLabel(document.fileSize)}${document.expiryDate ? ` · expires ${formatDate(document.expiryDate)}` : ""}</small></span>
+        <strong>${aiText}</strong>
+        <div class="detail-actions">
+          <button class="secondary-button small-button" type="button" data-download-document="${document.id}">Open</button>
+          <button class="secondary-button small-button" type="button" data-analyze-document="${document.id}">AI scan</button>
+          <button class="secondary-button small-button danger-button" type="button" data-delete-document="${document.id}">Delete</button>
+        </div>
+      `;
+      return row;
+    }),
+  );
 }
 
 function resetTransactionForm() {
@@ -595,6 +766,7 @@ function renderPremiumDashboard() {
 
   renderReminders();
   renderTransactions();
+  renderDocuments();
 }
 
 function activeProperty() {
@@ -842,11 +1014,27 @@ function hasPremiumAccess() {
   );
 }
 
+function currentPlanCode() {
+  if (isAdminUser) return "pro";
+  if (promoAccess) return "pro";
+  if (currentSubscription?.plan_code === "pro" || Number(currentSubscription?.amount_monthly_pence || 0) >= 999) {
+    return "pro";
+  }
+  if (ACTIVE_SUBSCRIPTION_STATUSES.includes(currentSubscription?.status)) return "premium";
+  return "none";
+}
+
+function hasProAccess() {
+  return currentPlanCode() === "pro";
+}
+
 function clearPremiumDataForLockedAccount() {
   properties = [];
   transactions = [];
+  documents = [];
   localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
   localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(transactions));
+  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
 }
 
 function showSubscriptionRequired(message = "Sign in is working. Choose Premium or Pro to unlock the portfolio dashboard.") {
@@ -1007,7 +1195,7 @@ async function loadSubscriptionSummary() {
 
   const { data: subscriptions } = await supabaseClient
     .from("subscriptions")
-    .select("status,current_period_start,current_period_end,created_at,amount_monthly_pence,currency,total_paid_pence,cancel_at_period_end")
+    .select("status,current_period_start,current_period_end,created_at,plan_code,plan_name,amount_monthly_pence,currency,total_paid_pence,cancel_at_period_end")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(1);
@@ -1022,7 +1210,8 @@ async function loadSubscriptionSummary() {
   premium.subscriptionRenewal.textContent = formatDate(subscription.current_period_end);
   premium.subscriptionPaid.textContent = moneyFromPence(subscription.total_paid_pence);
   premium.subscriptionSince.textContent = formatDate(subscription.created_at);
-  premium.subscriptionNote.textContent = `Plan: ${moneyFromPence(subscription.amount_monthly_pence || 499)} / month. Manage card details, invoices and cancellation in Stripe Customer Portal.`;
+  const planLabel = currentPlanCode() === "pro" ? "PropertyPanel Pro" : "PropertyPanel Premium";
+  premium.subscriptionNote.textContent = `${planLabel}: ${moneyFromPence(subscription.amount_monthly_pence || 499)} / month. Manage card details, invoices and cancellation in Stripe Customer Portal.`;
   premium.manageBilling.textContent = "Manage subscription";
   premium.manageBilling.disabled = false;
 
@@ -1414,6 +1603,41 @@ async function loadSupabaseTransactions(userId) {
   return true;
 }
 
+async function loadSupabaseDocuments(userId) {
+  if (!supabaseClient) return false;
+
+  const { data, error } = await supabaseClient
+    .from("documents")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (error) return false;
+
+  documents = (data || []).map((document) =>
+    normalizeDocumentRecord({
+      id: document.id,
+      propertyId: document.property_id || "",
+      label: document.label,
+      documentType: document.document_type,
+      storagePath: document.storage_path,
+      fileName: document.file_name,
+      fileSize: document.file_size,
+      mimeType: document.mime_type,
+      expiryDate: document.expiry_date,
+      reminderEnabled: document.reminder_enabled,
+      pageCount: document.page_count,
+      aiStatus: document.ai_status,
+      aiResult: document.ai_result,
+      aiError: document.ai_error,
+      aiScannedAt: document.ai_scanned_at,
+      createdAt: document.created_at,
+    }),
+  );
+  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
+  return true;
+}
+
 async function savePropertyToSupabase(property) {
   if (!supabaseClient) return null;
 
@@ -1513,6 +1737,132 @@ async function updateTransactionInSupabase(transaction) {
 async function deleteTransactionFromSupabase(transactionId) {
   if (!supabaseClient || !isPersistedProperty({ id: transactionId })) return;
   await supabaseClient.from("property_transactions").delete().eq("id", transactionId);
+}
+
+function safeStorageFileName(fileName) {
+  return fileName.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "document";
+}
+
+async function saveDocumentToSupabase(document, file) {
+  if (!supabaseClient || !file) return null;
+
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+  if (!user) return null;
+
+  const storagePath = `${user.id}/${document.propertyId}/${Date.now()}-${safeStorageFileName(file.name)}`;
+  const { error: uploadError } = await supabaseClient.storage
+    .from("property-documents")
+    .upload(storagePath, file, { contentType: file.type || "application/octet-stream" });
+
+  if (uploadError) {
+    premium.documentMessage.textContent = uploadError.message;
+    return null;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("documents")
+    .insert({
+      user_id: user.id,
+      property_id: document.propertyId,
+      label: document.label,
+      document_type: document.documentType,
+      storage_path: storagePath,
+      file_name: file.name,
+      file_size: file.size,
+      mime_type: file.type || "application/octet-stream",
+      expiry_date: document.expiryDate || null,
+      reminder_enabled: document.reminderEnabled,
+      page_count: document.pageCount,
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    premium.documentMessage.textContent = error.message;
+    return null;
+  }
+
+  return normalizeDocumentRecord({
+    id: data.id,
+    propertyId: data.property_id,
+    label: data.label,
+    documentType: data.document_type,
+    storagePath: data.storage_path,
+    fileName: data.file_name,
+    fileSize: data.file_size,
+    mimeType: data.mime_type,
+    expiryDate: data.expiry_date,
+    reminderEnabled: data.reminder_enabled,
+    pageCount: data.page_count,
+    aiStatus: data.ai_status,
+    aiResult: data.ai_result,
+    aiError: data.ai_error,
+    aiScannedAt: data.ai_scanned_at,
+    createdAt: data.created_at,
+  });
+}
+
+async function deleteDocumentFromSupabase(document) {
+  if (!supabaseClient || !isPersistedProperty(document)) return;
+  await supabaseClient.from("documents").delete().eq("id", document.id);
+  if (document.storagePath) {
+    await supabaseClient.storage.from("property-documents").remove([document.storagePath]);
+  }
+}
+
+async function openDocument(document) {
+  if (!supabaseClient || !document.storagePath) return;
+  const { data, error } = await supabaseClient.storage
+    .from("property-documents")
+    .createSignedUrl(document.storagePath, 300);
+  if (error || !data?.signedUrl) {
+    premium.documentMessage.textContent = error?.message || "Could not open document.";
+    return;
+  }
+  window.open(data.signedUrl, "_blank", "noreferrer");
+}
+
+async function analyzeDocument(documentId) {
+  if (!hasProAccess()) {
+    premium.documentMessage.textContent = "AI smart scans require PropertyPanel Pro.";
+    switchDashboardTab("subscription");
+    return;
+  }
+
+  const document = documents.find((item) => item.id === documentId);
+  if (!document) return;
+  if (document.pageCount > 5) {
+    premium.documentMessage.textContent = "Smart document scans are limited to 5 pages per document.";
+    return;
+  }
+
+  premium.documentMessage.textContent = `Scanning ${document.label}...`;
+  document.aiStatus = "processing";
+  renderDocuments();
+
+  const { data, error } = await supabaseClient.functions.invoke(ANALYZE_DOCUMENT_FUNCTION, {
+    body: { document_id: documentId },
+  });
+
+  if (error || data?.error) {
+    const context = error?.context;
+    const responseText =
+      context && typeof context.text === "function"
+        ? await context.text().catch(() => "")
+        : "";
+    document.aiStatus = "failed";
+    document.aiError = data?.error || responseText || error?.message || "AI scan failed.";
+    premium.documentMessage.textContent = document.aiError;
+    renderDocuments();
+    return;
+  }
+
+  premium.documentMessage.textContent = "AI draft created. Review it in Transactions.";
+  await loadSupabaseDocuments((await supabaseClient.auth.getUser()).data.user.id);
+  await loadSupabaseTransactions((await supabaseClient.auth.getUser()).data.user.id);
+  renderPremiumDashboard();
 }
 
 async function saveTenancyToSupabase(property, tenancy) {
@@ -1804,6 +2154,11 @@ function switchSection(buttons, panels, activeKey, buttonAttr, panelAttr) {
 }
 
 function switchDashboardTab(tabName) {
+  if (tabName === "transactions" && !hasProAccess()) {
+    premium.subscriptionNote.textContent = "Transactions, quarterly packs and AI review are included in PropertyPanel Pro.";
+    tabName = "subscription";
+  }
+
   switchSection(
     premium.dashboardTabButtons,
     premium.dashboardPanels,
@@ -1898,6 +2253,7 @@ async function initAuth() {
           if (hasPremiumAccess()) {
             await loadSupabaseProperties(session.user.id);
             await loadSupabaseTransactions(session.user.id);
+            await loadSupabaseDocuments(session.user.id);
             openDashboard();
             switchDashboardTab("subscription");
           }
@@ -1912,6 +2268,7 @@ async function initAuth() {
 
     await loadSupabaseProperties(session.user.id);
     await loadSupabaseTransactions(session.user.id);
+    await loadSupabaseDocuments(session.user.id);
     openDashboard();
     if (checkoutStatus) {
       switchDashboardTab("subscription");
@@ -2571,6 +2928,12 @@ premium.dashboardTabButtons.forEach((button) => {
 premium.transactionForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
+  if (!hasProAccess()) {
+    premium.subscriptionNote.textContent = "Manual transactions are part of PropertyPanel Pro.";
+    switchDashboardTab("subscription");
+    return;
+  }
+
   const transaction = normalizeTransactionRecord({
     id: editingTransactionId || createId("transaction"),
     propertyId: premium.transactionProperty.value,
@@ -2627,6 +2990,78 @@ premium.transactionList.addEventListener("click", async (event) => {
   transactions = transactions.filter((transaction) => transaction.id !== deleteButton.dataset.deleteTransaction);
   if (editingTransactionId === deleteButton.dataset.deleteTransaction) resetTransactionForm();
   renderTransactions();
+});
+
+premium.exportQuarterPack.addEventListener("click", () => {
+  exportQuarterPackCsv();
+});
+
+premium.documentForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  if (!hasPremiumAccess()) {
+    showSubscriptionRequired();
+    return;
+  }
+
+  if (!properties.length) {
+    premium.documentMessage.textContent = "Add a property before uploading documents.";
+    return;
+  }
+
+  const file = premium.documentFile.files?.[0];
+  if (!file) {
+    premium.documentMessage.textContent = "Choose a PDF or image file.";
+    return;
+  }
+
+  const pageCount = Math.min(Math.max(Number(premium.documentPages.value) || 1, 1), 5);
+  const document = normalizeDocumentRecord({
+    propertyId: premium.documentProperty.value,
+    label: premium.documentLabel.value.trim(),
+    documentType: premium.documentType.value,
+    expiryDate: premium.documentExpiry.value,
+    reminderEnabled: premium.documentReminder.checked,
+    pageCount,
+  });
+
+  premium.documentMessage.textContent = "Uploading document...";
+  const savedDocument = await saveDocumentToSupabase(document, file);
+  if (!savedDocument) return;
+
+  documents = [savedDocument, ...documents];
+  premium.documentForm.reset();
+  premium.documentPages.value = 1;
+  premium.documentMessage.textContent = "Document uploaded.";
+  renderDocuments();
+});
+
+premium.documentList.addEventListener("click", async (event) => {
+  const downloadButton = event.target.closest("[data-download-document]");
+  if (downloadButton) {
+    const document = documents.find((item) => item.id === downloadButton.dataset.downloadDocument);
+    if (document) await openDocument(document);
+    return;
+  }
+
+  const analyzeButton = event.target.closest("[data-analyze-document]");
+  if (analyzeButton) {
+    await analyzeDocument(analyzeButton.dataset.analyzeDocument);
+    return;
+  }
+
+  const deleteButton = event.target.closest("[data-delete-document]");
+  if (!deleteButton) return;
+
+  const document = documents.find((item) => item.id === deleteButton.dataset.deleteDocument);
+  if (!document) return;
+  const confirmed = window.confirm(`Delete ${document.label}? This removes the file from the vault.`);
+  if (!confirmed) return;
+
+  await deleteDocumentFromSupabase(document);
+  documents = documents.filter((item) => item.id !== document.id);
+  premium.documentMessage.textContent = "Document deleted.";
+  renderDocuments();
 });
 
 premium.adminTabButtons.forEach((button) => {

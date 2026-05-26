@@ -607,6 +607,7 @@
               <h2>MTD foundation</h2>
             </div>
             <div class="quarter-summary" id="quarterSummary"></div>
+            <button class="secondary-button export-bottom" id="exportQuarterPack" type="button">Export accountant CSV</button>
           </section>
 
           <section class="panel-card dashboard-panel transaction-list-card" data-dashboard-panel="transactions">
@@ -630,11 +631,48 @@
               <p class="eyebrow">Documents</p>
               <h2>Property vault</h2>
             </div>
-            <div class="document-list">
-              <div><span>Tenancy agreement</span><strong>PDF</strong></div>
-              <div><span>Mortgage offer</span><strong>PDF</strong></div>
-              <div><span>Gas safety / EICR</span><strong>Reminder ready</strong></div>
-            </div>
+            <form class="transaction-form document-form" id="documentForm">
+              <label>
+                <span>Property</span>
+                <select id="documentProperty" required></select>
+              </label>
+              <label>
+                <span>Label</span>
+                <input id="documentLabel" placeholder="Gas safety certificate" required />
+              </label>
+              <label>
+                <span>Type</span>
+                <select id="documentType">
+                  <option>Invoice</option>
+                  <option>Rent statement</option>
+                  <option>Tenancy agreement</option>
+                  <option>Mortgage offer</option>
+                  <option>Gas safety</option>
+                  <option>EICR</option>
+                  <option>Insurance</option>
+                  <option>Other</option>
+                </select>
+              </label>
+              <label>
+                <span>Expiry date</span>
+                <input id="documentExpiry" type="date" />
+              </label>
+              <label>
+                <span>Pages for smart scan</span>
+                <input id="documentPages" type="number" min="1" max="5" value="1" />
+              </label>
+              <label class="wide-field">
+                <span>File</span>
+                <input id="documentFile" type="file" accept=".pdf,image/*" required />
+              </label>
+              <label class="checkbox-field wide-field">
+                <input id="documentReminder" type="checkbox" />
+                <span>Remind me before expiry</span>
+              </label>
+              <button class="tax-button" type="submit">Upload document</button>
+              <p class="field-hint wide-field" id="documentMessage">Premium stores documents. Pro can create AI draft transactions from invoices and statements.</p>
+            </form>
+            <div class="document-list" id="documentList"></div>
           </section>
 
           <section class="panel-card dashboard-panel" data-dashboard-panel="subscription">
@@ -1100,6 +1138,6 @@
     </footer>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260526-subscription-gate"></script>
+    <script src="app.js?v=20260526-documents-ai"></script>
   </body>
 </html>
