@@ -125,6 +125,17 @@ const premium = {
   adminPromoList: document.querySelector("#adminPromoList"),
   dashboardTabButtons: document.querySelectorAll("[data-dashboard-tab]"),
   dashboardPanels: document.querySelectorAll("[data-dashboard-panel]"),
+  transactionForm: document.querySelector("#transactionForm"),
+  transactionProperty: document.querySelector("#transactionProperty"),
+  transactionDate: document.querySelector("#transactionDate"),
+  transactionType: document.querySelector("#transactionType"),
+  transactionAmount: document.querySelector("#transactionAmount"),
+  transactionCategory: document.querySelector("#transactionCategory"),
+  transactionTaxTreatment: document.querySelector("#transactionTaxTreatment"),
+  transactionStatus: document.querySelector("#transactionStatus"),
+  transactionNotes: document.querySelector("#transactionNotes"),
+  transactionList: document.querySelector("#transactionList"),
+  quarterSummary: document.querySelector("#quarterSummary"),
   adminTabButtons: document.querySelectorAll("[data-admin-tab]"),
   adminPanels: document.querySelectorAll("[data-admin-panel]"),
 };
@@ -173,6 +184,7 @@ const money = new Intl.NumberFormat("en-GB", {
 });
 
 const PROPERTY_STORAGE_KEY = "property-panel-properties";
+const TRANSACTION_STORAGE_KEY = "property-panel-transactions";
 const LEGACY_PROPERTY_STORAGE_KEY = "valo" + "ra-properties";
 const PROMO_STORAGE_KEY = "property-panel-promo-access";
 const LEGACY_PROMO_STORAGE_KEY = "valo" + "ra-promo-access";
@@ -191,6 +203,7 @@ if (!localStorage.getItem(PROMO_STORAGE_KEY) && storedPromoAccess) {
 }
 
 let properties = JSON.parse(storedProperties || "null") || [];
+let transactions = JSON.parse(localStorage.getItem(TRANSACTION_STORAGE_KEY) || "null") || [];
 let promoAccess = storedPromoAccess === "true";
 let authMode = "signup";
 let authListenerAttached = false;
@@ -233,6 +246,24 @@ function normalizePropertyRecord(property) {
 }
 
 properties = properties.map(normalizePropertyRecord);
+
+function normalizeTransactionRecord(transaction) {
+  return {
+    ...transaction,
+    id: transaction.id || createId("transaction"),
+    propertyId: transaction.propertyId || "",
+    date: transaction.date || new Date().toISOString().slice(0, 10),
+    amount: Number(transaction.amount || 0),
+    type: transaction.type === "expense" ? "expense" : "income",
+    category: transaction.category || "Uncategorised",
+    taxTreatment: transaction.taxTreatment || "review",
+    source: transaction.source || "manual",
+    status: transaction.status || "approved",
+    notes: transaction.notes || "",
+  };
+}
+
+transactions = transactions.map(normalizeTransactionRecord);
 
 function isPersistedProperty(property) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(property.id || "");
@@ -301,6 +332,102 @@ function propertyCashflow(property) {
   return property.rent - property.expenses - mortgageInterest;
 }
 
+function transactionPropertyName(propertyId) {
+  return properties.find((property) => property.id === propertyId)?.name || "Unassigned";
+}
+
+function renderTransactionPropertyOptions() {
+  if (!premium.transactionProperty) return;
+
+  premium.transactionProperty.replaceChildren(
+    new Option("General portfolio", ""),
+    ...properties.map((property) => new Option(property.name, property.id)),
+  );
+}
+
+function quarterKey(dateString) {
+  const date = new Date(`${dateString}T12:00:00`);
+  const quarter = Math.floor(date.getMonth() / 3) + 1;
+  return `${date.getFullYear()} Q${quarter}`;
+}
+
+function currentQuarterKey() {
+  return quarterKey(new Date().toISOString().slice(0, 10));
+}
+
+function renderQuarterSummary() {
+  if (!premium.quarterSummary) return;
+
+  const activeQuarter = currentQuarterKey();
+  const quarterTransactions = transactions.filter((transaction) => quarterKey(transaction.date) === activeQuarter);
+  const approvedTransactions = quarterTransactions.filter((transaction) => transaction.status === "approved");
+  const income = approvedTransactions
+    .filter((transaction) => transaction.type === "income")
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const expenses = approvedTransactions
+    .filter((transaction) => transaction.type === "expense")
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const reviewCount = quarterTransactions.filter((transaction) => transaction.status !== "approved").length;
+
+  premium.quarterSummary.replaceChildren(
+    ...[
+      ["Quarter", activeQuarter],
+      ["Income", money.format(income)],
+      ["Expenses", money.format(expenses)],
+      ["Net", money.format(income - expenses)],
+      ["Needs review", String(reviewCount)],
+    ].map(([label, value]) => {
+      const item = document.createElement("div");
+      item.innerHTML = `<span>${label}</span><strong>${value}</strong>`;
+      return item;
+    }),
+  );
+}
+
+function renderTransactions() {
+  if (!premium.transactionList) return;
+
+  localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(transactions));
+  renderTransactionPropertyOptions();
+  if (premium.transactionDate && !premium.transactionDate.value) {
+    premium.transactionDate.value = new Date().toISOString().slice(0, 10);
+  }
+
+  if (!transactions.length) {
+    premium.transactionList.innerHTML = '<p class="field-hint">No transactions yet. Add rent or expenses here to build the quarterly report.</p>';
+    renderQuarterSummary();
+    return;
+  }
+
+  premium.transactionList.replaceChildren(
+    ...transactions.slice(0, 12).map((transaction) => {
+      const row = document.createElement("article");
+      row.className = "transaction-row";
+      const detail = document.createElement("div");
+      const meta = document.createElement("span");
+      const category = document.createElement("strong");
+      const status = document.createElement("small");
+      const amount = document.createElement("div");
+      const deleteButton = document.createElement("button");
+
+      meta.textContent = `${formatDate(transaction.date)} · ${transactionPropertyName(transaction.propertyId)}`;
+      category.textContent = transaction.category;
+      status.textContent = `${transaction.taxTreatment} · ${transaction.status}${transaction.notes ? ` · ${transaction.notes}` : ""}`;
+      amount.className = `transaction-amount ${transaction.type === "expense" ? "expense" : "income"}`;
+      amount.textContent = `${transaction.type === "expense" ? "-" : "+"}${money.format(transaction.amount)}`;
+      deleteButton.className = "secondary-button small-button danger-button";
+      deleteButton.type = "button";
+      deleteButton.dataset.deleteTransaction = transaction.id;
+      deleteButton.textContent = "Delete";
+
+      detail.append(meta, category, status);
+      row.append(detail, amount, deleteButton);
+      return row;
+    }),
+  );
+  renderQuarterSummary();
+}
+
 function renderPremiumDashboard() {
   localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
   const totalValue = properties.reduce((sum, property) => sum + Number(property.currentValue || 0), 0);
@@ -350,6 +477,7 @@ function renderPremiumDashboard() {
   );
 
   renderReminders();
+  renderTransactions();
 }
 
 function activeProperty() {
@@ -916,12 +1044,16 @@ async function loadSupabaseProperties(userId) {
   properties = data.map((property) => ({
     id: property.id,
     name: property.name,
+    addressLine1: property.address_line_1 || "",
+    addressLine2: property.address_line_2 || "",
+    town: property.city || "",
+    postcode: property.postcode || "",
     region: property.region === "scotland" ? "Scotland" : "England",
     letType: property.let_type === "short_term" ? "Short-term let" : "Long-term let",
-    ownershipModel: "Owned",
-    guaranteedRent: 0,
-    maintenanceModel: "Landlord charged for repairs",
-    maintenanceFee: 0,
+    ownershipModel: property.ownership_model || "Owned",
+    guaranteedRent: Number(property.guaranteed_rent || 0),
+    maintenanceModel: property.maintenance_model || "Landlord charged for repairs",
+    maintenanceFee: Number(property.maintenance_fee || 0),
     purchaseDate: property.purchase_date,
     purchasePrice: Number(property.purchase_price),
     currentValue: Number(property.current_value),
@@ -967,6 +1099,35 @@ async function loadSupabaseProperties(userId) {
   return true;
 }
 
+async function loadSupabaseTransactions(userId) {
+  if (!supabaseClient) return false;
+
+  const { data, error } = await supabaseClient
+    .from("property_transactions")
+    .select("*")
+    .eq("user_id", userId)
+    .order("transaction_date", { ascending: false });
+
+  if (error) return false;
+
+  transactions = (data || []).map((transaction) =>
+    normalizeTransactionRecord({
+      id: transaction.id,
+      propertyId: transaction.property_id || "",
+      date: transaction.transaction_date,
+      amount: transaction.amount,
+      type: transaction.transaction_type,
+      category: transaction.category,
+      taxTreatment: transaction.tax_treatment,
+      source: transaction.source,
+      status: transaction.status,
+      notes: transaction.notes,
+    }),
+  );
+  localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(transactions));
+  return true;
+}
+
 async function savePropertyToSupabase(property) {
   if (!supabaseClient) return null;
 
@@ -979,33 +1140,75 @@ async function savePropertyToSupabase(property) {
   const { data, error } = await supabaseClient
     .from("properties")
     .insert({
-    user_id: user.id,
-    name: property.name,
-    region: property.region.toLowerCase(),
-    let_type: property.letType === "Short-term let" ? "short_term" : "long_term",
-    purchase_date: property.purchaseDate || null,
-    purchase_price: property.purchasePrice,
-    current_value: property.currentValue,
-    deposit_paid: property.deposit,
-    mortgage_balance: property.mortgageBalance,
-    mortgage_product_type: property.mortgageProductType,
-    mortgage_rate: property.rate,
-    mortgage_expiry_date: property.mortgageExpiry || null,
-    monthly_rent: property.rent,
-    operating_expenses: property.expenses,
-    rent_due_day: property.rentDueDay,
-    rent_reminder_enabled: property.rentReminder === "On",
-    tenant_name: property.tenantName || null,
-    tenant_email: property.tenantContact?.includes("@") ? property.tenantContact : null,
-    tenant_phone: property.tenantContact?.includes("@") ? null : property.tenantContact || null,
-    landlord_registration_number: property.landlordRegistration || null,
-    notes: property.documents || null,
+      user_id: user.id,
+      name: property.name,
+      address_line_1: property.addressLine1 || null,
+      address_line_2: property.addressLine2 || null,
+      city: property.town || null,
+      postcode: property.postcode || null,
+      region: property.region.toLowerCase(),
+      let_type: property.letType === "Short-term let" ? "short_term" : "long_term",
+      ownership_model: property.ownershipModel,
+      guaranteed_rent: property.guaranteedRent,
+      maintenance_model: property.maintenanceModel,
+      maintenance_fee: property.maintenanceFee,
+      purchase_date: property.purchaseDate || null,
+      purchase_price: property.purchasePrice,
+      current_value: property.currentValue,
+      deposit_paid: property.deposit,
+      mortgage_balance: property.mortgageBalance,
+      mortgage_product_type: property.mortgageProductType,
+      mortgage_rate: property.rate,
+      mortgage_expiry_date: property.mortgageExpiry || null,
+      monthly_rent: property.rent,
+      operating_expenses: property.expenses,
+      rent_due_day: property.rentDueDay,
+      rent_reminder_enabled: property.rentReminder === "On",
+      tenant_name: property.tenantName || null,
+      tenant_email: property.tenantContact?.includes("@") ? property.tenantContact : null,
+      tenant_phone: property.tenantContact?.includes("@") ? null : property.tenantContact || null,
+      landlord_registration_number: property.landlordRegistration || null,
+      notes: property.documents || null,
     })
     .select("id")
     .single();
 
   if (error) return null;
   return data?.id || null;
+}
+
+async function saveTransactionToSupabase(transaction) {
+  if (!supabaseClient) return null;
+
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabaseClient
+    .from("property_transactions")
+    .insert({
+      user_id: user.id,
+      property_id: isPersistedProperty({ id: transaction.propertyId }) ? transaction.propertyId : null,
+      transaction_date: transaction.date,
+      amount: transaction.amount,
+      transaction_type: transaction.type,
+      category: transaction.category,
+      tax_treatment: transaction.taxTreatment,
+      source: transaction.source,
+      status: transaction.status,
+      notes: transaction.notes || null,
+    })
+    .select("id")
+    .single();
+
+  if (error) return null;
+  return data?.id || null;
+}
+
+async function deleteTransactionFromSupabase(transactionId) {
+  if (!supabaseClient || !isPersistedProperty({ id: transactionId })) return;
+  await supabaseClient.from("property_transactions").delete().eq("id", transactionId);
 }
 
 async function saveTenancyToSupabase(property, tenancy) {
@@ -1355,6 +1558,7 @@ async function initAuth() {
 
   if (session?.user) {
     await loadSupabaseProperties(session.user.id);
+    await loadSupabaseTransactions(session.user.id);
     await loadSubscriptionSummary();
     await loadAdminOverview();
     openDashboard();
@@ -1982,6 +2186,39 @@ premium.dashboardTabButtons.forEach((button) => {
   button.addEventListener("click", () => {
     switchDashboardTab(button.dataset.dashboardTab);
   });
+});
+
+premium.transactionForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const transaction = normalizeTransactionRecord({
+    id: createId("transaction"),
+    propertyId: premium.transactionProperty.value,
+    date: premium.transactionDate.value,
+    amount: Number(premium.transactionAmount.value) || 0,
+    type: premium.transactionType.value,
+    category: premium.transactionCategory.value.trim(),
+    taxTreatment: premium.transactionTaxTreatment.value,
+    source: "manual",
+    status: premium.transactionStatus.value,
+    notes: premium.transactionNotes.value.trim(),
+  });
+
+  const savedId = await saveTransactionToSupabase(transaction);
+  if (savedId) transaction.id = savedId;
+  transactions = [transaction, ...transactions];
+  premium.transactionForm.reset();
+  premium.transactionDate.value = new Date().toISOString().slice(0, 10);
+  renderTransactions();
+});
+
+premium.transactionList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-delete-transaction]");
+  if (!button) return;
+
+  await deleteTransactionFromSupabase(button.dataset.deleteTransaction);
+  transactions = transactions.filter((transaction) => transaction.id !== button.dataset.deleteTransaction);
+  renderTransactions();
 });
 
 premium.adminTabButtons.forEach((button) => {

@@ -490,6 +490,7 @@
         <div class="section-tabs" aria-label="Premium sections">
           <button class="section-tab active" type="button" data-dashboard-tab="overview">Overview</button>
           <button class="section-tab" type="button" data-dashboard-tab="properties">Properties</button>
+          <button class="section-tab" type="button" data-dashboard-tab="transactions">Transactions</button>
           <button class="section-tab" type="button" data-dashboard-tab="subscription">Subscription</button>
           <button class="section-tab" type="button" data-dashboard-tab="documents">Documents</button>
           <button class="section-tab" type="button" data-dashboard-tab="account">Account</button>
@@ -545,6 +546,75 @@
             </div>
             <div class="property-list" id="propertyList"></div>
             <button class="secondary-button export-bottom" id="exportPortfolio" type="button">Export PDF summary</button>
+          </section>
+
+          <section class="panel-card dashboard-panel transaction-form-card" data-dashboard-panel="transactions">
+            <div class="section-heading">
+              <p class="eyebrow">Manual transactions</p>
+              <h2>Income and expenses</h2>
+            </div>
+            <form class="transaction-form" id="transactionForm">
+              <label>
+                <span>Property</span>
+                <select id="transactionProperty"></select>
+              </label>
+              <label>
+                <span>Date</span>
+                <input id="transactionDate" type="date" required />
+              </label>
+              <label>
+                <span>Type</span>
+                <select id="transactionType">
+                  <option value="income">Income</option>
+                  <option value="expense">Expense</option>
+                </select>
+              </label>
+              <label>
+                <span>Amount</span>
+                <input id="transactionAmount" type="number" min="0" step="0.01" placeholder="0.00" required />
+              </label>
+              <label>
+                <span>Category</span>
+                <input id="transactionCategory" placeholder="Rent, repair, insurance..." required />
+              </label>
+              <label>
+                <span>Tax treatment</span>
+                <select id="transactionTaxTreatment">
+                  <option value="revenue">Revenue</option>
+                  <option value="capital">Capital</option>
+                  <option value="review">Review</option>
+                </select>
+              </label>
+              <label>
+                <span>Status</span>
+                <select id="transactionStatus">
+                  <option value="approved">Approved</option>
+                  <option value="draft">Draft</option>
+                  <option value="review">Needs review</option>
+                </select>
+              </label>
+              <label class="wide-field">
+                <span>Notes</span>
+                <input id="transactionNotes" placeholder="Optional note" />
+              </label>
+              <button class="tax-button" type="submit">Save transaction</button>
+            </form>
+          </section>
+
+          <section class="panel-card dashboard-panel" data-dashboard-panel="transactions">
+            <div class="section-heading">
+              <p class="eyebrow">Quarterly summary</p>
+              <h2>MTD foundation</h2>
+            </div>
+            <div class="quarter-summary" id="quarterSummary"></div>
+          </section>
+
+          <section class="panel-card dashboard-panel transaction-list-card" data-dashboard-panel="transactions">
+            <div class="section-heading">
+              <p class="eyebrow">Transaction history</p>
+              <h2>Recent records</h2>
+            </div>
+            <div class="transaction-list" id="transactionList"></div>
           </section>
 
           <aside class="panel-card dashboard-panel" data-dashboard-panel="overview">
