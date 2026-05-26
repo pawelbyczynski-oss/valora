@@ -80,18 +80,48 @@ const premium = {
   propertyModal: document.querySelector("#propertyModal"),
   propertyForm: document.querySelector("#propertyForm"),
   propertyList: document.querySelector("#propertyList"),
-  propertyDetailModal: document.querySelector("#propertyDetailModal"),
-  closePropertyDetailModal: document.querySelector("#closePropertyDetailModal"),
+  propertyDetailView: document.querySelector("#propertyDetailView"),
+  propertyDetailPanel: document.querySelector("#propertyDetailPanel"),
+  backToProperties: document.querySelector("#backToProperties"),
+  detailAddProperty: document.querySelector("#detailAddProperty"),
   propertyDetailTitle: document.querySelector("#propertyDetailTitle"),
   propertyDetailSummary: document.querySelector("#propertyDetailSummary"),
   propertyDetailTabButtons: document.querySelectorAll("[data-property-detail-tab]"),
   propertyDetailPanels: document.querySelectorAll("[data-property-detail-panel]"),
   deletePropertyButton: document.querySelector("#deletePropertyButton"),
   deletePropertyMessage: document.querySelector("#deletePropertyMessage"),
+  propertyOwnershipModel: document.querySelector("#propertyOwnershipModel"),
+  propertyOperatorNote: document.querySelector("#propertyOperatorNote"),
+  propertyOperatorFields: document.querySelectorAll(".operator-field"),
+  propertyManagementForm: document.querySelector("#propertyManagementForm"),
+  detailOwnershipModel: document.querySelector("#detailOwnershipModel"),
+  detailOperatorFields: document.querySelectorAll(".detail-operator-field"),
+  detailGuaranteedRent: document.querySelector("#detailGuaranteedRent"),
+  detailMaintenanceModel: document.querySelector("#detailMaintenanceModel"),
+  detailMaintenanceFee: document.querySelector("#detailMaintenanceFee"),
+  detailRentDueDay: document.querySelector("#detailRentDueDay"),
+  detailRentReminder: document.querySelector("#detailRentReminder"),
+  propertyManagementMessage: document.querySelector("#propertyManagementMessage"),
   tenancyForm: document.querySelector("#tenancyForm"),
   tenancyHistoryList: document.querySelector("#tenancyHistoryList"),
   remortgageForm: document.querySelector("#remortgageForm"),
   remortgageHistoryList: document.querySelector("#remortgageHistoryList"),
+  propertyExpenseFilters: document.querySelector("#propertyExpenseFilters"),
+  propertyExpenseSearch: document.querySelector("#propertyExpenseSearch"),
+  propertyExpenseFrom: document.querySelector("#propertyExpenseFrom"),
+  propertyExpenseTo: document.querySelector("#propertyExpenseTo"),
+  propertyExpenseType: document.querySelector("#propertyExpenseType"),
+  propertyExpenseStatus: document.querySelector("#propertyExpenseStatus"),
+  propertyExpenseList: document.querySelector("#propertyExpenseList"),
+  approvePropertyDrafts: document.querySelector("#approvePropertyDrafts"),
+  exportPropertyTransactions: document.querySelector("#exportPropertyTransactions"),
+  propertyReportFilters: document.querySelector("#propertyReportFilters"),
+  propertyReportFrom: document.querySelector("#propertyReportFrom"),
+  propertyReportTo: document.querySelector("#propertyReportTo"),
+  reportIncludeRent: document.querySelector("#reportIncludeRent"),
+  reportIncludeMortgage: document.querySelector("#reportIncludeMortgage"),
+  reportIncludeExpenses: document.querySelector("#reportIncludeExpenses"),
+  reportIncludeTenancies: document.querySelector("#reportIncludeTenancies"),
   landlordReport: document.querySelector("#landlordReport"),
   printLandlordReport: document.querySelector("#printLandlordReport"),
   reminderList: document.querySelector("#reminderList"),
@@ -136,6 +166,12 @@ const premium = {
   transactionTaxTreatment: document.querySelector("#transactionTaxTreatment"),
   transactionStatus: document.querySelector("#transactionStatus"),
   transactionNotes: document.querySelector("#transactionNotes"),
+  transactionFilters: document.querySelector("#transactionFilters"),
+  transactionSearch: document.querySelector("#transactionSearch"),
+  transactionFilterProperty: document.querySelector("#transactionFilterProperty"),
+  transactionFilterType: document.querySelector("#transactionFilterType"),
+  transactionFilterStatus: document.querySelector("#transactionFilterStatus"),
+  resetTransactionFilters: document.querySelector("#resetTransactionFilters"),
   transactionList: document.querySelector("#transactionList"),
   quarterSummary: document.querySelector("#quarterSummary"),
   exportQuarterPack: document.querySelector("#exportQuarterPack"),
@@ -276,6 +312,7 @@ function normalizeTransactionRecord(transaction) {
     ...transaction,
     id: transaction.id || createId("transaction"),
     propertyId: transaction.propertyId || "",
+    documentId: transaction.documentId || "",
     date: transaction.date || new Date().toISOString().slice(0, 10),
     amount: Number(transaction.amount || 0),
     type: transaction.type === "expense" ? "expense" : "income",
@@ -391,6 +428,20 @@ function renderTransactionPropertyOptions() {
     new Option("General portfolio", ""),
     ...properties.map((property) => new Option(property.name, property.id)),
   );
+
+  if (premium.transactionFilterProperty) {
+    const currentValue = premium.transactionFilterProperty.value || "all";
+    premium.transactionFilterProperty.replaceChildren(
+      new Option("All properties", "all"),
+      new Option("General portfolio", ""),
+      ...properties.map((property) => new Option(property.name, property.id)),
+    );
+    premium.transactionFilterProperty.value = [...premium.transactionFilterProperty.options].some(
+      (option) => option.value === currentValue,
+    )
+      ? currentValue
+      : "all";
+  }
 }
 
 function renderDocumentPropertyOptions() {
@@ -423,6 +474,23 @@ function monthKey(dateString) {
 
 function currentMonthLabel() {
   return new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" }).format(new Date());
+}
+
+function currentMonthRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+  };
+}
+
+function isDateInRange(dateString, startDate, endDate) {
+  if (!dateString) return false;
+  if (startDate && dateString < startDate) return false;
+  if (endDate && dateString > endDate) return false;
+  return true;
 }
 
 function renderQuarterSummary() {
@@ -466,32 +534,25 @@ function currentQuarterRange() {
   };
 }
 
-function exportQuarterPackCsv() {
-  if (!hasProAccess()) {
-    premium.subscriptionNote.textContent = "Quarterly accountant exports are included in PropertyPanel Pro.";
-    switchDashboardTab("subscription");
-    return;
-  }
+function transactionCsvRows(rows) {
+  return rows.map((transaction) => ({
+    date: transaction.date,
+    property: transactionPropertyName(transaction.propertyId),
+    type: transaction.type,
+    amount: transaction.amount,
+    category: transaction.category,
+    tax_treatment: transaction.taxTreatment,
+    status: transaction.status,
+    source: transaction.source,
+    notes: transaction.notes || "",
+  }));
+}
 
-  const range = currentQuarterRange();
-  const rows = transactions
-    .filter((transaction) => transaction.date >= range.start && transaction.date <= range.end)
-    .map((transaction) => ({
-      date: transaction.date,
-      property: transactionPropertyName(transaction.propertyId),
-      type: transaction.type,
-      amount: transaction.amount,
-      category: transaction.category,
-      tax_treatment: transaction.taxTreatment,
-      status: transaction.status,
-      source: transaction.source,
-      notes: transaction.notes || "",
-    }));
-
+function downloadTransactionsCsv(rows, fileName) {
   const headers = ["date", "property", "type", "amount", "category", "tax_treatment", "status", "source", "notes"];
   const csv = [
     headers.join(","),
-    ...rows.map((row) =>
+    ...transactionCsvRows(rows).map((row) =>
       headers
         .map((header) => `"${String(row[header] ?? "").replaceAll('"', '""')}"`)
         .join(","),
@@ -502,10 +563,50 @@ function exportQuarterPackCsv() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `propertypanel-${range.label.toLowerCase().replace(" ", "-")}-accountant-pack.csv`;
+  link.download = fileName;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function quarterTransactions() {
+  const range = currentQuarterRange();
+  return transactions
+    .filter((transaction) => transaction.date >= range.start && transaction.date <= range.end);
+}
+
+function exportQuarterPackCsv() {
+  if (!hasProAccess()) {
+    premium.subscriptionNote.textContent = "Quarterly accountant exports are included in PropertyPanel Pro.";
+    switchDashboardTab("subscription");
+    return;
+  }
+
+  const range = currentQuarterRange();
+  const rows = quarterTransactions();
+
+  downloadTransactionsCsv(rows, `propertypanel-${range.label.toLowerCase().replace(" ", "-")}-accountant-pack.csv`);
   trackEvent("quarter_pack_exported", { quarter: range.label, rows: rows.length });
+}
+
+function filteredTransactionsForDashboard() {
+  const search = (premium.transactionSearch?.value || "").trim().toLowerCase();
+  const propertyId = premium.transactionFilterProperty?.value ?? "all";
+  const type = premium.transactionFilterType?.value || "all";
+  const status = premium.transactionFilterStatus?.value || "all";
+
+  return transactions.filter((transaction) => {
+    const propertyName = transactionPropertyName(transaction.propertyId);
+    const matchesSearch =
+      !search ||
+      [transaction.category, propertyName, transaction.notes, transaction.source, transaction.taxTreatment, transaction.status]
+        .join(" ")
+        .toLowerCase()
+        .includes(search);
+    const matchesProperty = propertyId === "all" || transaction.propertyId === propertyId;
+    const matchesType = type === "all" || transaction.type === type;
+    const matchesStatus = status === "all" || transaction.status === status;
+    return matchesSearch && matchesProperty && matchesType && matchesStatus;
+  });
 }
 
 function renderTransactions() {
@@ -517,14 +618,22 @@ function renderTransactions() {
     premium.transactionDate.value = new Date().toISOString().slice(0, 10);
   }
 
+  const visibleTransactions = filteredTransactionsForDashboard();
+
   if (!transactions.length) {
     premium.transactionList.innerHTML = '<p class="field-hint">No transactions yet. Add rent or expenses here to build the quarterly report.</p>';
     renderQuarterSummary();
     return;
   }
 
+  if (!visibleTransactions.length) {
+    premium.transactionList.innerHTML = '<p class="field-hint">No transactions match these filters.</p>';
+    renderQuarterSummary();
+    return;
+  }
+
   premium.transactionList.replaceChildren(
-    ...transactions.slice(0, 12).map((transaction) => {
+    ...visibleTransactions.slice(0, 24).map((transaction) => {
       const row = document.createElement("article");
       row.className = "transaction-row";
       const detail = document.createElement("div");
@@ -542,6 +651,14 @@ function renderTransactions() {
       amount.className = `transaction-amount ${transaction.type === "expense" ? "expense" : "income"}`;
       amount.textContent = `${transaction.type === "expense" ? "-" : "+"}${money.format(transaction.amount)}`;
       actions.className = "detail-actions";
+      if (transaction.status !== "approved") {
+        const approveButton = document.createElement("button");
+        approveButton.className = "tax-button small-button";
+        approveButton.type = "button";
+        approveButton.dataset.approveTransaction = transaction.id;
+        approveButton.textContent = "Approve";
+        actions.append(approveButton);
+      }
       editButton.className = "secondary-button small-button";
       editButton.type = "button";
       editButton.dataset.editTransaction = transaction.id;
@@ -575,6 +692,30 @@ function monthlySmartScanCount() {
   const now = new Date();
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   return documents.filter((document) => (document.aiScannedAt || "").startsWith(month)).length;
+}
+
+function documentDraftCount(documentId) {
+  return transactions.filter((transaction) => transaction.documentId === documentId && transaction.status !== "approved").length;
+}
+
+function documentActionButtons(document) {
+  const draftCount = documentDraftCount(document.id);
+  const isProcessing = document.aiStatus === "processing";
+  const scanLabel =
+    document.aiStatus === "failed"
+      ? "Retry scan"
+      : document.aiStatus === "review"
+        ? "Rescan"
+        : "Scan & split";
+  const reviewButton =
+    draftCount || document.aiStatus === "review"
+      ? `<button class="secondary-button small-button" type="button" data-review-document="${document.id}">Review drafts${draftCount ? ` (${draftCount})` : ""}</button>`
+      : "";
+  return `
+    <button class="secondary-button small-button" type="button" data-download-document="${document.id}">Open</button>
+    <button class="tax-button small-button" type="button" data-analyze-document="${document.id}" ${isProcessing ? "disabled" : ""}>${isProcessing ? "Scanning..." : scanLabel}</button>
+    ${reviewButton}
+  `;
 }
 
 function renderDocuments() {
@@ -613,8 +754,7 @@ function renderDocuments() {
         <small>${documentPropertyName(latestDocument.propertyId)} · ${latestDocument.documentType} · ${latestDocument.fileName || "File"}</small>
       </div>
       <div class="detail-actions">
-        <button class="secondary-button small-button" type="button" data-download-document="${latestDocument.id}">Open</button>
-        <button class="tax-button small-button" type="button" data-analyze-document="${latestDocument.id}">Scan & split</button>
+        ${documentActionButtons(latestDocument)}
       </div>
     `;
   }
@@ -647,15 +787,18 @@ function renderDocuments() {
         ? `${document.aiResult.transactions.length} drafts`
         : document.aiResult?.amount
           ? `${money.format(Number(document.aiResult.amount || 0))} draft`
-          : "";
+          : document.aiScannedAt
+            ? `Scanned ${formatDate(document.aiScannedAt)}`
+            : document.pageCount
+              ? `${document.pageCount} page${document.pageCount === 1 ? "" : "s"}`
+              : "";
 
       row.innerHTML = `
         <span>${document.label}<small>${document.documentType} · ${document.fileName || "File"} · ${fileSizeLabel(document.fileSize)}</small></span>
         <span>${documentPropertyName(document.propertyId)}<small>${document.expiryDate ? `Expires ${formatDate(document.expiryDate)}` : "No expiry"}</small></span>
         <strong>${aiText}<small>${aiSummary}</small></strong>
         <div class="detail-actions">
-          <button class="secondary-button small-button" type="button" data-download-document="${document.id}">Open</button>
-          <button class="tax-button small-button" type="button" data-analyze-document="${document.id}">Scan & split</button>
+          ${documentActionButtons(document)}
           <button class="secondary-button small-button danger-button" type="button" data-delete-document="${document.id}">Delete</button>
         </div>
       `;
@@ -681,15 +824,157 @@ function createReportMetric(label, value) {
   return item;
 }
 
+function ensurePropertyDetailFilterDefaults() {
+  const range = currentMonthRange();
+  if (premium.propertyExpenseFrom && !premium.propertyExpenseFrom.value) premium.propertyExpenseFrom.value = range.start;
+  if (premium.propertyExpenseTo && !premium.propertyExpenseTo.value) premium.propertyExpenseTo.value = range.end;
+  if (premium.propertyReportFrom && !premium.propertyReportFrom.value) premium.propertyReportFrom.value = range.start;
+  if (premium.propertyReportTo && !premium.propertyReportTo.value) premium.propertyReportTo.value = range.end;
+}
+
+function propertyTransactionsForRange(property, startDate, endDate) {
+  return transactions.filter(
+    (transaction) =>
+      transaction.propertyId === property.id &&
+      isDateInRange(transaction.date, startDate, endDate),
+  );
+}
+
+function filteredPropertyTransactions(property) {
+  ensurePropertyDetailFilterDefaults();
+
+  const search = (premium.propertyExpenseSearch?.value || "").trim().toLowerCase();
+  const type = premium.propertyExpenseType?.value || "all";
+  const status = premium.propertyExpenseStatus?.value || "all";
+  const startDate = premium.propertyExpenseFrom?.value || "";
+  const endDate = premium.propertyExpenseTo?.value || "";
+
+  return propertyTransactionsForRange(property, startDate, endDate)
+    .filter((transaction) => type === "all" || transaction.type === type)
+    .filter((transaction) => status === "all" || transaction.status === status)
+    .filter((transaction) => {
+      if (!search) return true;
+      return [transaction.category, transaction.notes, transaction.source, transaction.taxTreatment, transaction.status]
+        .join(" ")
+        .toLowerCase()
+        .includes(search);
+    })
+    .sort((a, b) => dateValue(b.date) - dateValue(a.date));
+}
+
+function renderPropertyExpenses(property) {
+  if (!premium.propertyExpenseList) return;
+  const filteredTransactions = filteredPropertyTransactions(property);
+  const visibleDraftCount = filteredTransactions.filter((transaction) => transaction.status !== "approved").length;
+  if (premium.approvePropertyDrafts) {
+    premium.approvePropertyDrafts.disabled = visibleDraftCount === 0;
+    premium.approvePropertyDrafts.textContent = visibleDraftCount
+      ? `Approve visible drafts (${visibleDraftCount})`
+      : "Approve visible drafts";
+  }
+  if (premium.exportPropertyTransactions) {
+    premium.exportPropertyTransactions.disabled = filteredTransactions.length === 0;
+  }
+
+  if (!filteredTransactions.length) {
+    premium.propertyExpenseList.innerHTML = `<div class="detail-row muted-row">No matching transactions for this property</div>`;
+    return;
+  }
+
+  premium.propertyExpenseList.replaceChildren(
+    ...filteredTransactions.map((transaction) => {
+      const row = document.createElement("div");
+      row.className = "detail-row property-transaction-row";
+      row.innerHTML = `
+        <div><span>Date</span><strong>${formatDate(transaction.date)}</strong></div>
+        <div><span>Type</span><strong>${transaction.type}</strong></div>
+        <div><span>Category</span><strong>${transaction.category}</strong></div>
+        <div><span>Amount</span><strong class="transaction-amount ${transaction.type === "expense" ? "expense" : "income"}">${transaction.type === "expense" ? "-" : "+"}${money.format(transaction.amount)}</strong></div>
+        <div><span>Status</span><strong>${transaction.status}</strong></div>
+        <div><span>Tax</span><strong>${transaction.taxTreatment}</strong></div>
+        <div><span>Source</span><strong>${transaction.source}</strong></div>
+        <div><span>Notes</span><strong>${transaction.notes || "-"}</strong></div>
+        <div class="detail-actions property-transaction-actions">
+          ${transaction.status !== "approved" ? `<button class="tax-button small-button" type="button" data-approve-property-transaction="${transaction.id}">Approve</button>` : ""}
+          <button class="secondary-button small-button" type="button" data-edit-property-transaction="${transaction.id}">Edit</button>
+          <button class="secondary-button small-button danger-button" type="button" data-delete-property-transaction="${transaction.id}">Delete</button>
+        </div>
+      `;
+      return row;
+    }),
+  );
+}
+
+function exportPropertyTransactionsCsv(property) {
+  const rows = filteredPropertyTransactions(property);
+  if (!rows.length) return;
+
+  downloadTransactionsCsv(rows, `${property.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-transactions.csv`);
+}
+
+function loadTransactionIntoForm(transaction) {
+  editingTransactionId = transaction.id;
+  premium.transactionProperty.value = transaction.propertyId || "";
+  premium.transactionDate.value = transaction.date || new Date().toISOString().slice(0, 10);
+  premium.transactionAmount.value = transaction.amount || "";
+  premium.transactionType.value = transaction.type || "income";
+  premium.transactionCategory.value = transaction.category || "";
+  premium.transactionTaxTreatment.value = transaction.taxTreatment || "review";
+  premium.transactionStatus.value = transaction.status || "approved";
+  premium.transactionNotes.value = transaction.notes || "";
+  premium.transactionForm.querySelector("button[type='submit']").textContent = "Update transaction";
+}
+
+function reviewDocumentDrafts(documentId) {
+  const documentRecord = documents.find((item) => item.id === documentId);
+  const draftTransactions = transactions.filter(
+    (transaction) => transaction.documentId === documentId && transaction.status !== "approved",
+  );
+
+  if (documentRecord?.propertyId) {
+    openPropertyDetail(documentRecord.propertyId);
+    switchPropertyDetailTab("expenses");
+    premium.propertyExpenseStatus.value = draftTransactions.length ? "draft" : "all";
+    premium.propertyExpenseType.value = "all";
+    premium.propertyExpenseSearch.value = "";
+    const property = activeProperty();
+    if (property) renderPropertyExpenses(property);
+    premium.propertyExpenseList.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+
+  switchDashboardTab("transactions");
+  premium.transactionList.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (!draftTransactions.length) {
+    premium.documentMessage.textContent = "No draft transactions found for this document yet.";
+  }
+}
+
+function printActiveLandlordReport() {
+  const property = activeProperty();
+  if (!property) return;
+  document.body.classList.add("print-landlord-report");
+  document.body.dataset.printPropertyName = property.name;
+  renderLandlordReport(property);
+  window.print();
+}
+
 function renderLandlordReport(property) {
   if (!premium.landlordReport) return;
 
-  const activeMonth = monthKey(new Date().toISOString().slice(0, 10));
-  const propertyTransactions = transactions.filter(
-    (transaction) => transaction.propertyId === property.id && monthKey(transaction.date) === activeMonth,
-  );
+  ensurePropertyDetailFilterDefaults();
+  const startDate = premium.propertyReportFrom?.value || "";
+  const endDate = premium.propertyReportTo?.value || "";
+  const includeRent = premium.reportIncludeRent?.checked !== false;
+  const includeMortgage = premium.reportIncludeMortgage?.checked !== false;
+  const includeExpenses = premium.reportIncludeExpenses?.checked !== false;
+  const includeTenancies = premium.reportIncludeTenancies?.checked !== false;
+  const propertyTransactions = propertyTransactionsForRange(property, startDate, endDate);
   const rentReceived = propertyTransactions
     .filter((transaction) => transaction.type === "income")
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const expenseTotal = propertyTransactions
+    .filter((transaction) => transaction.type === "expense")
     .reduce((sum, transaction) => sum + transaction.amount, 0);
   const repairCharges = propertyTransactions
     .filter((transaction) => {
@@ -702,20 +987,39 @@ function renderLandlordReport(property) {
     property.maintenanceModel === "Operator covers repairs for monthly fee" ? Number(property.maintenanceFee || 0) : 0;
   const landlordRepairCharge =
     property.maintenanceModel === "Landlord charged for repairs" ? repairCharges : 0;
+  const mortgageDeal = latestMortgageDeal(property);
+  const mortgageInterest = mortgageDeal.balance * (mortgageDeal.rate / 100 / 12);
   const landlordGrossRent = guaranteedRent || rentReceived || Number(property.rent || 0);
   const netPayable = landlordGrossRent - landlordRepairCharge - maintenanceFee;
+  const periodLabel = [startDate ? formatDate(startDate) : "", endDate ? formatDate(endDate) : ""].filter(Boolean).join(" to ") || currentMonthLabel();
 
   const metrics = document.createElement("div");
   metrics.className = "landlord-report-metrics";
-  metrics.append(
-    createReportMetric("Period", currentMonthLabel()),
+  const metricItems = [
+    createReportMetric("Period", periodLabel),
     createReportMetric("Model", property.ownershipModel || "Owned"),
-    createReportMetric("Rent received", money.format(rentReceived)),
-    createReportMetric("Guaranteed rent", guaranteedRent ? money.format(guaranteedRent) : "-"),
-    createReportMetric("Repair deductions", money.format(landlordRepairCharge)),
-    createReportMetric("Maintenance fee", money.format(maintenanceFee)),
-    createReportMetric("Net payable to landlord", money.format(netPayable)),
-  );
+  ];
+  if (includeRent) {
+    metricItems.push(
+      createReportMetric("Rent received", money.format(rentReceived)),
+      createReportMetric("Guaranteed rent", guaranteedRent ? money.format(guaranteedRent) : "-"),
+    );
+  }
+  if (includeMortgage) {
+    metricItems.push(
+      createReportMetric("Mortgage rate", `${Number(mortgageDeal.rate || 0).toFixed(2)}%`),
+      createReportMetric("Est. monthly interest", money.format(mortgageInterest)),
+    );
+  }
+  if (includeExpenses) {
+    metricItems.push(
+      createReportMetric("Expenses", money.format(expenseTotal)),
+      createReportMetric("Repair deductions", money.format(landlordRepairCharge)),
+      createReportMetric("Maintenance fee", money.format(maintenanceFee)),
+    );
+  }
+  metricItems.push(createReportMetric("Net payable to landlord", money.format(netPayable)));
+  metrics.append(...metricItems);
 
   const note = document.createElement("p");
   note.className = "field-hint";
@@ -729,7 +1033,8 @@ function renderLandlordReport(property) {
   const relevantTransactions = propertyTransactions.filter(
     (transaction) => {
       const category = transaction.category.toLowerCase();
-      return transaction.type === "income" || category.includes("repair") || category.includes("maintenance");
+      if (includeRent && transaction.type === "income") return true;
+      return includeExpenses && (category.includes("repair") || category.includes("maintenance") || transaction.type === "expense");
     },
   );
 
@@ -753,7 +1058,33 @@ function renderLandlordReport(property) {
     transactionList.append(empty);
   }
 
-  premium.landlordReport.replaceChildren(metrics, note, transactionList);
+  const sections = [metrics, note, transactionList];
+  if (includeTenancies) {
+    const tenancyList = document.createElement("div");
+    tenancyList.className = "document-list landlord-report-lines";
+    if ((property.tenancies || []).length) {
+      property.tenancies.forEach((tenancy) => {
+        const item = document.createElement("div");
+        const label = document.createElement("span");
+        const value = document.createElement("strong");
+        label.textContent = `${tenancy.tenantName || "Tenant"} · ${formatDate(tenancy.startDate)} to ${formatDate(tenancy.endDate)}`;
+        value.textContent = money.format(Number(tenancy.rent || 0));
+        item.append(label, value);
+        tenancyList.append(item);
+      });
+    } else {
+      const empty = document.createElement("div");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+      label.textContent = "No tenancy records saved";
+      value.textContent = "Add long-term rent";
+      empty.append(label, value);
+      tenancyList.append(empty);
+    }
+    sections.push(tenancyList);
+  }
+
+  premium.landlordReport.replaceChildren(...sections);
 }
 
 function renderPremiumDashboard() {
@@ -819,6 +1150,21 @@ function propertyDisplayNameFromAddress() {
   return [address1, town].filter(Boolean).join(", ");
 }
 
+function updateOperatorFieldsVisibility() {
+  const showOperatorFields = premium.propertyOwnershipModel?.value !== "Owned";
+  premium.propertyOperatorNote.hidden = !showOperatorFields;
+  premium.propertyOperatorFields.forEach((field) => {
+    field.hidden = !showOperatorFields;
+  });
+}
+
+function updateDetailOperatorFieldsVisibility() {
+  const showOperatorFields = premium.detailOwnershipModel?.value !== "Owned";
+  premium.detailOperatorFields.forEach((field) => {
+    field.hidden = !showOperatorFields;
+  });
+}
+
 function resetTenancyForm() {
   editingTenancyId = null;
   premium.tenancyForm.reset();
@@ -844,6 +1190,7 @@ function switchPropertyDetailTab(tabName) {
 function renderPropertyDetail() {
   const property = activeProperty();
   if (!property) return;
+  ensurePropertyDetailFilterDefaults();
 
   const mortgageDeal = latestMortgageDeal(property);
   premium.propertyDetailTitle.textContent = property.name;
@@ -852,6 +1199,17 @@ function renderPropertyDetail() {
   document.querySelector("#detailMortgageRate").value = mortgageDeal.rate || "";
   document.querySelector("#detailMortgageBalance").value = mortgageDeal.balance || "";
   document.querySelector("#detailMortgageEnd").value = mortgageDeal.expiryDate || "";
+  premium.detailOwnershipModel.value = property.ownershipModel || "Owned";
+  premium.detailGuaranteedRent.value = property.guaranteedRent || "";
+  premium.detailMaintenanceModel.value = property.maintenanceModel || "Landlord charged for repairs";
+  premium.detailMaintenanceFee.value = property.maintenanceFee || "";
+  premium.detailRentDueDay.value = property.rentDueDay || 1;
+  premium.detailRentReminder.value = property.rentReminder || "On";
+  premium.propertyManagementMessage.textContent =
+    property.ownershipModel === "Owned"
+      ? "Owned property selected. Operator fields are hidden and landlord reports use rent and expense records."
+      : "Managed/rent-to-rent setup is active. Landlord reports use guaranteed rent and maintenance rules.";
+  updateDetailOperatorFieldsVisibility();
   premium.propertyDetailSummary.innerHTML = `
     <div><span>Address</span><strong>${[property.addressLine1, property.addressLine2, property.town, property.postcode].filter(Boolean).join(", ") || property.name}</strong></div>
     <div><span>Ownership</span><strong>${property.ownershipModel || "Owned"}</strong></div>
@@ -918,6 +1276,7 @@ function renderPropertyDetail() {
     premium.remortgageHistoryList.innerHTML = `<div class="detail-row muted-row">No remortgage records yet</div>`;
   }
 
+  renderPropertyExpenses(property);
   renderLandlordReport(property);
 }
 
@@ -928,7 +1287,8 @@ function openPropertyDetail(propertyId) {
   premium.deletePropertyMessage.textContent = "Deleting a property removes it from your portfolio and lender export.";
   resetTenancyForm();
   resetRemortgageForm();
-  premium.propertyDetailModal.hidden = false;
+  premium.propertyDetailPanel.hidden = false;
+  switchView("propertyDetailView");
 }
 
 async function deleteActiveProperty() {
@@ -948,7 +1308,10 @@ async function deleteActiveProperty() {
 
   properties = properties.filter((item) => item.id !== property.id);
   activePropertyId = null;
-  premium.propertyDetailModal.hidden = true;
+  premium.propertyDetailPanel.hidden = true;
+  switchView("dashboardView");
+  premium.dashboardPanel.hidden = false;
+  switchDashboardTab("properties");
   renderPremiumDashboard();
 }
 
@@ -1040,6 +1403,7 @@ function openDashboard() {
     return;
   }
 
+  premium.propertyDetailPanel.hidden = true;
   switchView("dashboardView");
   premium.dashboardPanel.hidden = false;
   switchDashboardTab("overview");
@@ -1079,7 +1443,7 @@ function clearPremiumDataForLockedAccount() {
 
 function showSubscriptionRequired(message = "Sign in is working. Choose Premium or Pro to unlock the portfolio dashboard.") {
   premium.dashboardPanel.hidden = true;
-  premium.propertyDetailModal.hidden = true;
+  premium.propertyDetailPanel.hidden = true;
   premium.propertyModal.hidden = true;
   switchView("premiumView");
   document.querySelector("#selectedPlanCopy").textContent = message;
@@ -1629,6 +1993,7 @@ async function loadSupabaseTransactions(userId) {
     normalizeTransactionRecord({
       id: transaction.id,
       propertyId: transaction.property_id || "",
+      documentId: transaction.document_id || "",
       date: transaction.transaction_date,
       amount: transaction.amount,
       type: transaction.transaction_type,
@@ -1855,19 +2220,11 @@ async function deleteDocumentFromSupabase(document) {
 async function openDocument(documentRecord) {
   if (!supabaseClient || !documentRecord.storagePath) return;
   premium.documentMessage.textContent = "Opening document...";
-  const targetWindow = window.open("", "_blank", "noopener,noreferrer");
   const { data, error } = await supabaseClient.storage
     .from("property-documents")
     .createSignedUrl(documentRecord.storagePath, 300);
   if (error || !data?.signedUrl) {
-    targetWindow?.close();
     premium.documentMessage.textContent = error?.message || "Could not open document.";
-    return;
-  }
-
-  if (targetWindow) {
-    targetWindow.location.href = data.signedUrl;
-    premium.documentMessage.textContent = "Document opened in a new tab.";
     return;
   }
 
@@ -1888,6 +2245,18 @@ async function analyzeDocument(documentId) {
     switchDashboardTab("subscription");
     return;
   }
+  if (!supabaseClient) {
+    premium.documentMessage.textContent = "Supabase is not configured, so AI scan cannot start.";
+    return;
+  }
+
+  const {
+    data: { session },
+  } = await supabaseClient.auth.getSession();
+  if (!session) {
+    premium.documentMessage.textContent = "Sign in again before running an AI scan.";
+    return;
+  }
 
   const documentRecord = documents.find((item) => item.id === documentId);
   if (!documentRecord) return;
@@ -1895,14 +2264,39 @@ async function analyzeDocument(documentId) {
     premium.documentMessage.textContent = "Smart document scans are limited to 5 pages per document.";
     return;
   }
+  const existingDrafts = documentDraftCount(documentId);
+  if (existingDrafts) {
+    const confirmed = window.confirm(
+      `${existingDrafts} draft transaction${existingDrafts === 1 ? "" : "s"} already exist for this document. Scan again anyway?`,
+    );
+    if (!confirmed) return;
+  }
 
   documentRecord.aiStatus = "processing";
   renderDocuments();
   premium.documentMessage.textContent = `Scanning and splitting ${documentRecord.label} into draft transactions. This can take up to 30 seconds.`;
-
-  const { data, error } = await supabaseClient.functions.invoke(ANALYZE_DOCUMENT_FUNCTION, {
-    body: { document_id: documentId },
+  const analyzeButtons = document.querySelectorAll(`[data-analyze-document="${documentId}"]`);
+  analyzeButtons.forEach((button) => {
+    button.disabled = true;
+    button.textContent = "Scanning...";
   });
+
+  let data;
+  let error;
+  try {
+    const response = await supabaseClient.functions.invoke(ANALYZE_DOCUMENT_FUNCTION, {
+      body: { document_id: documentId },
+    });
+    data = response.data;
+    error = response.error;
+  } catch (functionError) {
+    error = functionError;
+  } finally {
+    analyzeButtons.forEach((button) => {
+      button.disabled = false;
+      button.textContent = "Scan & split";
+    });
+  }
 
   if (error || data?.error) {
     const context = error?.context;
@@ -1921,8 +2315,9 @@ async function analyzeDocument(documentId) {
   await loadSupabaseDocuments((await supabaseClient.auth.getUser()).data.user.id);
   await loadSupabaseTransactions((await supabaseClient.auth.getUser()).data.user.id);
   renderPremiumDashboard();
+  if (activePropertyId) renderPropertyDetail();
   premium.documentMessage.textContent = `AI created ${draftCount} draft ${draftCount === 1 ? "transaction" : "transactions"}. Review before approving.`;
-  switchDashboardTab("transactions");
+  reviewDocumentDrafts(documentId);
 }
 
 async function saveTenancyToSupabase(property, tenancy) {
@@ -2033,6 +2428,13 @@ async function updateSupabasePropertySnapshot(property) {
     .from("properties")
     .update({
       monthly_rent: property.rent,
+      operating_expenses: property.expenses,
+      ownership_model: property.ownershipModel,
+      guaranteed_rent: property.guaranteedRent,
+      maintenance_model: property.maintenanceModel,
+      maintenance_fee: property.maintenanceFee,
+      rent_due_day: property.rentDueDay,
+      rent_reminder_enabled: property.rentReminder === "On",
       mortgage_balance: mortgageDeal.balance,
       mortgage_product_type: mortgageDeal.productType,
       mortgage_rate: mortgageDeal.rate,
@@ -2886,7 +3288,6 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     outputs.taxModal.hidden = true;
     premium.propertyModal.hidden = true;
-    premium.propertyDetailModal.hidden = true;
   }
 });
 
@@ -2994,9 +3395,13 @@ premium.transactionForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  const existingTransaction = editingTransactionId
+    ? transactions.find((item) => item.id === editingTransactionId)
+    : null;
   const transaction = normalizeTransactionRecord({
     id: editingTransactionId || createId("transaction"),
     propertyId: premium.transactionProperty.value,
+    documentId: existingTransaction?.documentId || "",
     date: premium.transactionDate.value,
     amount: Number(premium.transactionAmount.value) || 0,
     type: premium.transactionType.value,
@@ -3021,23 +3426,26 @@ premium.transactionForm.addEventListener("submit", async (event) => {
 
   resetTransactionForm();
   renderTransactions();
+  if (activePropertyId) renderPropertyDetail();
 });
 
 premium.transactionList.addEventListener("click", async (event) => {
+  const approveButton = event.target.closest("[data-approve-transaction]");
+  if (approveButton) {
+    const transaction = transactions.find((item) => item.id === approveButton.dataset.approveTransaction);
+    if (!transaction) return;
+    transaction.status = "approved";
+    await updateTransactionInSupabase(transaction);
+    renderTransactions();
+    if (activePropertyId) renderPropertyDetail();
+    return;
+  }
+
   const editButton = event.target.closest("[data-edit-transaction]");
   if (editButton) {
     const transaction = transactions.find((item) => item.id === editButton.dataset.editTransaction);
     if (!transaction) return;
-    editingTransactionId = transaction.id;
-    premium.transactionProperty.value = transaction.propertyId || "";
-    premium.transactionDate.value = transaction.date || new Date().toISOString().slice(0, 10);
-    premium.transactionAmount.value = transaction.amount || "";
-    premium.transactionType.value = transaction.type || "income";
-    premium.transactionCategory.value = transaction.category || "";
-    premium.transactionTaxTreatment.value = transaction.taxTreatment || "review";
-    premium.transactionStatus.value = transaction.status || "approved";
-    premium.transactionNotes.value = transaction.notes || "";
-    premium.transactionForm.querySelector("button[type='submit']").textContent = "Update transaction";
+    loadTransactionIntoForm(transaction);
     switchDashboardTab("transactions");
     premium.transactionForm.scrollIntoView({ behavior: "smooth", block: "center" });
     return;
@@ -3049,6 +3457,17 @@ premium.transactionList.addEventListener("click", async (event) => {
   await deleteTransactionFromSupabase(deleteButton.dataset.deleteTransaction);
   transactions = transactions.filter((transaction) => transaction.id !== deleteButton.dataset.deleteTransaction);
   if (editingTransactionId === deleteButton.dataset.deleteTransaction) resetTransactionForm();
+  renderTransactions();
+  if (activePropertyId) renderPropertyDetail();
+});
+
+premium.transactionFilters.addEventListener("input", renderTransactions);
+premium.transactionFilters.addEventListener("change", renderTransactions);
+premium.resetTransactionFilters.addEventListener("click", () => {
+  premium.transactionSearch.value = "";
+  premium.transactionFilterProperty.value = "all";
+  premium.transactionFilterType.value = "all";
+  premium.transactionFilterStatus.value = "all";
   renderTransactions();
 });
 
@@ -3122,6 +3541,13 @@ async function handleDocumentActionClick(event) {
     return;
   }
 
+  const reviewButton = event.target.closest("[data-review-document]");
+  if (reviewButton) {
+    event.preventDefault();
+    reviewDocumentDrafts(reviewButton.dataset.reviewDocument);
+    return;
+  }
+
   const deleteButton = event.target.closest("[data-delete-document]");
   if (!deleteButton) return;
   event.preventDefault();
@@ -3168,6 +3594,7 @@ premium.accountPasswordForm.addEventListener("submit", async (event) => {
 });
 
 premium.openPropertyModal.addEventListener("click", () => {
+  updateOperatorFieldsVisibility();
   premium.propertyModal.hidden = false;
 });
 
@@ -3179,6 +3606,11 @@ premium.propertyModal.addEventListener("click", (event) => {
   if (event.target === premium.propertyModal) {
     premium.propertyModal.hidden = true;
   }
+});
+
+premium.detailAddProperty.addEventListener("click", () => {
+  updateOperatorFieldsVisibility();
+  premium.propertyModal.hidden = false;
 });
 
 premium.propertyList.addEventListener("click", (event) => {
@@ -3195,20 +3627,130 @@ premium.propertyList.addEventListener("keydown", (event) => {
   openPropertyDetail(card.dataset.propertyId);
 });
 
-premium.closePropertyDetailModal.addEventListener("click", () => {
-  premium.propertyDetailModal.hidden = true;
-});
-
-premium.propertyDetailModal.addEventListener("click", (event) => {
-  if (event.target === premium.propertyDetailModal) {
-    premium.propertyDetailModal.hidden = true;
-  }
+premium.backToProperties.addEventListener("click", () => {
+  premium.propertyDetailPanel.hidden = true;
+  switchView("dashboardView");
+  premium.dashboardPanel.hidden = false;
+  switchDashboardTab("properties");
+  renderPremiumDashboard();
 });
 
 premium.propertyDetailTabButtons.forEach((button) => {
   button.addEventListener("click", () => {
     switchPropertyDetailTab(button.dataset.propertyDetailTab);
   });
+});
+
+premium.propertyOwnershipModel.addEventListener("change", updateOperatorFieldsVisibility);
+premium.detailOwnershipModel.addEventListener("change", updateDetailOperatorFieldsVisibility);
+
+premium.propertyManagementForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const property = activeProperty();
+  if (!property) return;
+
+  const ownershipModel = premium.detailOwnershipModel.value;
+  const usesOperatorFields = ownershipModel !== "Owned";
+  property.ownershipModel = ownershipModel;
+  property.guaranteedRent = usesOperatorFields ? Number(premium.detailGuaranteedRent.value) || 0 : 0;
+  property.maintenanceModel = usesOperatorFields
+    ? premium.detailMaintenanceModel.value
+    : "Landlord charged for repairs";
+  property.maintenanceFee = usesOperatorFields ? Number(premium.detailMaintenanceFee.value) || 0 : 0;
+  property.rentDueDay = Math.min(Math.max(Number(premium.detailRentDueDay.value) || 1, 1), 31);
+  property.rentReminder = premium.detailRentReminder.value;
+
+  await updateSupabasePropertySnapshot(property);
+  premium.propertyManagementMessage.textContent = "Management setup saved.";
+  renderPremiumDashboard();
+  renderPropertyDetail();
+  switchPropertyDetailTab("management");
+});
+
+premium.propertyExpenseFilters.addEventListener("input", () => {
+  const property = activeProperty();
+  if (property) renderPropertyExpenses(property);
+});
+
+premium.propertyExpenseFilters.addEventListener("change", () => {
+  const property = activeProperty();
+  if (property) renderPropertyExpenses(property);
+});
+
+premium.approvePropertyDrafts.addEventListener("click", async () => {
+  const property = activeProperty();
+  if (!property) return;
+  const draftTransactions = filteredPropertyTransactions(property).filter(
+    (transaction) => transaction.status !== "approved",
+  );
+  if (!draftTransactions.length) return;
+  const confirmed = window.confirm(`Approve ${draftTransactions.length} visible draft transaction${draftTransactions.length === 1 ? "" : "s"}?`);
+  if (!confirmed) return;
+
+  for (const transaction of draftTransactions) {
+    transaction.status = "approved";
+    await updateTransactionInSupabase(transaction);
+  }
+  renderTransactions();
+  renderPropertyDetail();
+  switchPropertyDetailTab("expenses");
+});
+
+premium.exportPropertyTransactions.addEventListener("click", () => {
+  const property = activeProperty();
+  if (property) exportPropertyTransactionsCsv(property);
+});
+
+premium.propertyExpenseList.addEventListener("click", async (event) => {
+  const property = activeProperty();
+  if (!property) return;
+
+  const approveButton = event.target.closest("[data-approve-property-transaction]");
+  if (approveButton) {
+    const transaction = transactions.find((item) => item.id === approveButton.dataset.approvePropertyTransaction);
+    if (!transaction) return;
+    transaction.status = "approved";
+    transaction.taxTreatment = transaction.taxTreatment || "review";
+    await updateTransactionInSupabase(transaction);
+    renderTransactions();
+    renderPropertyDetail();
+    return;
+  }
+
+  const editButton = event.target.closest("[data-edit-property-transaction]");
+  if (editButton) {
+    const transaction = transactions.find((item) => item.id === editButton.dataset.editPropertyTransaction);
+    if (!transaction) return;
+    loadTransactionIntoForm(transaction);
+    premium.propertyDetailPanel.hidden = true;
+    switchView("dashboardView");
+    premium.dashboardPanel.hidden = false;
+    switchDashboardTab("transactions");
+    premium.transactionForm.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+
+  const deleteButton = event.target.closest("[data-delete-property-transaction]");
+  if (!deleteButton) return;
+  const transaction = transactions.find((item) => item.id === deleteButton.dataset.deletePropertyTransaction);
+  if (!transaction) return;
+  const confirmed = window.confirm(`Delete ${transaction.category} transaction?`);
+  if (!confirmed) return;
+  await deleteTransactionFromSupabase(transaction.id);
+  transactions = transactions.filter((item) => item.id !== transaction.id);
+  if (editingTransactionId === transaction.id) resetTransactionForm();
+  renderTransactions();
+  renderPropertyDetail();
+});
+
+premium.propertyReportFilters.addEventListener("input", () => {
+  const property = activeProperty();
+  if (property) renderLandlordReport(property);
+});
+
+premium.propertyReportFilters.addEventListener("change", () => {
+  const property = activeProperty();
+  if (property) renderLandlordReport(property);
 });
 
 premium.tenancyHistoryList.addEventListener("click", async (event) => {
@@ -3274,7 +3816,12 @@ premium.remortgageHistoryList.addEventListener("click", async (event) => {
 
 premium.printLandlordReport.addEventListener("click", () => {
   trackEvent("landlord_report_printed", { property_id: activePropertyId });
-  window.print();
+  printActiveLandlordReport();
+});
+
+window.addEventListener("afterprint", () => {
+  document.body.classList.remove("print-landlord-report");
+  delete document.body.dataset.printPropertyName;
 });
 
 premium.deletePropertyButton.addEventListener("click", () => {
@@ -3357,6 +3904,8 @@ premium.propertyForm.addEventListener("submit", async (event) => {
   const addressLine2 = document.querySelector("#propertyAddress2").value.trim();
   const town = document.querySelector("#propertyTown").value.trim();
   const postcode = document.querySelector("#propertyPostcode").value.trim().toUpperCase();
+  const ownershipModel = document.querySelector("#propertyOwnershipModel").value;
+  const usesOperatorFields = ownershipModel !== "Owned";
   const property = {
     id: createId("property"),
     name: displayName || propertyDisplayNameFromAddress(),
@@ -3366,10 +3915,10 @@ premium.propertyForm.addEventListener("submit", async (event) => {
     postcode,
     region: document.querySelector("#propertyRegion").value,
     letType: document.querySelector("#propertyLetType").value,
-    ownershipModel: document.querySelector("#propertyOwnershipModel").value,
-    guaranteedRent: Number(document.querySelector("#propertyGuaranteedRent").value) || 0,
-    maintenanceModel: document.querySelector("#propertyMaintenanceModel").value,
-    maintenanceFee: Number(document.querySelector("#propertyMaintenanceFee").value) || 0,
+    ownershipModel,
+    guaranteedRent: usesOperatorFields ? Number(document.querySelector("#propertyGuaranteedRent").value) || 0 : 0,
+    maintenanceModel: usesOperatorFields ? document.querySelector("#propertyMaintenanceModel").value : "Landlord charged for repairs",
+    maintenanceFee: usesOperatorFields ? Number(document.querySelector("#propertyMaintenanceFee").value) || 0 : 0,
     purchaseDate: document.querySelector("#propertyPurchaseDate").value,
     purchasePrice: Number(document.querySelector("#propertyPurchasePrice").value) || 0,
     currentValue: Number(document.querySelector("#propertyCurrentValue").value) || 0,
@@ -3416,6 +3965,7 @@ premium.propertyForm.addEventListener("submit", async (event) => {
   trackEvent("property_added", { property_name: property.name, region: property.region });
   premium.propertyModal.hidden = true;
   premium.propertyForm.reset();
+  updateOperatorFieldsVisibility();
   renderPremiumDashboard();
 });
 

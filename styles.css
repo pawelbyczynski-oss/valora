@@ -865,7 +865,8 @@ select {
 
 .dashboard-shell > .dashboard-head,
 .dashboard-shell > .portfolio-metrics,
-.dashboard-shell > .dashboard-grid {
+.dashboard-shell > .dashboard-grid,
+.property-detail-shell > .property-detail-panel {
   grid-column: 2;
 }
 
@@ -887,7 +888,8 @@ select {
   backdrop-filter: blur(14px);
 }
 
-.dashboard-shell > .section-tabs {
+.dashboard-shell > .section-tabs,
+.property-detail-shell > .section-tabs {
   grid-column: 1;
   grid-row: 1 / span 3;
   display: grid;
@@ -906,7 +908,8 @@ select {
   text-align: left;
 }
 
-.dashboard-shell > .section-tabs .section-tab {
+.dashboard-shell > .section-tabs .section-tab,
+.property-detail-shell > .section-tabs .section-tab {
   flex: initial;
 }
 
@@ -917,7 +920,8 @@ select {
 }
 
 .dashboard-panel[hidden],
-.admin-panel[hidden] {
+.admin-panel[hidden],
+.property-detail-panel[hidden] {
   display: none;
 }
 
@@ -1027,6 +1031,16 @@ select {
 .transaction-form .wide-field,
 .transaction-form .tax-button {
   grid-column: span 2;
+}
+
+.detail-filter-form {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.detail-filter-form .checkbox-field {
+  align-self: end;
+  min-height: 48px;
 }
 
 .quarter-summary {
@@ -1453,13 +1467,16 @@ select {
   line-height: 1.4;
 }
 
-.property-detail-modal {
-  max-width: 920px;
+.operator-note {
+  grid-column: 1 / -1;
 }
 
-.detail-tabs {
-  position: static;
-  margin-bottom: 14px;
+.detail-operator-field[hidden] {
+  display: none;
+}
+
+.property-detail-shell {
+  min-height: calc(100vh - 120px);
 }
 
 .property-detail-summary,
@@ -1485,6 +1502,20 @@ select {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+}
+
+.property-transaction-row {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.property-transaction-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
+
+.expense-bulk-actions {
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 
 .detail-actions {
@@ -2008,11 +2039,15 @@ li {
   .dashboard-shell > .dashboard-head,
   .dashboard-shell > .portfolio-metrics,
   .dashboard-shell > .dashboard-grid,
-  .dashboard-shell > .section-tabs {
+  .dashboard-shell > .section-tabs,
+  .property-detail-shell > .dashboard-head,
+  .property-detail-shell > .section-tabs,
+  .property-detail-shell > .property-detail-panel {
     grid-column: auto;
   }
 
-  .dashboard-shell > .section-tabs {
+  .dashboard-shell > .section-tabs,
+  .property-detail-shell > .section-tabs {
     grid-row: auto;
   }
 
@@ -2100,6 +2135,7 @@ li {
   }
 
   .transaction-form .wide-field,
+  .operator-note,
   .transaction-form .tax-button {
     grid-column: auto;
   }
@@ -2311,5 +2347,79 @@ li {
   h2,
   h3 {
     color: #111111;
+  }
+
+  body.print-landlord-report .premium-shell,
+  body.print-landlord-report .dashboard-shell,
+  body.print-landlord-report .dashboard-grid,
+  body.print-landlord-report .property-list-panel,
+  body.print-landlord-report .property-list {
+    display: none !important;
+  }
+
+  body.print-landlord-report #propertyDetailView,
+  body.print-landlord-report .property-detail-shell,
+  body.print-landlord-report [data-property-detail-panel="landlord-report"],
+  body.print-landlord-report .landlord-report {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+  }
+
+  body.print-landlord-report .property-detail-shell > .dashboard-head,
+  body.print-landlord-report .detail-tabs,
+  body.print-landlord-report .property-detail-panel:not([data-property-detail-panel="landlord-report"]),
+  body.print-landlord-report .detail-filter-form,
+  body.print-landlord-report #printLandlordReport {
+    display: none !important;
+  }
+
+  body.print-landlord-report [data-property-detail-panel="landlord-report"]::before {
+    content: "PropertyPanel Landlord Report";
+    display: block;
+    margin-bottom: 6px;
+    color: #111111;
+    font-size: 22px;
+    font-weight: 850;
+  }
+
+  body.print-landlord-report [data-property-detail-panel="landlord-report"]::after {
+    content: "Generated from saved PropertyPanel records";
+    display: block;
+    margin-top: 12px;
+    color: #555555;
+    font-size: 11px;
+  }
+
+  body.print-landlord-report .section-heading {
+    margin-bottom: 10px;
+  }
+
+  body.print-landlord-report .landlord-report-metrics {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border: 1px solid #222222;
+  }
+
+  body.print-landlord-report .landlord-report-metrics div,
+  body.print-landlord-report .landlord-report-lines div {
+    border: 0;
+    border-right: 1px solid #222222;
+    border-bottom: 1px solid #222222;
+    border-radius: 0;
+    background: #ffffff;
+  }
+
+  body.print-landlord-report .landlord-report-lines {
+    margin-top: 12px;
+    border-top: 1px solid #222222;
+    border-left: 1px solid #222222;
   }
 }

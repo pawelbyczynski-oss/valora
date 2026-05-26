@@ -615,6 +615,34 @@
               <p class="eyebrow">Transaction history</p>
               <h2>Recent records</h2>
             </div>
+            <form class="transaction-form detail-filter-form" id="transactionFilters">
+              <label>
+                <span>Search</span>
+                <input id="transactionSearch" placeholder="Category, property, note..." />
+              </label>
+              <label>
+                <span>Property</span>
+                <select id="transactionFilterProperty"></select>
+              </label>
+              <label>
+                <span>Type</span>
+                <select id="transactionFilterType">
+                  <option value="all">All</option>
+                  <option value="income">Income</option>
+                  <option value="expense">Expenses</option>
+                </select>
+              </label>
+              <label>
+                <span>Status</span>
+                <select id="transactionFilterStatus">
+                  <option value="all">All</option>
+                  <option value="approved">Approved</option>
+                  <option value="draft">Draft</option>
+                  <option value="review">Needs review</option>
+                </select>
+              </label>
+              <button class="secondary-button small-button" id="resetTransactionFilters" type="button">Reset filters</button>
+            </form>
             <div class="transaction-list" id="transactionList"></div>
           </section>
 
@@ -857,24 +885,28 @@
           </label>
           <label>
             <span>Ownership model</span>
-            <select id="propertyOwnershipModel">
+            <select id="propertyOwnershipModel" aria-describedby="propertyOperatorNote">
               <option>Owned</option>
               <option>Managed</option>
               <option>Rent-to-rent</option>
             </select>
           </label>
-          <label>
+          <div class="form-note operator-note" id="propertyOperatorNote" hidden>
+            <span>Rent-to-rent / managed setup</span>
+            <p>Use these fields only when you pay the owner a guaranteed rent or manage repairs under a separate maintenance arrangement.</p>
+          </div>
+          <label class="operator-field" hidden>
             <span>Guaranteed rent to landlord</span>
             <input id="propertyGuaranteedRent" type="number" step="25" />
           </label>
-          <label>
+          <label class="operator-field" hidden>
             <span>Maintenance model</span>
             <select id="propertyMaintenanceModel">
               <option>Landlord charged for repairs</option>
               <option>Operator covers repairs for monthly fee</option>
             </select>
           </label>
-          <label>
+          <label class="operator-field" hidden>
             <span>Monthly maintenance fee</span>
             <input id="propertyMaintenanceFee" type="number" step="25" />
           </label>
@@ -949,20 +981,25 @@
       </section>
     </div>
 
-    <div class="modal-backdrop" id="propertyDetailModal" hidden>
-      <section class="tax-modal property-detail-modal" role="dialog" aria-modal="true" aria-labelledby="propertyDetailTitle">
-        <div class="modal-head">
+    <section class="premium-shell app-view" id="propertyDetailView" aria-label="PropertyPanel property detail">
+      <section class="dashboard-shell property-detail-shell" id="propertyDetailPanel" hidden>
+        <div class="dashboard-head">
           <div>
             <p class="eyebrow">Property record</p>
             <h2 id="propertyDetailTitle">Property details</h2>
           </div>
-          <button class="close-button" id="closePropertyDetailModal" type="button" aria-label="Close property details">×</button>
+          <div class="dashboard-actions">
+            <button class="secondary-button small-button" id="backToProperties" type="button">Back to portfolio</button>
+            <button class="tax-button small-button" id="detailAddProperty" type="button">Add property</button>
+          </div>
         </div>
 
         <div class="section-tabs detail-tabs" aria-label="Property detail sections">
           <button class="section-tab active" type="button" data-property-detail-tab="overview">Overview</button>
+          <button class="section-tab" type="button" data-property-detail-tab="management">Management</button>
           <button class="section-tab" type="button" data-property-detail-tab="tenancies">Long-term rents</button>
           <button class="section-tab" type="button" data-property-detail-tab="remortgages">Remortgage history</button>
+          <button class="section-tab" type="button" data-property-detail-tab="expenses">Expenses</button>
           <button class="section-tab" type="button" data-property-detail-tab="landlord-report">Landlord report</button>
         </div>
 
@@ -970,6 +1007,51 @@
           <div class="property-detail-summary" id="propertyDetailSummary"></div>
           <button class="secondary-button danger-button" id="deletePropertyButton" type="button">Delete property</button>
           <p class="field-hint" id="deletePropertyMessage">Deleting a property removes it from your portfolio and lender export.</p>
+        </section>
+
+        <section class="property-detail-panel" data-property-detail-panel="management" hidden>
+          <div class="section-heading">
+            <p class="eyebrow">Managed / rent-to-rent</p>
+            <h2>Operator setup</h2>
+          </div>
+          <form class="property-form compact-form" id="propertyManagementForm">
+            <label>
+              <span>Ownership model</span>
+              <select id="detailOwnershipModel">
+                <option>Owned</option>
+                <option>Managed</option>
+                <option>Rent-to-rent</option>
+              </select>
+            </label>
+            <label class="detail-operator-field">
+              <span>Guaranteed rent to landlord</span>
+              <input id="detailGuaranteedRent" type="number" step="25" />
+            </label>
+            <label class="detail-operator-field">
+              <span>Maintenance model</span>
+              <select id="detailMaintenanceModel">
+                <option>Landlord charged for repairs</option>
+                <option>Operator covers repairs for monthly fee</option>
+              </select>
+            </label>
+            <label class="detail-operator-field">
+              <span>Monthly maintenance fee</span>
+              <input id="detailMaintenanceFee" type="number" step="25" />
+            </label>
+            <label>
+              <span>Rent due day</span>
+              <input id="detailRentDueDay" type="number" min="1" max="31" step="1" />
+            </label>
+            <label>
+              <span>Rent reminders</span>
+              <select id="detailRentReminder">
+                <option>On</option>
+                <option>Off</option>
+              </select>
+            </label>
+            <button class="tax-button" type="submit">Save management setup</button>
+            <p class="field-hint" id="propertyManagementMessage">Owned properties can leave the operator fields blank. Managed and rent-to-rent properties use these fields in landlord reports.</p>
+          </form>
         </section>
 
         <section class="property-detail-panel" data-property-detail-panel="tenancies" hidden>
@@ -1060,6 +1142,49 @@
           <div class="detail-list" id="remortgageHistoryList"></div>
         </section>
 
+        <section class="property-detail-panel" data-property-detail-panel="expenses" hidden>
+          <div class="section-heading">
+            <p class="eyebrow">Property transactions</p>
+            <h2>Income and expenses</h2>
+          </div>
+          <div class="detail-actions expense-bulk-actions">
+            <button class="secondary-button small-button" id="approvePropertyDrafts" type="button">Approve visible drafts</button>
+            <button class="secondary-button small-button" id="exportPropertyTransactions" type="button">Export visible CSV</button>
+          </div>
+          <form class="transaction-form detail-filter-form" id="propertyExpenseFilters">
+            <label>
+              <span>Search</span>
+              <input id="propertyExpenseSearch" placeholder="Category, note, source..." />
+            </label>
+            <label>
+              <span>From</span>
+              <input id="propertyExpenseFrom" type="date" />
+            </label>
+            <label>
+              <span>To</span>
+              <input id="propertyExpenseTo" type="date" />
+            </label>
+            <label>
+              <span>Type</span>
+              <select id="propertyExpenseType">
+                <option value="all">All</option>
+                <option value="income">Income</option>
+                <option value="expense">Expenses</option>
+              </select>
+            </label>
+            <label>
+              <span>Status</span>
+              <select id="propertyExpenseStatus">
+                <option value="all">All</option>
+                <option value="approved">Approved</option>
+                <option value="draft">Draft</option>
+                <option value="review">Needs review</option>
+              </select>
+            </label>
+          </form>
+          <div class="detail-list" id="propertyExpenseList"></div>
+        </section>
+
         <section class="property-detail-panel" data-property-detail-panel="landlord-report" hidden>
           <div class="section-heading split-heading">
             <div>
@@ -1068,10 +1193,36 @@
             </div>
             <button class="secondary-button small-button" id="printLandlordReport" type="button">Print report</button>
           </div>
+          <form class="transaction-form detail-filter-form" id="propertyReportFilters">
+            <label>
+              <span>From</span>
+              <input id="propertyReportFrom" type="date" />
+            </label>
+            <label>
+              <span>To</span>
+              <input id="propertyReportTo" type="date" />
+            </label>
+            <label class="checkbox-field">
+              <input id="reportIncludeRent" type="checkbox" checked />
+              <span>Rent</span>
+            </label>
+            <label class="checkbox-field">
+              <input id="reportIncludeMortgage" type="checkbox" checked />
+              <span>Mortgage</span>
+            </label>
+            <label class="checkbox-field">
+              <input id="reportIncludeExpenses" type="checkbox" checked />
+              <span>Expenses</span>
+            </label>
+            <label class="checkbox-field">
+              <input id="reportIncludeTenancies" type="checkbox" checked />
+              <span>Tenancies</span>
+            </label>
+          </form>
           <div class="landlord-report" id="landlordReport"></div>
         </section>
       </section>
-    </div>
+    </section>
 
     <div class="modal-backdrop" id="taxModal" hidden>
       <section class="tax-modal" role="dialog" aria-modal="true" aria-labelledby="taxModalTitle">
@@ -1146,6 +1297,6 @@
     </footer>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260526-open-split-fix"></script>
+    <script src="app.js?v=20260526-property-expenses-report"></script>
   </body>
 </html>
