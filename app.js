@@ -630,6 +630,7 @@ function renderPropertyDetail() {
     <div><span>Mortgage product</span><strong>${mortgageDeal.productType || "Fixed"}</strong></div>
     <div><span>Rate</span><strong>${Number(mortgageDeal.rate || 0).toFixed(2)}%</strong></div>
     <div><span>Expiry</span><strong>${mortgageDeal.expiryDate || "-"}</strong></div>
+    <div><span>Rent due</span><strong>${property.rentReminder === "On" ? `${property.rentDueDay}${ordinalSuffix(property.rentDueDay)} monthly` : "Off"}</strong></div>
     <div><span>Guaranteed rent</span><strong>${property.guaranteedRent ? money.format(property.guaranteedRent) : "-"}</strong></div>
     <div><span>Maintenance</span><strong>${property.maintenanceFee ? `${property.maintenanceModel} (${money.format(property.maintenanceFee)})` : property.maintenanceModel || "-"}</strong></div>
   `;
@@ -723,20 +724,57 @@ function ordinalSuffix(day) {
   return day % 10 === 1 ? "st" : day % 10 === 2 ? "nd" : day % 10 === 3 ? "rd" : "th";
 }
 
+function nextRentDueDate(dayOfMonth) {
+  const today = new Date();
+  const safeDay = Math.min(Math.max(Number(dayOfMonth) || 1, 1), 31);
+  const rentDateForMonth = (year, month) => {
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    return new Date(year, month, Math.min(safeDay, lastDay), 12);
+  };
+
+  let dueDate = rentDateForMonth(today.getFullYear(), today.getMonth());
+
+  if (dueDate < new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12)) {
+    dueDate = rentDateForMonth(today.getFullYear(), today.getMonth() + 1);
+  }
+
+  return dueDate;
+}
+
+function daysUntilDate(date) {
+  const today = new Date();
+  const todayMidday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12);
+  return Math.ceil((date - todayMidday) / 86400000);
+}
+
 function renderReminders() {
   const reminders = [];
 
   properties.forEach((property) => {
     const expiryDays = daysUntil(latestMortgageDeal(property).expiryDate);
-    if (expiryDays <= 7) {
-      reminders.push(`Mortgage deal for ${property.name} expires within 1 week. Review remortgage options now.`);
-    } else if (expiryDays <= 31) {
-      reminders.push(`Mortgage deal for ${property.name} expires within 1 month. Start remortgage checks.`);
-    } else if (expiryDays <= 93) {
-      reminders.push(`Mortgage deal for ${property.name} expires within 3 months. Prepare remortgage options.`);
+    if (Number.isFinite(expiryDays)) {
+      if (expiryDays < 0) {
+        reminders.push(`Mortgage deal for ${property.name} expired ${Math.abs(expiryDays)} days ago. Review immediately.`);
+      } else if (expiryDays <= 7) {
+        reminders.push(`Mortgage deal for ${property.name} expires in ${expiryDays} days. Review remortgage options now.`);
+      } else if (expiryDays <= 31) {
+        reminders.push(`Mortgage deal for ${property.name} expires within 1 month. Start remortgage checks.`);
+      } else if (expiryDays <= 93) {
+        reminders.push(`Mortgage deal for ${property.name} expires within 3 months. Prepare remortgage options.`);
+      }
     }
     if (property.rentReminder === "On") {
-      reminders.push(`On the ${property.rentDueDay}${ordinalSuffix(property.rentDueDay)}: check if ${property.tenantName || "your tenant"} paid ${money.format(property.rent)} for ${property.name}.`);
+      const dueDate = nextRentDueDate(property.rentDueDay);
+      const rentDays = daysUntilDate(dueDate);
+      const dueText =
+        rentDays === 0
+          ? "due today"
+          : rentDays === 1
+            ? "due tomorrow"
+            : `due in ${rentDays} days`;
+      reminders.push(
+        `Rent ${dueText} (${formatDate(dueDate.toISOString().slice(0, 10))}) for ${property.name}: check ${money.format(property.rent)} payment.`,
+      );
     }
     if (property.region === "Scotland" && property.letType === "Long-term let") {
       reminders.push(`Scottish tenancy pack ready for ${property.name}: landlord registration, deposit scheme and tenant details can feed the official agreement checklist.`);
@@ -750,6 +788,12 @@ function renderReminders() {
       return item;
     }),
   );
+
+  if (!reminders.length) {
+    const item = document.createElement("li");
+    item.textContent = "No urgent reminders. Mortgage and rent alerts will appear here when dates are close.";
+    premium.reminderList.replaceChildren(item);
+  }
 }
 
 function switchView(viewId) {
@@ -2561,8 +2605,8 @@ premium.propertyForm.addEventListener("submit", async (event) => {
     expenses: Number(document.querySelector("#propertyExpenses").value) || 0,
     tenantName: "",
     tenantContact: "",
-    rentDueDay: 1,
-    rentReminder: "Off",
+    rentDueDay: Math.min(Math.max(Number(document.querySelector("#propertyRentDueDay").value) || 1, 1), 31),
+    rentReminder: document.querySelector("#propertyRentReminder").value,
     landlordRegistration: document.querySelector("#landlordRegistration").value,
     documents: "",
     tenancies: [],
