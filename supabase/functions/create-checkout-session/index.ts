@@ -41,18 +41,26 @@ Deno.serve(async (request) => {
     return new Response("Unauthorized", { status: 401, headers: corsHeaders });
   }
 
+  const body = await request.json().catch(() => ({}));
+  const selectedPlan = body?.plan === "pro" ? "pro" : "premium";
   const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://valora-property-os.vercel.app";
   if (!stripeSecretKey) {
     return new Response("Missing STRIPE_SECRET_KEY", { status: 500, headers: corsHeaders });
   }
 
-  const priceId = Deno.env.get("STRIPE_PRICE_ID_MONTHLY");
+  const priceSecretName =
+    selectedPlan === "pro" ? "STRIPE_PRICE_ID_PRO_MONTHLY" : "STRIPE_PRICE_ID_PREMIUM_MONTHLY";
+  const fallbackPriceId = Deno.env.get("STRIPE_PRICE_ID_MONTHLY");
+  const priceId = Deno.env.get(priceSecretName) || fallbackPriceId;
   if (!priceId) {
-    return new Response("Missing STRIPE_PRICE_ID_MONTHLY", { status: 500, headers: corsHeaders });
+    return new Response(`Missing ${priceSecretName} and STRIPE_PRICE_ID_MONTHLY fallback`, {
+      status: 500,
+      headers: corsHeaders,
+    });
   }
 
   if (!priceId.startsWith("price_")) {
-    return new Response("STRIPE_PRICE_ID_MONTHLY must start with price_, not prod_.", {
+    return new Response(`${priceSecretName} must start with price_, not prod_.`, {
       status: 500,
       headers: corsHeaders,
     });
@@ -65,7 +73,10 @@ Deno.serve(async (request) => {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${appBaseUrl}/?checkout=success`,
       cancel_url: `${appBaseUrl}/?checkout=cancelled`,
-      metadata: { user_id: user.id },
+      metadata: { user_id: user.id, plan: selectedPlan },
+      subscription_data: {
+        metadata: { user_id: user.id, plan: selectedPlan },
+      },
     });
 
     return Response.json({ url: session.url }, { headers: corsHeaders });

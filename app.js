@@ -145,7 +145,6 @@ const premium = {
 const appConfig = window.PROPERTY_PANEL_CONFIG || {};
 const SUPABASE_URL = appConfig.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = appConfig.SUPABASE_ANON_KEY || "";
-const STRIPE_PRICE_LABEL = "£4.99/month";
 const CHECKOUT_FUNCTION = "create-checkout-session";
 const PORTAL_FUNCTION = "create-billing-portal-session";
 let passwordRecoveryPending =
@@ -187,6 +186,7 @@ const money = new Intl.NumberFormat("en-GB", {
 
 const PROPERTY_STORAGE_KEY = "property-panel-properties";
 const TRANSACTION_STORAGE_KEY = "property-panel-transactions";
+const SELECTED_PLAN_STORAGE_KEY = "property-panel-selected-plan";
 const LEGACY_PROPERTY_STORAGE_KEY = "valo" + "ra-properties";
 const PROMO_STORAGE_KEY = "property-panel-promo-access";
 const LEGACY_PROMO_STORAGE_KEY = "valo" + "ra-promo-access";
@@ -215,6 +215,7 @@ let editingTenancyId = null;
 let editingRemortgageId = null;
 let editingTransactionId = null;
 let currentSubscription = null;
+let selectedPlan = localStorage.getItem(SELECTED_PLAN_STORAGE_KEY) === "pro" ? "pro" : "premium";
 
 function applyTheme(theme) {
   const resolvedTheme = theme === "dark" ? "dark" : "light";
@@ -845,6 +846,30 @@ function renderInvoices(invoices = []) {
   );
 }
 
+function selectedPlanLabel() {
+  return selectedPlan === "pro" ? "Pro" : "Premium";
+}
+
+function selectedPlanPrice() {
+  return selectedPlan === "pro" ? "£9.99/month" : "£4.99/month";
+}
+
+function setSelectedPlan(plan) {
+  selectedPlan = plan === "pro" ? "pro" : "premium";
+  localStorage.setItem(SELECTED_PLAN_STORAGE_KEY, selectedPlan);
+
+  const label = selectedPlanLabel();
+  const price = selectedPlanPrice();
+  document.querySelector("#selectedPlanTitle").textContent = `Start ${label}`;
+  document.querySelector("#selectedPlanCopy").textContent =
+    `${label} is selected at ${price}. Apply a promo code if you have one, then sign in to continue.`;
+
+  if (!currentSubscription || currentSubscription.status === "canceled") {
+    premium.manageBilling.textContent = `Subscribe to ${label} - ${price}`;
+    premium.subscriptionNote.textContent = `${label} selected at ${price}. Checkout opens with this plan.`;
+  }
+}
+
 function renderSubscriptionFallback() {
   currentSubscription = null;
 
@@ -874,8 +899,8 @@ function renderSubscriptionFallback() {
   premium.subscriptionRenewal.textContent = "-";
   premium.subscriptionPaid.textContent = "£0";
   premium.subscriptionSince.textContent = "-";
-  premium.subscriptionNote.textContent = `Premium will use Stripe Checkout at ${STRIPE_PRICE_LABEL} once Stripe keys are connected.`;
-  premium.manageBilling.textContent = "Subscribe with Stripe";
+  premium.subscriptionNote.textContent = `${selectedPlanLabel()} selected at ${selectedPlanPrice()}. Checkout opens with this plan.`;
+  premium.manageBilling.textContent = `Subscribe to ${selectedPlanLabel()} - ${selectedPlanPrice()}`;
   premium.manageBilling.disabled = false;
 }
 
@@ -941,7 +966,7 @@ async function loadSubscriptionSummary() {
   renderInvoices(payments || []);
 }
 
-async function startStripeCheckout() {
+async function startStripeCheckout(plan = selectedPlan) {
   if (isAdminUser) {
     premium.subscriptionNote.textContent = "Admin accounts do not need Stripe checkout.";
     return;
@@ -964,10 +989,11 @@ async function startStripeCheckout() {
   }
 
   premium.manageBilling.disabled = true;
-  premium.subscriptionNote.textContent = "Opening Stripe Checkout...";
+  const checkoutPlan = plan === "pro" ? "pro" : "premium";
+  premium.subscriptionNote.textContent = `Opening Stripe Checkout for ${checkoutPlan === "pro" ? "Pro - £9.99/month" : "Premium - £4.99/month"}...`;
 
   const { data, error } = await supabaseClient.functions.invoke(CHECKOUT_FUNCTION, {
-    body: {},
+    body: { plan: checkoutPlan },
   });
 
   premium.manageBilling.disabled = false;
@@ -2302,13 +2328,9 @@ premium.themeToggle.addEventListener("click", () => {
 
 document.querySelectorAll("[data-plan]").forEach((button) => {
   button.addEventListener("click", () => {
-    const plan = button.dataset.plan === "pro" ? "Pro" : "Premium";
-    const price = plan === "Pro" ? "£9.99/month" : "£4.99/month";
-    document.querySelector("#selectedPlanTitle").textContent = `Start ${plan}`;
-    document.querySelector("#selectedPlanCopy").textContent =
-      `${plan} is selected at ${price}. Apply a promo code if you have one, then sign in to continue.`;
+    setSelectedPlan(button.dataset.plan);
     document.querySelector("#purchasePanel").scrollIntoView({ behavior: "smooth", block: "center" });
-    trackEvent("plan_selected", { plan: plan.toLowerCase() });
+    trackEvent("plan_selected", { plan: selectedPlan });
   });
 });
 
@@ -2718,6 +2740,7 @@ renderTaxBands("higher");
 initTheme();
 switchDashboardTab("overview");
 switchAdminTab("overview");
+setSelectedPlan(selectedPlan);
 renderPremiumDashboard();
 renderSubscriptionFallback();
 trackEvent("page_view", { path: window.location.pathname });
