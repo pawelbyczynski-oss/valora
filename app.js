@@ -3369,8 +3369,6 @@ initTheme();
 switchDashboardTab("overview");
 switchAdminTab("overview");
 setSelectedPlan(selectedPlan);
-renderPremiumDashboard();
-renderSubscriptionFallback();
 trackEvent("page_view", { path: window.location.pathname });
 initAuth();
 update();
