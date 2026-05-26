@@ -92,6 +92,8 @@ const premium = {
   tenancyHistoryList: document.querySelector("#tenancyHistoryList"),
   remortgageForm: document.querySelector("#remortgageForm"),
   remortgageHistoryList: document.querySelector("#remortgageHistoryList"),
+  landlordReport: document.querySelector("#landlordReport"),
+  printLandlordReport: document.querySelector("#printLandlordReport"),
   reminderList: document.querySelector("#reminderList"),
   exportPortfolio: document.querySelector("#exportPortfolio"),
   portfolioCount: document.querySelector("#portfolioCount"),
@@ -355,6 +357,15 @@ function currentQuarterKey() {
   return quarterKey(new Date().toISOString().slice(0, 10));
 }
 
+function monthKey(dateString) {
+  const date = new Date(`${dateString}T12:00:00`);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function currentMonthLabel() {
+  return new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" }).format(new Date());
+}
+
 function renderQuarterSummary() {
   if (!premium.quarterSummary) return;
 
@@ -426,6 +437,91 @@ function renderTransactions() {
     }),
   );
   renderQuarterSummary();
+}
+
+function createReportMetric(label, value) {
+  const item = document.createElement("div");
+  const labelElement = document.createElement("span");
+  const valueElement = document.createElement("strong");
+  labelElement.textContent = label;
+  valueElement.textContent = value;
+  item.append(labelElement, valueElement);
+  return item;
+}
+
+function renderLandlordReport(property) {
+  if (!premium.landlordReport) return;
+
+  const activeMonth = monthKey(new Date().toISOString().slice(0, 10));
+  const propertyTransactions = transactions.filter(
+    (transaction) => transaction.propertyId === property.id && monthKey(transaction.date) === activeMonth,
+  );
+  const rentReceived = propertyTransactions
+    .filter((transaction) => transaction.type === "income")
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const repairCharges = propertyTransactions
+    .filter((transaction) => {
+      const category = transaction.category.toLowerCase();
+      return transaction.type === "expense" && (category.includes("repair") || category.includes("maintenance"));
+    })
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const guaranteedRent = Number(property.guaranteedRent || 0);
+  const maintenanceFee =
+    property.maintenanceModel === "Operator covers repairs for monthly fee" ? Number(property.maintenanceFee || 0) : 0;
+  const landlordRepairCharge =
+    property.maintenanceModel === "Landlord charged for repairs" ? repairCharges : 0;
+  const landlordGrossRent = guaranteedRent || rentReceived || Number(property.rent || 0);
+  const netPayable = landlordGrossRent - landlordRepairCharge - maintenanceFee;
+
+  const metrics = document.createElement("div");
+  metrics.className = "landlord-report-metrics";
+  metrics.append(
+    createReportMetric("Period", currentMonthLabel()),
+    createReportMetric("Model", property.ownershipModel || "Owned"),
+    createReportMetric("Rent received", money.format(rentReceived)),
+    createReportMetric("Guaranteed rent", guaranteedRent ? money.format(guaranteedRent) : "-"),
+    createReportMetric("Repair deductions", money.format(landlordRepairCharge)),
+    createReportMetric("Maintenance fee", money.format(maintenanceFee)),
+    createReportMetric("Net payable to landlord", money.format(netPayable)),
+  );
+
+  const note = document.createElement("p");
+  note.className = "field-hint";
+  note.textContent =
+    property.maintenanceModel === "Operator covers repairs for monthly fee"
+      ? "This report uses the fixed monthly maintenance fee, so individual repair expenses are not deducted from the landlord payment."
+      : "This report deducts repair and maintenance expenses tagged in transactions for this property.";
+
+  const transactionList = document.createElement("div");
+  transactionList.className = "document-list landlord-report-lines";
+  const relevantTransactions = propertyTransactions.filter(
+    (transaction) => {
+      const category = transaction.category.toLowerCase();
+      return transaction.type === "income" || category.includes("repair") || category.includes("maintenance");
+    },
+  );
+
+  if (relevantTransactions.length) {
+    relevantTransactions.forEach((transaction) => {
+      const item = document.createElement("div");
+      const label = document.createElement("span");
+      const value = document.createElement("strong");
+      label.textContent = `${formatDate(transaction.date)} · ${transaction.category}`;
+      value.textContent = `${transaction.type === "expense" ? "-" : "+"}${money.format(transaction.amount)}`;
+      item.append(label, value);
+      transactionList.append(item);
+    });
+  } else {
+    const empty = document.createElement("div");
+    const label = document.createElement("span");
+    const value = document.createElement("strong");
+    label.textContent = "No rent or repair transactions recorded for this month";
+    value.textContent = "Add transactions";
+    empty.append(label, value);
+    transactionList.append(empty);
+  }
+
+  premium.landlordReport.replaceChildren(metrics, note, transactionList);
 }
 
 function renderPremiumDashboard() {
@@ -587,6 +683,8 @@ function renderPropertyDetail() {
   if (!(property.remortgages || []).length) {
     premium.remortgageHistoryList.innerHTML = `<div class="detail-row muted-row">No remortgage records yet</div>`;
   }
+
+  renderLandlordReport(property);
 }
 
 function openPropertyDetail(propertyId) {
@@ -2351,6 +2449,11 @@ premium.remortgageHistoryList.addEventListener("click", async (event) => {
   await updateSupabasePropertySnapshot(property);
   renderPremiumDashboard();
   renderPropertyDetail();
+});
+
+premium.printLandlordReport.addEventListener("click", () => {
+  trackEvent("landlord_report_printed", { property_id: activePropertyId });
+  window.print();
 });
 
 premium.deletePropertyButton.addEventListener("click", () => {

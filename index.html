@@ -906,6 +906,7 @@
           <button class="section-tab active" type="button" data-property-detail-tab="overview">Overview</button>
           <button class="section-tab" type="button" data-property-detail-tab="tenancies">Long-term rents</button>
           <button class="section-tab" type="button" data-property-detail-tab="remortgages">Remortgage history</button>
+          <button class="section-tab" type="button" data-property-detail-tab="landlord-report">Landlord report</button>
         </div>
 
         <section class="property-detail-panel" data-property-detail-panel="overview">
@@ -1000,6 +1001,17 @@
             <button class="tax-button" type="submit">Save remortgage record</button>
           </form>
           <div class="detail-list" id="remortgageHistoryList"></div>
+        </section>
+
+        <section class="property-detail-panel" data-property-detail-panel="landlord-report" hidden>
+          <div class="section-heading split-heading">
+            <div>
+              <p class="eyebrow">Rent-to-rent / managed property</p>
+              <h2>Landlord monthly report</h2>
+            </div>
+            <button class="secondary-button small-button" id="printLandlordReport" type="button">Print report</button>
+          </div>
+          <div class="landlord-report" id="landlordReport"></div>
         </section>
       </section>
     </div>
