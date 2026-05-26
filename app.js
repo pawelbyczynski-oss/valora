@@ -868,6 +868,24 @@ function setSelectedPlan(plan) {
     premium.manageBilling.textContent = `Subscribe to ${label} - ${price}`;
     premium.subscriptionNote.textContent = `${label} selected at ${price}. Checkout opens with this plan.`;
   }
+
+  refreshPlanContinueButton();
+}
+
+async function getCurrentSession() {
+  if (!supabaseClient) return null;
+  const {
+    data: { session },
+  } = await supabaseClient.auth.getSession();
+  return session;
+}
+
+async function refreshPlanContinueButton() {
+  if (!premium.showLogin) return;
+  const session = await getCurrentSession();
+  premium.showLogin.textContent = session
+    ? `Continue to ${selectedPlanLabel()} checkout`
+    : "Continue to sign in";
 }
 
 function renderSubscriptionFallback() {
@@ -1768,6 +1786,7 @@ async function initAuth() {
     await loadSupabaseTransactions(session.user.id);
     await loadSubscriptionSummary();
     await loadAdminOverview();
+    await refreshPlanContinueButton();
     openDashboard();
   }
 }
@@ -2311,11 +2330,22 @@ document.addEventListener("keydown", (event) => {
 premium.navButtons.forEach((button) => {
   button.addEventListener("click", () => {
     switchView(button.dataset.view);
-    if (button.dataset.view === "premiumView") trackEvent("premium_viewed");
+    if (button.dataset.view === "premiumView") {
+      refreshPlanContinueButton();
+      trackEvent("premium_viewed");
+    }
   });
 });
 
-premium.showLogin.addEventListener("click", () => {
+premium.showLogin.addEventListener("click", async () => {
+  const session = await getCurrentSession();
+  if (session) {
+    openDashboard();
+    switchDashboardTab("subscription");
+    await startStripeCheckout(selectedPlan);
+    return;
+  }
+
   switchView("loginView");
   premium.loginEmail.focus();
 });
@@ -2327,9 +2357,10 @@ premium.themeToggle.addEventListener("click", () => {
 });
 
 document.querySelectorAll("[data-plan]").forEach((button) => {
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
     setSelectedPlan(button.dataset.plan);
     document.querySelector("#purchasePanel").scrollIntoView({ behavior: "smooth", block: "center" });
+    await refreshPlanContinueButton();
     trackEvent("plan_selected", { plan: selectedPlan });
   });
 });
