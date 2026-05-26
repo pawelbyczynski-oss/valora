@@ -586,6 +586,132 @@ select {
   line-height: 1;
 }
 
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.plan-card,
+.comparison-panel,
+.purchase-panel {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.featured-plan {
+  border-color: rgba(15, 118, 110, 0.42);
+  box-shadow: 0 18px 52px rgba(15, 118, 110, 0.12);
+}
+
+.plan-badge {
+  width: fit-content;
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #9a5b00;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.plan-price {
+  display: block;
+  margin: 10px 0;
+  color: var(--ink);
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.plan-price::after {
+  content: "/mo";
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 750;
+}
+
+.plan-features {
+  gap: 8px;
+}
+
+.plan-features li {
+  border-left: 0;
+  padding-left: 24px;
+  color: #405861;
+  position: relative;
+}
+
+.plan-features li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.38rem;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, transparent 48%, #ffffff 49% 58%, transparent 59%),
+    var(--green);
+}
+
+.plan-cta {
+  align-self: end;
+}
+
+.comparison-panel,
+.purchase-panel {
+  margin-top: 14px;
+}
+
+.comparison-table {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.comparison-table div {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) repeat(2, minmax(150px, 0.9fr));
+  border-bottom: 1px solid var(--line);
+}
+
+.comparison-table div:first-child {
+  background: #f8fafc;
+}
+
+.comparison-table div:last-child {
+  border-bottom: 0;
+}
+
+.comparison-table span,
+.comparison-table strong {
+  padding: 12px;
+  border-right: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+
+.comparison-table strong:last-child {
+  border-right: 0;
+}
+
+.comparison-table span {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.purchase-panel {
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.06), rgba(245, 158, 11, 0.08)),
+    var(--panel);
+}
+
 .login-panel {
   padding: 20px;
   display: grid;
@@ -1570,6 +1696,7 @@ li {
 @media (max-width: 900px) {
   .app-shell,
   .premium-hero,
+  .plan-grid,
   .dashboard-grid,
   .admin-grid,
   .product-dashboard,
@@ -1625,6 +1752,7 @@ li {
   .mode-toggle,
   .input-grid,
   .metrics-grid,
+  .comparison-table div,
   .login-grid,
   .workspace-header,
   .dashboard-stats,

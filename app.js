@@ -474,8 +474,7 @@ function switchView(viewId) {
 }
 
 function openDashboard() {
-  premium.premiumHero.hidden = true;
-  premium.loginPanel.hidden = true;
+  switchView("dashboardView");
   premium.dashboardPanel.hidden = false;
   switchDashboardTab("overview");
   renderPremiumDashboard();
@@ -1800,7 +1799,20 @@ premium.navButtons.forEach((button) => {
 });
 
 premium.showLogin.addEventListener("click", () => {
-  premium.loginPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+  switchView("loginView");
+  premium.loginEmail.focus();
+});
+
+document.querySelectorAll("[data-plan]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const plan = button.dataset.plan === "pro" ? "Pro" : "Premium";
+    const price = plan === "Pro" ? "£9.99/month" : "£4.99/month";
+    document.querySelector("#selectedPlanTitle").textContent = `Start ${plan}`;
+    document.querySelector("#selectedPlanCopy").textContent =
+      `${plan} is selected at ${price}. Apply a promo code if you have one, then sign in to continue.`;
+    document.querySelector("#purchasePanel").scrollIntoView({ behavior: "smooth", block: "center" });
+    trackEvent("plan_selected", { plan: plan.toLowerCase() });
+  });
 });
 
 premium.providerButtons.forEach((button) => {

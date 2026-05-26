@@ -19,6 +19,7 @@
       <div class="nav-actions">
         <button class="nav-button active" type="button" data-view="homeView">Calculator</button>
         <button class="nav-button" type="button" data-view="premiumView">Premium</button>
+        <button class="nav-button" type="button" data-view="loginView">Sign in</button>
         <button class="nav-button admin-nav" type="button" data-view="adminView" hidden>Admin</button>
       </div>
     </nav>
@@ -355,19 +356,85 @@
     <section class="premium-shell app-view" id="premiumView" aria-label="PropertyPanel Premium">
       <div class="premium-hero">
         <div>
-          <p class="eyebrow">PropertyPanel Premium</p>
-          <h1>Portfolio tracking for serious UK property investors.</h1>
-          <p class="hero-copy">Save every property, track rent, mortgage expiries, documents and portfolio cashflow in one private dashboard.</p>
-        </div>
-        <div class="price-card">
-          <span>Premium plan</span>
-          <strong>£4.99</strong>
-          <p>per month, cancel anytime</p>
-          <button class="tax-button" id="showLogin" type="button">Start premium</button>
+          <p class="eyebrow">PropertyPanel plans</p>
+          <h1>Choose the property workflow that fits your portfolio.</h1>
+          <p class="hero-copy">Start with portfolio tracking, or add quarterly income, expenses and smart document workflows when you need a landlord operating system.</p>
         </div>
       </div>
 
-      <section class="login-panel" id="loginPanel" aria-label="Login">
+      <section class="plan-grid" aria-label="PropertyPanel plans">
+        <article class="plan-card">
+          <div>
+            <p class="eyebrow">Premium</p>
+            <h2>Portfolio tracker</h2>
+            <strong class="plan-price">£4.99</strong>
+            <p class="hero-copy">For landlords who want properties, rent, mortgage dates and documents in one place.</p>
+          </div>
+          <ul class="plan-features">
+            <li>Save properties and portfolio values</li>
+            <li>Track rent, expenses and mortgage expiries</li>
+            <li>Document vault and reminders</li>
+            <li>Basic portfolio PDF export</li>
+          </ul>
+          <button class="tax-button plan-cta" type="button" data-plan="premium">Start Premium</button>
+        </article>
+
+        <article class="plan-card featured-plan">
+          <div class="plan-badge">Best for active landlords</div>
+          <div>
+            <p class="eyebrow">Pro</p>
+            <h2>MTD-ready workflow</h2>
+            <strong class="plan-price">£9.99</strong>
+            <p class="hero-copy">For landlords who want monthly records, quarterly packs and smart document review.</p>
+          </div>
+          <ul class="plan-features">
+            <li>Everything in Premium</li>
+            <li>Income and expense transactions</li>
+            <li>Quarterly accountant-ready reports</li>
+            <li>Smart document scans: 25/month</li>
+            <li>Up to 5 pages per smart document</li>
+          </ul>
+          <button class="tax-button plan-cta" type="button" data-plan="pro">Start Pro</button>
+        </article>
+      </section>
+
+      <section class="comparison-panel" aria-label="Plan comparison">
+        <div class="section-heading">
+          <p class="eyebrow">Compare</p>
+          <h2>Why Pro is worth it</h2>
+        </div>
+        <div class="comparison-table">
+          <div><span>Feature</span><strong>Premium £4.99</strong><strong>Pro £9.99</strong></div>
+          <div><span>Property portfolio</span><strong>Included</strong><strong>Included</strong></div>
+          <div><span>Tenancy and mortgage tracking</span><strong>Included</strong><strong>Included</strong></div>
+          <div><span>Income / expense transactions</span><strong>Manual basics</strong><strong>Full workflow</strong></div>
+          <div><span>Quarterly reports</span><strong>-</strong><strong>Accountant-ready</strong></div>
+          <div><span>Smart document scans</span><strong>-</strong><strong>25/month</strong></div>
+          <div><span>Document page limit</span><strong>-</strong><strong>5 pages/scan</strong></div>
+          <div><span>Best for</span><strong>Tracking</strong><strong>Monthly landlord ops</strong></div>
+        </div>
+      </section>
+
+      <section class="purchase-panel" id="purchasePanel" aria-label="Start selected plan">
+        <div class="section-heading">
+          <p class="eyebrow">Checkout</p>
+          <h2 id="selectedPlanTitle">Start a plan</h2>
+        </div>
+        <p class="hero-copy" id="selectedPlanCopy">Choose a plan above, then sign in or create an account to continue.</p>
+        <form class="promo-form" id="promoForm">
+          <label>
+            <span>Promo code</span>
+            <input id="promoCode" placeholder="Enter promo code" autocomplete="off" />
+          </label>
+          <button class="secondary-button" type="submit">Apply code</button>
+          <p class="field-hint" id="promoMessage">Promo codes are applied before checkout.</p>
+        </form>
+        <button class="tax-button" id="showLogin" type="button">Continue to sign in</button>
+      </section>
+    </section>
+
+    <section class="premium-shell app-view" id="loginView" aria-label="Login">
+      <section class="login-panel" id="loginPanel">
         <div>
           <p class="eyebrow">Private account</p>
           <h2>Sign in to your portfolio</h2>
@@ -377,14 +444,6 @@
           <button class="provider-button" type="button" data-login-provider="Apple">Continue with Apple</button>
           <button class="provider-button" type="button" data-login-provider="Email">Email account</button>
         </div>
-        <form class="promo-form" id="promoForm">
-          <label>
-            <span>Promo code</span>
-            <input id="promoCode" placeholder="Enter private access code" autocomplete="off" />
-          </label>
-          <button class="secondary-button" type="submit">Apply code</button>
-          <p class="field-hint" id="promoMessage">Early friends can unlock premium access with a private code.</p>
-        </form>
         <form class="email-login" id="emailLoginForm" hidden>
           <div class="auth-tabs" role="tablist" aria-label="Email account options">
             <button class="auth-tab active" type="button" data-auth-mode="signup">Create account</button>
@@ -412,7 +471,9 @@
         </form>
         <p class="field-hint">Email/password accounts run through Supabase Auth. Google and Apple can be added later.</p>
       </section>
+    </section>
 
+    <section class="premium-shell app-view" id="dashboardView" aria-label="PropertyPanel dashboard">
       <section class="dashboard-shell" id="dashboardPanel" hidden>
         <div class="dashboard-head">
           <div>
