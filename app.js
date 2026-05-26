@@ -187,6 +187,7 @@ const money = new Intl.NumberFormat("en-GB", {
 const PROPERTY_STORAGE_KEY = "property-panel-properties";
 const TRANSACTION_STORAGE_KEY = "property-panel-transactions";
 const SELECTED_PLAN_STORAGE_KEY = "property-panel-selected-plan";
+const CHECKOUT_PENDING_STORAGE_KEY = "property-panel-checkout-pending";
 const LEGACY_PROPERTY_STORAGE_KEY = "valo" + "ra-properties";
 const PROMO_STORAGE_KEY = "property-panel-promo-access";
 const LEGACY_PROMO_STORAGE_KEY = "valo" + "ra-promo-access";
@@ -872,6 +873,18 @@ function setSelectedPlan(plan) {
   refreshPlanContinueButton();
 }
 
+function checkoutStatusFromUrl() {
+  return new URLSearchParams(window.location.search).get("checkout");
+}
+
+function cleanCheckoutUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("checkout");
+  if (url.href !== window.location.href) {
+    window.history.replaceState({}, "", url.toString());
+  }
+}
+
 async function getCurrentSession() {
   if (!supabaseClient) return null;
   const {
@@ -1027,6 +1040,7 @@ async function startStripeCheckout(plan = selectedPlan) {
     return;
   }
 
+  sessionStorage.setItem(CHECKOUT_PENDING_STORAGE_KEY, checkoutPlan);
   window.location.href = data.url;
 }
 
@@ -1775,6 +1789,7 @@ async function initAuth() {
   const {
     data: { session },
   } = await supabaseClient.auth.getSession();
+  const checkoutStatus = checkoutStatusFromUrl();
 
   if (isPasswordRecoveryUrl()) {
     showPasswordRecoveryForm();
@@ -1785,9 +1800,36 @@ async function initAuth() {
     await loadSupabaseProperties(session.user.id);
     await loadSupabaseTransactions(session.user.id);
     await loadSubscriptionSummary();
+    if (checkoutStatus === "success") {
+      premium.subscriptionNote.textContent = "Payment completed. Refreshing your subscription status...";
+      setTimeout(() => loadSubscriptionSummary(), 2500);
+    } else if (checkoutStatus === "cancelled") {
+      premium.subscriptionNote.textContent = "Checkout cancelled. You can choose a plan again when ready.";
+    }
     await loadAdminOverview();
     await refreshPlanContinueButton();
     openDashboard();
+    if (checkoutStatus) {
+      switchDashboardTab("subscription");
+      sessionStorage.removeItem(CHECKOUT_PENDING_STORAGE_KEY);
+      cleanCheckoutUrl();
+    }
+    return;
+  }
+
+  if (checkoutStatus === "success") {
+    const pendingPlan = sessionStorage.getItem(CHECKOUT_PENDING_STORAGE_KEY);
+    if (pendingPlan) setSelectedPlan(pendingPlan);
+    switchView("loginView");
+    setAuthMode("signin");
+    premium.authMessage.textContent =
+      "Payment completed, but this browser session needs you to sign in again to reopen your dashboard.";
+    premium.loginEmail.focus();
+    cleanCheckoutUrl();
+  } else if (checkoutStatus === "cancelled") {
+    switchView("premiumView");
+    document.querySelector("#purchasePanel").scrollIntoView({ behavior: "smooth", block: "center" });
+    cleanCheckoutUrl();
   }
 }
 
