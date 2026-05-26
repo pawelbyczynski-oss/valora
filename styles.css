@@ -115,11 +115,16 @@ select {
 }
 
 .product-dashboard {
-  grid-template-columns: 176px minmax(0, 1fr);
-  gap: 0;
-  align-items: stretch;
-  min-height: calc(100vh - 86px);
-  padding: 20px 0 32px;
+  grid-template-columns: 1fr;
+  min-height: calc(100vh - 74px);
+  padding: 32px 0;
+}
+
+.product-dashboard .product-sidebar,
+.product-dashboard .workspace-header,
+.product-dashboard .dashboard-stats,
+.product-dashboard .dashboard-overview {
+  display: none;
 }
 
 .product-sidebar {
@@ -215,13 +220,12 @@ select {
 
 .dashboard-workspace {
   min-width: 0;
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-  background: #ffffff;
-  border: 1px solid var(--line);
-  border-radius: 0 8px 8px 0;
-  box-shadow: var(--shadow);
+  display: block;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .workspace-header {

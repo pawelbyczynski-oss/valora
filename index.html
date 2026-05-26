@@ -17,14 +17,14 @@
         </div>
       </div>
       <div class="nav-actions">
-        <button class="nav-button active" type="button" data-view="homeView">Dashboard</button>
+        <button class="nav-button active" type="button" data-view="homeView">Calculator</button>
         <button class="nav-button" type="button" data-view="premiumView">Premium</button>
         <button class="nav-button admin-nav" type="button" data-view="adminView" hidden>Admin</button>
       </div>
     </nav>
 
     <main class="app-shell product-dashboard app-view active" id="homeView">
-      <aside class="product-sidebar" aria-label="PropertyPanel sections">
+      <aside class="product-sidebar" aria-label="PropertyPanel sections" hidden>
         <div class="brand-lockup sidebar-brand">
           <img src="property-panel-logo.svg" alt="PropertyPanel logo" />
           <div>
@@ -52,7 +52,7 @@
       </aside>
 
       <section class="dashboard-workspace" aria-label="PropertyPanel dashboard">
-        <header class="workspace-header">
+        <header class="workspace-header" hidden>
           <label class="search-field">
             <span>Search</span>
             <input type="search" placeholder="Search properties, tenants, documents..." />
@@ -67,7 +67,7 @@
           </div>
         </header>
 
-        <section class="dashboard-stats" aria-label="Portfolio status">
+        <section class="dashboard-stats" aria-label="Portfolio status" hidden>
           <article>
             <span>Total Properties</span>
             <strong>24</strong>
@@ -90,7 +90,7 @@
           </article>
         </section>
 
-        <section class="dashboard-overview">
+        <section class="dashboard-overview" hidden>
           <div class="overview-main">
             <div class="section-heading split-heading">
               <div>

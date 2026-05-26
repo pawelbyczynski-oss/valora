@@ -1220,8 +1220,7 @@ async function logoutUser() {
   premium.passwordResetForm.hidden = true;
   premium.authMessage.textContent = "Signed out.";
   setAuthMode("signin");
-  switchView("premiumView");
-  premium.loginPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+  switchView("homeView");
 }
 
 async function initAuth() {
