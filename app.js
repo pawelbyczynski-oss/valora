@@ -4486,7 +4486,7 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
     const files = Array.from(document.querySelector("#detailTenancyFiles").files || []).map((file) => file.name);
     const tenants = tenancyTenantsFromForm();
     const leadTenant = tenants[0] || normalizeTenantRecord();
-    const tenancy = {
+    let tenancy = {
       id: editingTenancyId || createId("tenancy"),
       tenantName: leadTenant.name,
       tenantContact: contactFromTenant(leadTenant),
@@ -4501,11 +4501,13 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
       rent: Number(document.querySelector("#detailTenancyRent").value) || 0,
       documents: files,
     };
+    tenancy = normalizeTenancyRecord(tenancy);
 
     if (editingTenancyId) {
       const index = (property.tenancies || []).findIndex((item) => item.id === editingTenancyId);
       if (index >= 0) {
         tenancy.documents = files.length ? files : property.tenancies[index].documents || [];
+        tenancy = normalizeTenancyRecord(tenancy);
         property.tenancies[index] = tenancy;
         await updateTenancyInSupabase(property, tenancy);
       }
@@ -4515,14 +4517,25 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
       property.tenancies = [tenancy, ...(property.tenancies || [])];
     }
     if (tenancy.rent) property.rent = tenancy.rent;
-    await syncTenancyRentSchedule(property, tenancy);
-    await updateSupabasePropertySnapshot(property);
     renderPremiumDashboard();
     renderPropertyDetail();
     switchPropertyDetailTab("tenancies");
     resetTenancyForm();
     delete submitButton.dataset.originalText;
-    premium.tenancyMessage.textContent = `Tenancy saved. Rent payment schedule refreshed for ${tenancy.tenantName || property.name}.`;
+    setButtonBusy(submitButton, false);
+    premium.tenancyMessage.textContent = `Tenancy saved for ${tenancy.tenantName || property.name}. Refreshing rent payment schedule...`;
+    try {
+      await syncTenancyRentSchedule(property, tenancy);
+      await updateSupabasePropertySnapshot(property);
+      renderTransactions();
+      renderPremiumDashboard();
+      renderPropertyDetail();
+      switchPropertyDetailTab("tenancies");
+      premium.tenancyMessage.textContent = `Tenancy saved. Rent payment schedule refreshed for ${tenancy.tenantName || property.name}.`;
+    } catch (scheduleError) {
+      premium.tenancyMessage.textContent =
+        scheduleError?.message || "Tenancy saved, but rent payment schedule could not be refreshed.";
+    }
   } catch (error) {
     premium.tenancyMessage.textContent = error?.message || "Could not save tenancy record.";
   } finally {
