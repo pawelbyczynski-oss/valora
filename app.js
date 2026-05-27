@@ -2712,7 +2712,8 @@ async function updateTransactionInSupabase(transaction) {
 
 async function deleteTransactionFromSupabase(transactionId) {
   if (!supabaseClient || !isPersistedProperty({ id: transactionId })) return;
-  await supabaseClient.from("property_transactions").delete().eq("id", transactionId);
+  const { error } = await supabaseClient.from("property_transactions").delete().eq("id", transactionId);
+  if (error) throw error;
 }
 
 function safeStorageFileName(fileName) {
@@ -2883,7 +2884,8 @@ async function updateTenancyInSupabase(property, tenancy) {
 
 async function deleteTenancyFromSupabase(property, tenancyId) {
   if (!supabaseClient || !isPersistedProperty(property) || !isPersistedProperty({ id: tenancyId })) return;
-  await supabaseClient.from("tenancy_periods").delete().eq("id", tenancyId);
+  const { error } = await supabaseClient.from("tenancy_periods").delete().eq("id", tenancyId);
+  if (error) throw error;
 }
 
 async function saveRemortgageToSupabase(property, remortgage) {
@@ -2935,7 +2937,8 @@ async function updateRemortgageInSupabase(property, remortgage) {
 
 async function deleteRemortgageFromSupabase(property, remortgageId) {
   if (!supabaseClient || !isPersistedProperty(property) || !isPersistedProperty({ id: remortgageId })) return;
-  await supabaseClient.from("remortgage_events").delete().eq("id", remortgageId);
+  const { error } = await supabaseClient.from("remortgage_events").delete().eq("id", remortgageId);
+  if (error) throw error;
 }
 
 async function updateSupabasePropertySnapshot(property) {
@@ -4352,15 +4355,21 @@ premium.tenancyHistoryList.addEventListener("click", async (event) => {
   if (deleteButton) {
     setButtonBusy(deleteButton, true, "Deleting...");
     premium.tenancyMessage.textContent = "Deleting tenancy and linked rent payments...";
-    await deleteTenancyFromSupabase(property, deleteButton.dataset.deleteTenancy);
-    await deleteTenancyRentSchedule(deleteButton.dataset.deleteTenancy);
-    property.tenancies = (property.tenancies || []).filter((item) => item.id !== deleteButton.dataset.deleteTenancy);
-    resetTenancyForm();
-    await updateSupabasePropertySnapshot(property);
-    renderPremiumDashboard();
-    renderPropertyDetail();
-    switchPropertyDetailTab("tenancies");
-    premium.tenancyMessage.textContent = "Tenancy deleted. Linked future rent payments were removed.";
+    try {
+      await deleteTenancyFromSupabase(property, deleteButton.dataset.deleteTenancy);
+      await deleteTenancyRentSchedule(deleteButton.dataset.deleteTenancy);
+      property.tenancies = (property.tenancies || []).filter((item) => item.id !== deleteButton.dataset.deleteTenancy);
+      resetTenancyForm();
+      renderTransactions();
+      renderPremiumDashboard();
+      renderPropertyDetail();
+      switchPropertyDetailTab("tenancies");
+      premium.tenancyMessage.textContent = "Tenancy deleted. Linked future rent payments were removed.";
+      await updateSupabasePropertySnapshot(property);
+    } catch (error) {
+      premium.tenancyMessage.textContent = error?.message || "Could not delete tenancy record.";
+      setButtonBusy(deleteButton, false);
+    }
     return;
   }
 
@@ -4400,13 +4409,18 @@ premium.tenancyHistoryList.addEventListener("click", async (event) => {
   if (!confirmed) return;
   setButtonBusy(deleteRentButton, true, "Deleting...");
   premium.tenancyMessage.textContent = "Deleting rent payment...";
-  await deleteTransactionFromSupabase(transaction.id);
-  transactions = transactions.filter((item) => item.id !== transaction.id);
-  if (editingTransactionId === transaction.id) resetTransactionForm();
-  renderTransactions();
-  renderPropertyDetail();
-  switchPropertyDetailTab("tenancies");
-  premium.tenancyMessage.textContent = "Rent payment deleted.";
+  try {
+    await deleteTransactionFromSupabase(transaction.id);
+    transactions = transactions.filter((item) => item.id !== transaction.id);
+    if (editingTransactionId === transaction.id) resetTransactionForm();
+    renderTransactions();
+    renderPropertyDetail();
+    switchPropertyDetailTab("tenancies");
+    premium.tenancyMessage.textContent = "Rent payment deleted.";
+  } catch (error) {
+    premium.tenancyMessage.textContent = error?.message || "Could not delete rent payment.";
+    setButtonBusy(deleteRentButton, false);
+  }
 });
 
 premium.remortgageHistoryList.addEventListener("click", async (event) => {
@@ -4438,14 +4452,19 @@ premium.remortgageHistoryList.addEventListener("click", async (event) => {
   if (!confirmed) return;
   setButtonBusy(deleteButton, true, "Deleting...");
   premium.remortgageMessage.textContent = "Deleting remortgage record...";
-  await deleteRemortgageFromSupabase(property, deleteButton.dataset.deleteRemortgage);
-  property.remortgages = (property.remortgages || []).filter((item) => item.id !== deleteButton.dataset.deleteRemortgage);
-  resetRemortgageForm();
-  await updateSupabasePropertySnapshot(property);
-  renderPremiumDashboard();
-  renderPropertyDetail();
-  switchPropertyDetailTab("remortgages");
-  premium.remortgageMessage.textContent = "Remortgage record deleted.";
+  try {
+    await deleteRemortgageFromSupabase(property, deleteButton.dataset.deleteRemortgage);
+    property.remortgages = (property.remortgages || []).filter((item) => item.id !== deleteButton.dataset.deleteRemortgage);
+    resetRemortgageForm();
+    renderPremiumDashboard();
+    renderPropertyDetail();
+    switchPropertyDetailTab("remortgages");
+    premium.remortgageMessage.textContent = "Remortgage record deleted.";
+    await updateSupabasePropertySnapshot(property);
+  } catch (error) {
+    premium.remortgageMessage.textContent = error?.message || "Could not delete remortgage record.";
+    setButtonBusy(deleteButton, false);
+  }
 });
 
 premium.printLandlordReport.addEventListener("click", () => {
