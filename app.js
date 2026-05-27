@@ -789,7 +789,7 @@ function documentActionButtons(document) {
       : "";
   return `
     <button class="secondary-button small-button" type="button" data-download-document="${document.id}">Open</button>
-    <button class="tax-button small-button" type="button" data-analyze-document="${document.id}" ${isProcessing ? "disabled" : ""}>${isProcessing ? "Scanning..." : scanLabel}</button>
+    <button class="tax-button small-button" type="button" data-analyze-document="${document.id}" ${isProcessing ? "disabled" : ""}>${isProcessing ? "Connecting..." : scanLabel}</button>
     ${reviewButton}
   `;
 }
