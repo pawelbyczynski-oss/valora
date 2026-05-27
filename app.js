@@ -206,7 +206,7 @@ const supabaseClient =
   window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
-const DOCUMENT_SCAN_TIMEOUT_MS = 30000;
+const DOCUMENT_SCAN_TIMEOUT_MS = 15000;
 const activeDocumentScans = new Set();
 
 let investorType = "individual";
@@ -730,25 +730,26 @@ async function invokeSupabaseFunction(functionName, body, accessToken, timeoutMs
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = window.setTimeout(() => {
       controller.abort();
-      reject(new Error("AI scan did not connect to Supabase within 30 seconds. Check browser/network access and try again."));
+      reject(new Error("AI scan did not respond within 15 seconds. Try again, or upload a smaller PDF."));
     }, timeoutMs);
   });
 
   try {
-    const response = await Promise.race([
-      fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          apikey: SUPABASE_ANON_KEY,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      }),
-      timeoutPromise,
-    ]);
-    const responseText = await response.text();
+    const requestPromise = fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+      .then(async (response) => ({
+        response,
+        responseText: await response.text(),
+      }));
+    const { response, responseText } = await Promise.race([requestPromise, timeoutPromise]);
     let data = null;
 
     if (responseText) {
@@ -766,7 +767,7 @@ async function invokeSupabaseFunction(functionName, body, accessToken, timeoutMs
     return data || {};
   } catch (error) {
     if (error?.name === "AbortError") {
-      throw new Error("AI scan did not connect to Supabase within 30 seconds. Check browser/network access and try again.");
+      throw new Error("AI scan did not respond within 15 seconds. Try again, or upload a smaller PDF.");
     }
     throw error;
   } finally {
@@ -2457,7 +2458,7 @@ async function analyzeDocument(documentId) {
   });
   const scanStatusTimer = window.setTimeout(() => {
     if (premium.documentMessage) {
-      premium.documentMessage.textContent = "Still connecting to Supabase AI scanner. This should not take longer than 30 seconds.";
+      premium.documentMessage.textContent = "Still waiting for Supabase AI scanner. This should not take longer than 15 seconds.";
     }
   }, 8000);
   let scanTimedOut = false;
@@ -2465,7 +2466,7 @@ async function analyzeDocument(documentId) {
     scanTimedOut = true;
     activeDocumentScans.delete(documentId);
     documentRecord.aiStatus = "failed";
-    documentRecord.aiError = "AI scan did not connect to Supabase within 30 seconds. Check browser/network access and try again.";
+    documentRecord.aiError = "AI scan did not respond within 15 seconds. Try again, or upload a smaller PDF.";
     documentRecord.aiScanStartedAt = "";
     renderDocuments();
     premium.documentMessage.textContent = documentRecord.aiError;
