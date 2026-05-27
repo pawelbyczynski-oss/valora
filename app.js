@@ -207,6 +207,7 @@ const supabaseClient =
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
 const DOCUMENT_SCAN_TIMEOUT_MS = 90000;
+const activeDocumentScans = new Set();
 
 let investorType = "individual";
 let mortgageType = "interestOnly";
@@ -354,17 +355,11 @@ function normalizeDocumentRecord(document) {
 
 documents = documents.map(normalizeDocumentRecord);
 
-function isStaleDocumentScan(document) {
-  if (document.aiStatus !== "processing") return false;
-  if (!document.aiScanStartedAt) return true;
-  return Date.now() - new Date(document.aiScanStartedAt).getTime() > DOCUMENT_SCAN_TIMEOUT_MS + 15000;
-}
-
-function resetStaleDocumentScans() {
+function resetInactiveDocumentScans() {
   documents.forEach((document) => {
-    if (!isStaleDocumentScan(document)) return;
+    if (document.aiStatus !== "processing" || activeDocumentScans.has(document.id)) return;
     document.aiStatus = "failed";
-    document.aiError = "Previous scan did not finish. Try Scan & split again.";
+    document.aiError = "Previous scan was interrupted. Try Scan & split again.";
     document.aiScanStartedAt = "";
   });
 }
@@ -375,7 +370,7 @@ function storedDocumentRecords() {
     return {
       ...document,
       aiStatus: "failed",
-      aiError: "Previous scan did not finish. Try Scan & split again.",
+      aiError: "Previous scan was interrupted. Try Scan & split again.",
       aiScanStartedAt: "",
     };
   });
@@ -781,7 +776,7 @@ async function invokeSupabaseFunction(functionName, body, accessToken, timeoutMs
 
 function documentActionButtons(document) {
   const draftCount = documentDraftCount(document.id);
-  const isProcessing = document.aiStatus === "processing";
+  const isProcessing = document.aiStatus === "processing" && activeDocumentScans.has(document.id);
   const scanLabel =
     document.aiStatus === "failed"
       ? "Retry scan"
@@ -802,7 +797,7 @@ function documentActionButtons(document) {
 function renderDocuments() {
   if (!premium.documentList) return;
 
-  resetStaleDocumentScans();
+  resetInactiveDocumentScans();
   localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(storedDocumentRecords()));
   renderDocumentPropertyOptions();
   if (premium.documentCount) {
@@ -2452,6 +2447,7 @@ async function analyzeDocument(documentId) {
   documentRecord.aiStatus = "processing";
   documentRecord.aiError = "";
   documentRecord.aiScanStartedAt = new Date().toISOString();
+  activeDocumentScans.add(documentId);
   renderDocuments();
   premium.documentMessage.textContent = `Scanning and splitting ${documentRecord.label} into draft transactions. This can take up to 90 seconds.`;
   const analyzeButtons = document.querySelectorAll(`[data-analyze-document="${documentId}"]`);
@@ -2467,6 +2463,7 @@ async function analyzeDocument(documentId) {
   let scanTimedOut = false;
   const scanFailSafeTimer = window.setTimeout(() => {
     scanTimedOut = true;
+    activeDocumentScans.delete(documentId);
     documentRecord.aiStatus = "failed";
     documentRecord.aiError = "AI scan did not connect to Supabase within 90 seconds. Refresh the page and try again.";
     documentRecord.aiScanStartedAt = "";
@@ -2491,9 +2488,10 @@ async function analyzeDocument(documentId) {
   } finally {
     window.clearTimeout(scanStatusTimer);
     window.clearTimeout(scanFailSafeTimer);
+    activeDocumentScans.delete(documentId);
     analyzeButtons.forEach((button) => {
       button.disabled = false;
-      button.textContent = "Scan & split";
+      button.textContent = "Retry scan";
     });
   }
 
@@ -2501,6 +2499,7 @@ async function analyzeDocument(documentId) {
 
   if (error || data?.error) {
     const latestDocumentRecord = documents.find((item) => item.id === documentId) || documentRecord;
+    activeDocumentScans.delete(documentId);
     latestDocumentRecord.aiStatus = "failed";
     latestDocumentRecord.aiError = data?.error || error?.message || "AI scan failed.";
     latestDocumentRecord.aiScanStartedAt = "";
@@ -2519,6 +2518,7 @@ async function analyzeDocument(documentId) {
   }
 
   const draftCount = data?.draft_transaction_ids?.length || (data?.draft_transaction_id ? 1 : 0);
+  activeDocumentScans.delete(documentId);
   documentRecord.aiScanStartedAt = "";
   await loadSupabaseDocuments((await supabaseClient.auth.getUser()).data.user.id);
   await loadSupabaseTransactions((await supabaseClient.auth.getUser()).data.user.id);
