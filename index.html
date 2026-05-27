@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260527-rent-to-rent-plan" />
+    <link rel="stylesheet" href="styles.css?v=20260527-property-record-fixes" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -913,7 +913,7 @@
           </label>
           <label class="operator-field" hidden>
             <span>Monthly maintenance fee</span>
-            <input id="propertyMaintenanceFee" type="number" step="25" />
+            <input id="propertyMaintenanceFee" type="number" min="0" step="1" />
           </label>
           <label>
             <span>Purchase date</span>
@@ -1044,7 +1044,7 @@
             </label>
             <label class="detail-operator-field">
               <span>Monthly maintenance fee</span>
-              <input id="detailMaintenanceFee" type="number" step="25" />
+              <input id="detailMaintenanceFee" type="number" min="0" step="1" />
             </label>
             <label>
               <span>Rent due day</span>
@@ -1120,7 +1120,7 @@
             </label>
             <label>
               <span>New balance</span>
-              <input id="detailMortgageBalance" type="number" step="1000" />
+              <input id="detailMortgageBalance" type="number" step="1" />
             </label>
             <label>
               <span>Length</span>
@@ -1139,7 +1139,7 @@
             </label>
             <label>
               <span>Equity release</span>
-              <input id="detailEquityRelease" type="number" step="1000" />
+              <input id="detailEquityRelease" type="number" step="1" />
             </label>
             <label>
               <span>Lender / notes</span>
@@ -1305,6 +1305,6 @@
     </footer>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260527-rent-to-rent-plan"></script>
+    <script src="app.js?v=20260527-property-record-fixes"></script>
   </body>
 </html>

@@ -311,11 +311,13 @@ function normalizePropertyRecord(property) {
 properties = properties.map(normalizePropertyRecord);
 
 function normalizeTransactionRecord(transaction) {
+  const tenancyMatch = String(transaction.notes || "").match(/\[tenancy:([^\]]+)\]/);
   return {
     ...transaction,
     id: transaction.id || createId("transaction"),
     propertyId: transaction.propertyId || "",
     documentId: transaction.documentId || "",
+    tenancyId: transaction.tenancyId || tenancyMatch?.[1] || "",
     date: transaction.date || new Date().toISOString().slice(0, 10),
     amount: Number(transaction.amount || 0),
     type: transaction.type === "expense" ? "expense" : "income",
@@ -692,6 +694,51 @@ function fileSizeLabel(size) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function dateFromInput(value) {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day, 12);
+}
+
+function dateInputValue(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function dateForMonth(year, month, day) {
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  return new Date(year, month, Math.min(Math.max(Number(day) || 1, 1), lastDay), 12);
+}
+
+function addMonths(date, months) {
+  return dateForMonth(date.getFullYear(), date.getMonth() + months, date.getDate());
+}
+
+function calculatedMortgageEndDate(startDate, termMonths) {
+  const start = dateFromInput(startDate);
+  const months = Number(termMonths || 0);
+  if (!start || !months) return "";
+  const endDate = addMonths(start, months);
+  endDate.setDate(endDate.getDate() - 1);
+  return dateInputValue(endDate);
+}
+
+function updateMortgageEndFromTerm({ force = false } = {}) {
+  const calculatedEnd = calculatedMortgageEndDate(
+    document.querySelector("#detailMortgageStart").value,
+    document.querySelector("#detailMortgageTermMonths").value,
+  );
+  const endInput = document.querySelector("#detailMortgageEnd");
+  if (calculatedEnd && (force || !endInput.value || endInput.dataset.autoCalculated === "true")) {
+    endInput.value = calculatedEnd;
+    endInput.dataset.autoCalculated = "true";
+  }
+}
+
 function documentDraftCount(documentId) {
   return transactions.filter((transaction) => transaction.documentId === documentId && transaction.status !== "approved").length;
 }
@@ -785,6 +832,108 @@ function resetTransactionForm() {
   premium.transactionForm.reset();
   premium.transactionDate.value = new Date().toISOString().slice(0, 10);
   premium.transactionForm.querySelector("button[type='submit']").textContent = "Save transaction";
+}
+
+function tenancyNoteMarker(tenancyId) {
+  return `[tenancy:${tenancyId}]`;
+}
+
+function transactionTenancyId(transaction) {
+  if (transaction.tenancyId) return transaction.tenancyId;
+  return String(transaction.notes || "").match(/\[tenancy:([^\]]+)\]/)?.[1] || "";
+}
+
+function tenancyRentTransactions(tenancyId) {
+  return transactions
+    .filter((transaction) => transactionTenancyId(transaction) === tenancyId)
+    .sort((a, b) => dateValue(a.date) - dateValue(b.date));
+}
+
+function tenancyRentDueDates(property, tenancy) {
+  const startDate = dateFromInput(tenancy.startDate);
+  if (!startDate) return [];
+
+  const explicitEndDate = dateFromInput(tenancy.endDate);
+  const fallbackEndDate = dateForMonth(startDate.getFullYear(), startDate.getMonth() + 11, property.rentDueDay || startDate.getDate());
+  const endDate = explicitEndDate || fallbackEndDate;
+  const dueDay = Number(property.rentDueDay || startDate.getDate() || 1);
+  const dueDates = [];
+  let dueDate = dateForMonth(startDate.getFullYear(), startDate.getMonth(), dueDay);
+
+  if (dueDate < startDate) {
+    dueDate = dateForMonth(startDate.getFullYear(), startDate.getMonth() + 1, dueDay);
+  }
+
+  while (dueDate <= endDate && dueDates.length < 120) {
+    dueDates.push(dateInputValue(dueDate));
+    dueDate = dateForMonth(dueDate.getFullYear(), dueDate.getMonth() + 1, dueDay);
+  }
+
+  return dueDates;
+}
+
+function buildTenancyRentTransaction(property, tenancy, dueDate, existingTransaction = null) {
+  const marker = tenancyNoteMarker(tenancy.id);
+  return normalizeTransactionRecord({
+    ...(existingTransaction || {}),
+    id: existingTransaction?.id || createId("transaction"),
+    propertyId: property.id,
+    tenancyId: tenancy.id,
+    date: dueDate,
+    amount: Number(tenancy.rent || property.rent || 0),
+    type: "income",
+    category: tenancy.tenantName ? `Rent - ${tenancy.tenantName}` : "Rent due",
+    taxTreatment: "revenue",
+    source: "manual",
+    status: existingTransaction?.status || "draft",
+    notes: existingTransaction?.notes?.includes(marker)
+      ? existingTransaction.notes
+      : `${tenancy.tenantName || "Tenant"} rent schedule ${marker}`,
+  });
+}
+
+async function syncTenancyRentSchedule(property, tenancy) {
+  if (!tenancy?.id) return;
+  if (!tenancy.startDate || !Number(tenancy.rent || 0)) {
+    await deleteTenancyRentSchedule(tenancy.id);
+    return;
+  }
+
+  const dueDates = tenancyRentDueDates(property, tenancy);
+  const dueDateSet = new Set(dueDates);
+  const existingTransactions = tenancyRentTransactions(tenancy.id);
+  const existingByDate = new Map(existingTransactions.map((transaction) => [transaction.date, transaction]));
+
+  for (const dueDate of dueDates) {
+    const existingTransaction = existingByDate.get(dueDate);
+    const scheduledTransaction = buildTenancyRentTransaction(property, tenancy, dueDate, existingTransaction);
+    if (existingTransaction) {
+      Object.assign(existingTransaction, scheduledTransaction);
+      await updateTransactionInSupabase(existingTransaction);
+    } else {
+      const savedId = await saveTransactionToSupabase(scheduledTransaction);
+      if (savedId) scheduledTransaction.id = savedId;
+      transactions = [scheduledTransaction, ...transactions];
+    }
+  }
+
+  const transactionsToDelete = existingTransactions.filter((transaction) => !dueDateSet.has(transaction.date));
+  for (const transaction of transactionsToDelete) {
+    await deleteTransactionFromSupabase(transaction.id);
+  }
+  if (transactionsToDelete.length) {
+    const deleteIds = new Set(transactionsToDelete.map((transaction) => transaction.id));
+    transactions = transactions.filter((transaction) => !deleteIds.has(transaction.id));
+  }
+}
+
+async function deleteTenancyRentSchedule(tenancyId) {
+  const linkedTransactions = tenancyRentTransactions(tenancyId);
+  for (const transaction of linkedTransactions) {
+    await deleteTransactionFromSupabase(transaction.id);
+  }
+  const linkedIds = new Set(linkedTransactions.map((transaction) => transaction.id));
+  transactions = transactions.filter((transaction) => !linkedIds.has(transaction.id));
 }
 
 function createReportMetric(label, value) {
@@ -1284,6 +1433,7 @@ function resetTenancyForm() {
 function resetRemortgageForm() {
   editingRemortgageId = null;
   premium.remortgageForm.reset();
+  document.querySelector("#detailMortgageEnd").dataset.autoCalculated = "";
   premium.remortgageForm.querySelector("button[type='submit']").textContent = "Save remortgage record";
 }
 
@@ -1345,6 +1495,29 @@ function renderPropertyDetail() {
     ...((property.tenancies || []).map((tenancy) => {
       const row = document.createElement("div");
       row.className = "detail-row";
+      const rentTransactions = tenancyRentTransactions(tenancy.id);
+      const rentSchedule = rentTransactions.length
+        ? `
+          <div class="tenancy-rent-schedule">
+            <span>Rent payment schedule</span>
+            ${rentTransactions
+              .map(
+                (transaction) => `
+                  <div class="tenancy-rent-row">
+                    <strong>${formatDate(transaction.date)}</strong>
+                    <span>${money.format(transaction.amount)} · ${transaction.status}</span>
+                    <div class="detail-actions">
+                      ${transaction.status !== "approved" ? `<button class="tax-button small-button" type="button" data-approve-tenancy-rent="${transaction.id}">Mark paid</button>` : ""}
+                      <button class="secondary-button small-button" type="button" data-edit-tenancy-rent="${transaction.id}">Edit</button>
+                      <button class="secondary-button small-button danger-button" type="button" data-delete-tenancy-rent="${transaction.id}">Delete</button>
+                    </div>
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+        `
+        : `<div class="tenancy-rent-schedule"><span>Rent payment schedule</span><p class="field-hint">Save tenancy dates and monthly rent to create rent payment records.</p></div>`;
       row.innerHTML = `
         <div><span>Tenant</span><strong>${tenancy.tenantName || "-"}</strong></div>
         <div><span>Contact</span><strong>${tenancy.tenantContact || "-"}</strong></div>
@@ -1356,6 +1529,7 @@ function renderPropertyDetail() {
           <button class="secondary-button small-button" type="button" data-edit-tenancy="${tenancy.id}">Edit</button>
           <button class="secondary-button small-button danger-button" type="button" data-delete-tenancy="${tenancy.id}">Delete</button>
         </div>
+        ${rentSchedule}
       `;
       return row;
     })),
@@ -2311,6 +2485,7 @@ async function updateTransactionInSupabase(transaction) {
       transaction_type: transaction.type,
       category: transaction.category,
       tax_treatment: transaction.taxTreatment,
+      source: transaction.source,
       status: transaction.status,
       notes: transaction.notes || null,
     })
@@ -3538,12 +3713,13 @@ premium.transactionForm.addEventListener("submit", async (event) => {
     id: editingTransactionId || createId("transaction"),
     propertyId: premium.transactionProperty.value,
     documentId: existingTransaction?.documentId || "",
+    tenancyId: existingTransaction ? transactionTenancyId(existingTransaction) : "",
     date: premium.transactionDate.value,
     amount: Number(premium.transactionAmount.value) || 0,
     type: premium.transactionType.value,
     category: premium.transactionCategory.value.trim(),
     taxTreatment: premium.transactionTaxTreatment.value,
-    source: "manual",
+    source: existingTransaction?.source || "manual",
     status: premium.transactionStatus.value,
     notes: premium.transactionNotes.value.trim(),
   });
@@ -3772,6 +3948,11 @@ premium.propertyDetailTabButtons.forEach((button) => {
 
 premium.propertyOwnershipModel.addEventListener("change", updateOperatorFieldsVisibility);
 premium.detailOwnershipModel.addEventListener("change", updateDetailOperatorFieldsVisibility);
+document.querySelector("#detailMortgageTermMonths").addEventListener("input", () => updateMortgageEndFromTerm());
+document.querySelector("#detailMortgageStart").addEventListener("change", () => updateMortgageEndFromTerm());
+document.querySelector("#detailMortgageEnd").addEventListener("input", () => {
+  document.querySelector("#detailMortgageEnd").dataset.autoCalculated = "false";
+});
 
 premium.propertyManagementForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -3906,13 +4087,55 @@ premium.tenancyHistoryList.addEventListener("click", async (event) => {
   }
 
   const deleteButton = event.target.closest("[data-delete-tenancy]");
-  if (!deleteButton) return;
-  await deleteTenancyFromSupabase(property, deleteButton.dataset.deleteTenancy);
-  property.tenancies = (property.tenancies || []).filter((item) => item.id !== deleteButton.dataset.deleteTenancy);
-  resetTenancyForm();
-  await updateSupabasePropertySnapshot(property);
-  renderPremiumDashboard();
+  if (deleteButton) {
+    await deleteTenancyFromSupabase(property, deleteButton.dataset.deleteTenancy);
+    await deleteTenancyRentSchedule(deleteButton.dataset.deleteTenancy);
+    property.tenancies = (property.tenancies || []).filter((item) => item.id !== deleteButton.dataset.deleteTenancy);
+    resetTenancyForm();
+    await updateSupabasePropertySnapshot(property);
+    renderPremiumDashboard();
+    renderPropertyDetail();
+    return;
+  }
+
+  const approveRentButton = event.target.closest("[data-approve-tenancy-rent]");
+  if (approveRentButton) {
+    const transaction = transactions.find((item) => item.id === approveRentButton.dataset.approveTenancyRent);
+    if (!transaction) return;
+    transaction.status = "approved";
+    transaction.taxTreatment = "revenue";
+    await updateTransactionInSupabase(transaction);
+    renderTransactions();
+    renderPropertyDetail();
+    switchPropertyDetailTab("tenancies");
+    return;
+  }
+
+  const editRentButton = event.target.closest("[data-edit-tenancy-rent]");
+  if (editRentButton) {
+    const transaction = transactions.find((item) => item.id === editRentButton.dataset.editTenancyRent);
+    if (!transaction) return;
+    loadTransactionIntoForm(transaction);
+    premium.propertyDetailPanel.hidden = true;
+    switchView("dashboardView");
+    premium.dashboardPanel.hidden = false;
+    switchDashboardTab("transactions");
+    premium.transactionForm.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+
+  const deleteRentButton = event.target.closest("[data-delete-tenancy-rent]");
+  if (!deleteRentButton) return;
+  const transaction = transactions.find((item) => item.id === deleteRentButton.dataset.deleteTenancyRent);
+  if (!transaction) return;
+  const confirmed = window.confirm(`Delete rent payment for ${formatDate(transaction.date)}?`);
+  if (!confirmed) return;
+  await deleteTransactionFromSupabase(transaction.id);
+  transactions = transactions.filter((item) => item.id !== transaction.id);
+  if (editingTransactionId === transaction.id) resetTransactionForm();
+  renderTransactions();
   renderPropertyDetail();
+  switchPropertyDetailTab("tenancies");
 });
 
 premium.remortgageHistoryList.addEventListener("click", async (event) => {
@@ -3930,6 +4153,7 @@ premium.remortgageHistoryList.addEventListener("click", async (event) => {
     document.querySelector("#detailMortgageTermMonths").value = remortgage.termMonths || "";
     document.querySelector("#detailMortgageStart").value = remortgage.startDate || "";
     document.querySelector("#detailMortgageEnd").value = remortgage.expiryDate || "";
+    document.querySelector("#detailMortgageEnd").dataset.autoCalculated = "false";
     document.querySelector("#detailEquityRelease").value = remortgage.equityRelease || "";
     document.querySelector("#detailMortgageNotes").value = remortgage.notes || "";
     premium.remortgageForm.querySelector("button[type='submit']").textContent = "Update remortgage record";
@@ -4002,9 +4226,11 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
     property.tenancies = [tenancy, ...(property.tenancies || [])];
   }
   if (tenancy.rent) property.rent = tenancy.rent;
+  await syncTenancyRentSchedule(property, tenancy);
   await updateSupabasePropertySnapshot(property);
   renderPremiumDashboard();
   renderPropertyDetail();
+  switchPropertyDetailTab("tenancies");
   resetTenancyForm();
 });
 
@@ -4012,6 +4238,7 @@ premium.remortgageForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const property = activeProperty();
   if (!property) return;
+  updateMortgageEndFromTerm({ force: !document.querySelector("#detailMortgageEnd").value });
 
   const remortgage = {
     id: editingRemortgageId || createId("remortgage"),

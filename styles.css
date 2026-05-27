@@ -1522,6 +1522,38 @@ select {
   justify-content: flex-end;
 }
 
+.tenancy-rent-schedule {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.tenancy-rent-schedule > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.tenancy-rent-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.8fr) minmax(130px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.tenancy-rent-row span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
 .expense-bulk-actions {
   justify-content: flex-end;
   margin-bottom: 12px;
@@ -2201,6 +2233,10 @@ li {
   .operator-note,
   .transaction-form .tax-button {
     grid-column: auto;
+  }
+
+  .tenancy-rent-row {
+    grid-template-columns: 1fr;
   }
 
   .product-sidebar {
