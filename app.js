@@ -928,21 +928,21 @@ function renderDocuments() {
 
   premium.documentList.replaceChildren(
     heading,
-    ...documents.map((document) => {
+    ...documents.map((documentRecord) => {
       const row = document.createElement("div");
       row.className = "document-row";
-      row.dataset.documentRow = document.id;
-      const fileSummary = document.pageCount
-        ? `${document.pageCount} page${document.pageCount === 1 ? "" : "s"}`
-        : fileSizeLabel(document.fileSize);
+      row.dataset.documentRow = documentRecord.id;
+      const fileSummary = documentRecord.pageCount
+        ? `${documentRecord.pageCount} page${documentRecord.pageCount === 1 ? "" : "s"}`
+        : fileSizeLabel(documentRecord.fileSize);
 
       row.innerHTML = `
-        <span>${document.label}<small>${document.documentType} · ${document.fileName || "File"} · ${fileSizeLabel(document.fileSize)}</small></span>
-        <span>${documentPropertyName(document.propertyId)}<small>${document.expiryDate ? `Expires ${formatDate(document.expiryDate)}` : "No expiry"}</small></span>
+        <span>${documentRecord.label}<small>${documentRecord.documentType} · ${documentRecord.fileName || "File"} · ${fileSizeLabel(documentRecord.fileSize)}</small></span>
+        <span>${documentPropertyName(documentRecord.propertyId)}<small>${documentRecord.expiryDate ? `Expires ${formatDate(documentRecord.expiryDate)}` : "No expiry"}</small></span>
         <strong>Stored<small>${fileSummary}</small></strong>
         <div class="detail-actions">
-          ${documentActionButtons(document)}
-          <button class="secondary-button small-button danger-button" type="button" data-delete-document="${document.id}">Delete</button>
+          ${documentActionButtons(documentRecord)}
+          <button class="secondary-button small-button danger-button" type="button" data-delete-document="${documentRecord.id}">Delete</button>
         </div>
       `;
       return row;
@@ -2686,14 +2686,14 @@ async function saveTransactionToSupabase(transaction) {
     .select("id")
     .single();
 
-  if (error) return null;
+  if (error) throw error;
   return data?.id || null;
 }
 
 async function updateTransactionInSupabase(transaction) {
   if (!supabaseClient || !isPersistedProperty(transaction)) return;
 
-  await supabaseClient
+  const { error } = await supabaseClient
     .from("property_transactions")
     .update({
       property_id: isPersistedProperty({ id: transaction.propertyId }) ? transaction.propertyId : null,
@@ -2707,6 +2707,7 @@ async function updateTransactionInSupabase(transaction) {
       notes: transaction.notes || null,
     })
     .eq("id", transaction.id);
+  if (error) throw error;
 }
 
 async function deleteTransactionFromSupabase(transactionId) {
