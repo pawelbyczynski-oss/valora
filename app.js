@@ -206,8 +206,6 @@ const supabaseClient =
   window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
-const DOCUMENT_SCAN_TIMEOUT_MS = 15000;
-const activeDocumentScans = new Set();
 
 let investorType = "individual";
 let mortgageType = "interestOnly";
@@ -354,27 +352,6 @@ function normalizeDocumentRecord(document) {
 }
 
 documents = documents.map(normalizeDocumentRecord);
-
-function resetInactiveDocumentScans() {
-  documents.forEach((document) => {
-    if (document.aiStatus !== "processing" || activeDocumentScans.has(document.id)) return;
-    document.aiStatus = "failed";
-    document.aiError = "Previous scan was interrupted. Try Scan & split again.";
-    document.aiScanStartedAt = "";
-  });
-}
-
-function storedDocumentRecords() {
-  return documents.map((document) => {
-    if (document.aiStatus !== "processing") return document;
-    return {
-      ...document,
-      aiStatus: "failed",
-      aiError: "Previous scan was interrupted. Try Scan & split again.",
-      aiScanStartedAt: "",
-    };
-  });
-}
 
 function isPersistedProperty(property) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(property.id || "");
@@ -714,106 +691,20 @@ function fileSizeLabel(size) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function monthlySmartScanCount() {
-  const now = new Date();
-  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  return documents.filter((document) => (document.aiScannedAt || "").startsWith(month)).length;
-}
-
 function documentDraftCount(documentId) {
   return transactions.filter((transaction) => transaction.documentId === documentId && transaction.status !== "approved").length;
 }
 
-async function invokeSupabaseFunction(functionName, body, accessToken, timeoutMs = DOCUMENT_SCAN_TIMEOUT_MS) {
-  const controller = new AbortController();
-  let timeoutId;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = window.setTimeout(() => {
-      controller.abort();
-      reject(new Error("AI scan did not respond within 15 seconds. Try again, or upload a smaller PDF."));
-    }, timeoutMs);
-  });
-
-  try {
-    const requestPromise = fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        apikey: SUPABASE_ANON_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    })
-      .then(async (response) => ({
-        response,
-        responseText: await response.text(),
-      }));
-    const { response, responseText } = await Promise.race([requestPromise, timeoutPromise]);
-    let data = null;
-
-    if (responseText) {
-      try {
-        data = JSON.parse(responseText);
-      } catch {
-        data = { error: responseText };
-      }
-    }
-
-    if (!response.ok) {
-      throw new Error(data?.error || response.statusText || `Supabase Function failed with ${response.status}`);
-    }
-
-    return data || {};
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      throw new Error("AI scan did not respond within 15 seconds. Try again, or upload a smaller PDF.");
-    }
-    throw error;
-  } finally {
-    if (timeoutId) window.clearTimeout(timeoutId);
-  }
-}
-
-async function getSessionWithTimeout(timeoutMs = 5000) {
-  let timeoutId;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = window.setTimeout(() => {
-      reject(new Error("Could not read your sign-in session within 5 seconds. Refresh and sign in again."));
-    }, timeoutMs);
-  });
-
-  try {
-    return await Promise.race([supabaseClient.auth.getSession(), timeoutPromise]);
-  } finally {
-    if (timeoutId) window.clearTimeout(timeoutId);
-  }
-}
-
 function documentActionButtons(document) {
-  const draftCount = documentDraftCount(document.id);
-  const scanLabel =
-    document.aiStatus === "failed"
-      ? "Retry scan"
-      : document.aiStatus === "review"
-        ? "Rescan"
-        : "Scan & split";
-  const reviewButton =
-    draftCount || document.aiStatus === "review"
-      ? `<button class="secondary-button small-button" type="button" data-review-document="${document.id}">Review drafts${draftCount ? ` (${draftCount})` : ""}</button>`
-      : "";
   return `
     <button class="secondary-button small-button" type="button" data-download-document="${document.id}">Open</button>
-    <button class="tax-button small-button" type="button" data-analyze-document="${document.id}">${scanLabel}</button>
-    ${reviewButton}
   `;
 }
 
 function renderDocuments() {
   if (!premium.documentList) return;
 
-  resetInactiveDocumentScans();
-  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(storedDocumentRecords()));
+  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
   renderDocumentPropertyOptions();
   if (premium.documentCount) {
     premium.documentCount.textContent = `${documents.length} ${documents.length === 1 ? "file" : "files"}`;
@@ -826,9 +717,7 @@ function renderDocuments() {
   }
 
   if (premium.documentMessage) {
-    premium.documentMessage.textContent = hasProAccess()
-      ? `Pro smart scans used this month: ${monthlySmartScanCount()}/25. Each smart document is limited to 5 pages.`
-      : "Premium stores documents. Upgrade to Pro for AI draft transactions and quarterly packs.";
+    premium.documentMessage.textContent = "Documents are saved against each property. Upload PDFs, certificates, statements and tenancy files here.";
   }
 
   if (!documents.length) {
@@ -866,29 +755,14 @@ function renderDocuments() {
       const row = document.createElement("div");
       row.className = "document-row";
       row.dataset.documentRow = document.id;
-      const aiText =
-        document.aiStatus === "review"
-          ? "AI draft ready"
-          : document.aiStatus === "failed"
-            ? `AI failed: ${document.aiError || "review required"}`
-            : document.aiStatus === "processing"
-              ? "AI processing"
-              : "Stored";
-
-      const aiSummary = document.aiResult?.transactions?.length
-        ? `${document.aiResult.transactions.length} drafts`
-        : document.aiResult?.amount
-          ? `${money.format(Number(document.aiResult.amount || 0))} draft`
-          : document.aiScannedAt
-            ? `Scanned ${formatDate(document.aiScannedAt)}`
-            : document.pageCount
-              ? `${document.pageCount} page${document.pageCount === 1 ? "" : "s"}`
-              : "";
+      const fileSummary = document.pageCount
+        ? `${document.pageCount} page${document.pageCount === 1 ? "" : "s"}`
+        : fileSizeLabel(document.fileSize);
 
       row.innerHTML = `
         <span>${document.label}<small>${document.documentType} · ${document.fileName || "File"} · ${fileSizeLabel(document.fileSize)}</small></span>
         <span>${documentPropertyName(document.propertyId)}<small>${document.expiryDate ? `Expires ${formatDate(document.expiryDate)}` : "No expiry"}</small></span>
-        <strong>${aiText}<small>${aiSummary}</small></strong>
+        <strong>Stored<small>${fileSummary}</small></strong>
         <div class="detail-actions">
           ${documentActionButtons(document)}
           <button class="secondary-button small-button danger-button" type="button" data-delete-document="${document.id}">Delete</button>
@@ -1015,31 +889,6 @@ function loadTransactionIntoForm(transaction) {
   premium.transactionStatus.value = transaction.status || "approved";
   premium.transactionNotes.value = transaction.notes || "";
   premium.transactionForm.querySelector("button[type='submit']").textContent = "Update transaction";
-}
-
-function reviewDocumentDrafts(documentId) {
-  const documentRecord = documents.find((item) => item.id === documentId);
-  const draftTransactions = transactions.filter(
-    (transaction) => transaction.documentId === documentId && transaction.status !== "approved",
-  );
-
-  if (documentRecord?.propertyId) {
-    openPropertyDetail(documentRecord.propertyId);
-    switchPropertyDetailTab("expenses");
-    premium.propertyExpenseStatus.value = draftTransactions.length ? "draft" : "all";
-    premium.propertyExpenseType.value = "all";
-    premium.propertyExpenseSearch.value = "";
-    const property = activeProperty();
-    if (property) renderPropertyExpenses(property);
-    premium.propertyExpenseList.scrollIntoView({ behavior: "smooth", block: "center" });
-    return;
-  }
-
-  switchDashboardTab("transactions");
-  premium.transactionList.scrollIntoView({ behavior: "smooth", block: "center" });
-  if (!draftTransactions.length) {
-    premium.documentMessage.textContent = "No draft transactions found for this document yet.";
-  }
 }
 
 function printActiveLandlordReport() {
@@ -1625,7 +1474,7 @@ function clearPremiumDataForLockedAccount() {
   documents = [];
   localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
   localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(transactions));
-  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(storedDocumentRecords()));
+  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
 }
 
 function showSubscriptionRequired(message = "Sign in is working. Choose Premium or Pro to unlock the portfolio dashboard.") {
@@ -2226,7 +2075,7 @@ async function loadSupabaseDocuments(userId) {
       createdAt: document.created_at,
     }),
   );
-  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(storedDocumentRecords()));
+  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
   return true;
 }
 
@@ -2404,14 +2253,24 @@ async function deleteDocumentFromSupabase(document) {
   }
 }
 
-async function openDocument(documentRecord) {
-  if (!supabaseClient || !documentRecord.storagePath) return;
+async function openDocument(documentRecord, popupWindow = null) {
+  if (!supabaseClient || !documentRecord.storagePath) {
+    if (popupWindow) popupWindow.close();
+    return;
+  }
   premium.documentMessage.textContent = "Opening document...";
   const { data, error } = await supabaseClient.storage
     .from("property-documents")
     .createSignedUrl(documentRecord.storagePath, 300);
   if (error || !data?.signedUrl) {
+    if (popupWindow) popupWindow.close();
     premium.documentMessage.textContent = error?.message || "Could not open document.";
+    return;
+  }
+
+  if (popupWindow) {
+    popupWindow.location.href = data.signedUrl;
+    premium.documentMessage.textContent = "Document opened in a new tab.";
     return;
   }
 
@@ -2423,131 +2282,7 @@ async function openDocument(documentRecord) {
   window.document.body.append(link);
   link.click();
   link.remove();
-  premium.documentMessage.textContent = "Document opened in a new tab.";
-}
-
-async function analyzeDocument(documentId) {
-  premium.documentMessage.textContent = "Preparing AI scan...";
-  if (!hasProAccess()) {
-    premium.documentMessage.textContent = "AI smart scans require PropertyPanel Pro.";
-    switchDashboardTab("subscription");
-    return;
-  }
-  if (!supabaseClient) {
-    premium.documentMessage.textContent = "Supabase is not configured, so AI scan cannot start.";
-    return;
-  }
-
-  let sessionResponse;
-  try {
-    sessionResponse = await getSessionWithTimeout();
-  } catch (sessionError) {
-    premium.documentMessage.textContent = sessionError.message || "Could not read your sign-in session.";
-    return;
-  }
-  const {
-    data: { session },
-  } = sessionResponse;
-  if (!session) {
-    premium.documentMessage.textContent = "Sign in again before running an AI scan.";
-    return;
-  }
-
-  const documentRecord = documents.find((item) => item.id === documentId);
-  if (!documentRecord) return;
-  if (documentRecord.pageCount > 5) {
-    premium.documentMessage.textContent = "Smart document scans are limited to 5 pages per document.";
-    return;
-  }
-  const existingDrafts = documentDraftCount(documentId);
-  if (existingDrafts) {
-    const confirmed = window.confirm(
-      `${existingDrafts} draft transaction${existingDrafts === 1 ? "" : "s"} already exist for this document. Scan again anyway?`,
-    );
-    if (!confirmed) return;
-  }
-
-  documentRecord.aiStatus = "processing";
-  documentRecord.aiError = "";
-  documentRecord.aiScanStartedAt = new Date().toISOString();
-  activeDocumentScans.add(documentId);
-  renderDocuments();
-  premium.documentMessage.textContent = `Connecting to AI scanner for ${documentRecord.label}...`;
-  window.setTimeout(() => {
-    const latestDocumentRecord = documents.find((item) => item.id === documentId);
-    if (!latestDocumentRecord || !activeDocumentScans.has(documentId)) return;
-    activeDocumentScans.delete(documentId);
-    latestDocumentRecord.aiStatus = "failed";
-    latestDocumentRecord.aiError = "AI scan is still running in the background. Check back shortly or try again.";
-    latestDocumentRecord.aiScanStartedAt = "";
-    renderDocuments();
-    premium.documentMessage.textContent = latestDocumentRecord.aiError;
-  }, DOCUMENT_SCAN_TIMEOUT_MS + 3000);
-  const scanStatusTimer = window.setTimeout(() => {
-    if (premium.documentMessage) {
-      premium.documentMessage.textContent = "Still waiting for Supabase AI scanner. This should not take longer than 15 seconds.";
-    }
-  }, 8000);
-  let scanTimedOut = false;
-  const scanFailSafeTimer = window.setTimeout(() => {
-    scanTimedOut = true;
-    activeDocumentScans.delete(documentId);
-    documentRecord.aiStatus = "failed";
-    documentRecord.aiError = "AI scan did not respond within 15 seconds. Try again, or upload a smaller PDF.";
-    documentRecord.aiScanStartedAt = "";
-    renderDocuments();
-    premium.documentMessage.textContent = documentRecord.aiError;
-  }, DOCUMENT_SCAN_TIMEOUT_MS + 1000);
-
-  let data;
-  let error;
-  try {
-    premium.documentMessage.textContent = "Sending document to Supabase AI scanner...";
-    data = await invokeSupabaseFunction(
-      ANALYZE_DOCUMENT_FUNCTION,
-      { document_id: documentId },
-      session.access_token,
-    );
-    premium.documentMessage.textContent = "AI scanner responded. Loading draft transactions...";
-  } catch (functionError) {
-    error = functionError;
-  } finally {
-    window.clearTimeout(scanStatusTimer);
-    window.clearTimeout(scanFailSafeTimer);
-    activeDocumentScans.delete(documentId);
-  }
-
-  if (scanTimedOut && !data && !error) return;
-
-  if (error || data?.error) {
-    const latestDocumentRecord = documents.find((item) => item.id === documentId) || documentRecord;
-    activeDocumentScans.delete(documentId);
-    latestDocumentRecord.aiStatus = "failed";
-    latestDocumentRecord.aiError = data?.error || error?.message || "AI scan failed.";
-    latestDocumentRecord.aiScanStartedAt = "";
-    renderDocuments();
-    premium.documentMessage.textContent = latestDocumentRecord.aiError;
-    supabaseClient.auth
-      .getUser()
-      .then(async ({ data: { user } }) => {
-        if (!user) return;
-        await loadSupabaseDocuments(user.id);
-        await loadSupabaseTransactions(user.id);
-        renderDocuments();
-      })
-      .catch(() => {});
-    return;
-  }
-
-  const draftCount = data?.draft_transaction_ids?.length || (data?.draft_transaction_id ? 1 : 0);
-  activeDocumentScans.delete(documentId);
-  documentRecord.aiScanStartedAt = "";
-  await loadSupabaseDocuments((await supabaseClient.auth.getUser()).data.user.id);
-  await loadSupabaseTransactions((await supabaseClient.auth.getUser()).data.user.id);
-  renderPremiumDashboard();
-  if (activePropertyId) renderPropertyDetail();
-  premium.documentMessage.textContent = `AI created ${draftCount} draft ${draftCount === 1 ? "transaction" : "transactions"}. Review before approving.`;
-  reviewDocumentDrafts(documentId);
+  premium.documentMessage.innerHTML = `Document ready: <a class="inline-link" href="${data.signedUrl}" target="_blank" rel="noreferrer">open file</a>.`;
 }
 
 async function saveTenancyToSupabase(property, tenancy) {
@@ -2859,7 +2594,7 @@ function switchSection(buttons, panels, activeKey, buttonAttr, panelAttr) {
 
 function switchDashboardTab(tabName) {
   if (tabName === "transactions" && !hasProAccess()) {
-    premium.subscriptionNote.textContent = "Transactions, quarterly packs and AI review are included in PropertyPanel Pro.";
+    premium.subscriptionNote.textContent = "Transactions, quarterly packs and landlord reports are included in PropertyPanel Pro.";
     tabName = "subscription";
   }
 
@@ -3772,23 +3507,8 @@ async function handleDocumentActionClick(event) {
   if (downloadButton) {
     event.preventDefault();
     const document = documents.find((item) => item.id === downloadButton.dataset.downloadDocument);
-    if (document) await openDocument(document);
-    return;
-  }
-
-  const analyzeButton = event.target.closest("[data-analyze-document]");
-  if (analyzeButton) {
-    event.preventDefault();
-    analyzeButton.textContent = "Starting...";
-    premium.documentMessage.textContent = "Starting AI scan...";
-    await analyzeDocument(analyzeButton.dataset.analyzeDocument);
-    return;
-  }
-
-  const reviewButton = event.target.closest("[data-review-document]");
-  if (reviewButton) {
-    event.preventDefault();
-    reviewDocumentDrafts(reviewButton.dataset.reviewDocument);
+    const popupWindow = window.open("", "_blank", "noopener");
+    if (document) await openDocument(document, popupWindow);
     return;
   }
 
