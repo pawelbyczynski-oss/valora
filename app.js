@@ -205,6 +205,7 @@ const supabaseClient =
   window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
+const DOCUMENT_SCAN_TIMEOUT_MS = 90000;
 
 let investorType = "individual";
 let mortgageType = "interestOnly";
@@ -696,6 +697,47 @@ function monthlySmartScanCount() {
 
 function documentDraftCount(documentId) {
   return transactions.filter((transaction) => transaction.documentId === documentId && transaction.status !== "approved").length;
+}
+
+async function invokeSupabaseFunction(functionName, body, accessToken, timeoutMs = DOCUMENT_SCAN_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const responseText = await response.text();
+    let data = null;
+
+    if (responseText) {
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        data = { error: responseText };
+      }
+    }
+
+    if (!response.ok) {
+      throw new Error(data?.error || response.statusText || `Supabase Function failed with ${response.status}`);
+    }
+
+    return data || {};
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("AI scan is taking too long. Refresh documents in a moment, then try again if no drafts appear.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 function documentActionButtons(document) {
@@ -2274,24 +2316,30 @@ async function analyzeDocument(documentId) {
 
   documentRecord.aiStatus = "processing";
   renderDocuments();
-  premium.documentMessage.textContent = `Scanning and splitting ${documentRecord.label} into draft transactions. This can take up to 30 seconds.`;
+  premium.documentMessage.textContent = `Scanning and splitting ${documentRecord.label} into draft transactions. This can take up to 90 seconds.`;
   const analyzeButtons = document.querySelectorAll(`[data-analyze-document="${documentId}"]`);
   analyzeButtons.forEach((button) => {
     button.disabled = true;
     button.textContent = "Scanning...";
   });
+  const scanStatusTimer = window.setTimeout(() => {
+    if (premium.documentMessage) {
+      premium.documentMessage.textContent = "AI scanner is still working. Large PDFs and cold starts can take up to 90 seconds.";
+    }
+  }, 15000);
 
   let data;
   let error;
   try {
-    const response = await supabaseClient.functions.invoke(ANALYZE_DOCUMENT_FUNCTION, {
-      body: { document_id: documentId },
-    });
-    data = response.data;
-    error = response.error;
+    data = await invokeSupabaseFunction(
+      ANALYZE_DOCUMENT_FUNCTION,
+      { document_id: documentId },
+      session.access_token,
+    );
   } catch (functionError) {
     error = functionError;
   } finally {
+    window.clearTimeout(scanStatusTimer);
     analyzeButtons.forEach((button) => {
       button.disabled = false;
       button.textContent = "Scan & split";
@@ -2299,15 +2347,16 @@ async function analyzeDocument(documentId) {
   }
 
   if (error || data?.error) {
-    const context = error?.context;
-    const responseText =
-      context && typeof context.text === "function"
-        ? await context.text().catch(() => "")
-        : "";
-    documentRecord.aiStatus = "failed";
-    documentRecord.aiError = data?.error || responseText || error?.message || "AI scan failed.";
+    const user = (await supabaseClient.auth.getUser()).data.user;
+    if (user) {
+      await loadSupabaseDocuments(user.id);
+      await loadSupabaseTransactions(user.id);
+    }
+    const latestDocumentRecord = documents.find((item) => item.id === documentId) || documentRecord;
+    latestDocumentRecord.aiStatus = "failed";
+    latestDocumentRecord.aiError = data?.error || error?.message || "AI scan failed.";
     renderDocuments();
-    premium.documentMessage.textContent = documentRecord.aiError;
+    premium.documentMessage.textContent = latestDocumentRecord.aiError;
     return;
   }
 

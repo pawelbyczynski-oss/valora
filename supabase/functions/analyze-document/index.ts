@@ -145,29 +145,37 @@ Deno.serve(async (request) => {
     const prompt =
       "Extract UK landlord bookkeeping draft transactions from this property document. Split separate charge lines into separate transactions where useful, for example repairs, cleaning, management fees, insurance, service charge, ground rent, utilities or rent income. Assign all transactions to the uploaded property. Return only JSON with keys: document_summary and transactions. transactions must be an array of objects with transaction_date, amount, transaction_type, category, tax_treatment, supplier, summary, confidence. transaction_type must be income or expense. tax_treatment must be revenue, capital, or review. Use review if unsure.";
 
-    const aiResponse = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${openAiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: Deno.env.get("OPENAI_DOCUMENT_MODEL") || "gpt-5-mini",
-        input: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_file",
-                filename: document.file_name || `${document.label}.pdf`,
-                file_data: `data:${mimeType};base64,${base64}`,
-              },
-              { type: "input_text", text: prompt },
-            ],
-          },
-        ],
-      }),
-    });
+    const openAiController = new AbortController();
+    const openAiTimeout = setTimeout(() => openAiController.abort(), 70000);
+    let aiResponse: Response;
+    try {
+      aiResponse = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openAiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: Deno.env.get("OPENAI_DOCUMENT_MODEL") || "gpt-5-mini",
+          input: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "input_file",
+                  filename: document.file_name || `${document.label}.pdf`,
+                  file_data: `data:${mimeType};base64,${base64}`,
+                },
+                { type: "input_text", text: prompt },
+              ],
+            },
+          ],
+        }),
+        signal: openAiController.signal,
+      });
+    } finally {
+      clearTimeout(openAiTimeout);
+    }
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
@@ -217,7 +225,12 @@ Deno.serve(async (request) => {
 
     return response({ result, draft_transaction_ids: draftTransactionIds });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown AI extraction error";
+    const message =
+      error instanceof Error && error.name === "AbortError"
+        ? "OpenAI document extraction timed out after 70 seconds."
+        : error instanceof Error
+          ? error.message
+          : "Unknown AI extraction error";
     await supabaseAdmin
       .from("documents")
       .update({ ai_status: "failed", ai_error: message, ai_scanned_at: new Date().toISOString() })
