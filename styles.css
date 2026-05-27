@@ -939,6 +939,10 @@ select {
   gap: 10px;
 }
 
+.property-record-metrics {
+  margin-bottom: 12px;
+}
+
 .portfolio-metrics article,
 .property-card,
 .admin-metrics article {
