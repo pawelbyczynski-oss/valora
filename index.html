@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260527-document-open-export-files" />
+    <link rel="stylesheet" href="styles.css?v=20260527-plan-limits-pro" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -369,12 +369,12 @@
             <p class="eyebrow">Premium</p>
             <h2>Portfolio tracker</h2>
             <strong class="plan-price">£4.99</strong>
-            <p class="hero-copy">For landlords who want properties, rent, mortgage dates and documents in one place.</p>
+            <p class="hero-copy">For landlords who want up to 5 properties, mortgage history and documents in one place.</p>
           </div>
           <ul class="plan-features">
-            <li>Save properties and portfolio values</li>
-            <li>Track rent, expenses and mortgage expiries</li>
-            <li>Document vault and reminders</li>
+            <li>Save up to 5 properties and portfolio values</li>
+            <li>Track rent, mortgage history and key dates</li>
+            <li>Basic document vault</li>
             <li>Basic portfolio PDF export</li>
           </ul>
           <button class="tax-button plan-cta" type="button" data-plan="premium">Start Premium</button>
@@ -386,13 +386,14 @@
             <p class="eyebrow">Pro</p>
             <h2>MTD-ready workflow</h2>
             <strong class="plan-price">£9.99</strong>
-            <p class="hero-copy">For landlords who want monthly records, quarterly packs and stronger document organisation.</p>
+            <p class="hero-copy">For landlords who want unlimited properties, reminders, reports and monthly operating records.</p>
           </div>
           <ul class="plan-features">
             <li>Everything in Premium</li>
+            <li>Unlimited properties</li>
+            <li>Mortgage, rent, tenancy and certificate reminders</li>
             <li>Income and expense transactions</li>
             <li>Quarterly accountant-ready reports</li>
-            <li>Property document vault</li>
             <li>Landlord report workflow</li>
           </ul>
           <button class="tax-button plan-cta" type="button" data-plan="pro">Start Pro</button>
@@ -406,11 +407,12 @@
         </div>
         <div class="comparison-table">
           <div><span>Feature</span><strong>Premium £4.99</strong><strong>Pro £9.99</strong></div>
-          <div><span>Property portfolio</span><strong>Included</strong><strong>Included</strong></div>
+          <div><span>Property portfolio</span><strong>Up to 5</strong><strong>Unlimited</strong></div>
           <div><span>Tenancy and mortgage tracking</span><strong>Included</strong><strong>Included</strong></div>
-          <div><span>Income / expense transactions</span><strong>Manual basics</strong><strong>Full workflow</strong></div>
+          <div><span>Reminders</span><strong>-</strong><strong>Mortgage, rent, tenancy and certificates</strong></div>
+          <div><span>Income / expense transactions</span><strong>-</strong><strong>Full workflow</strong></div>
           <div><span>Quarterly reports</span><strong>-</strong><strong>Accountant-ready</strong></div>
-          <div><span>Document vault</span><strong>Included</strong><strong>Included</strong></div>
+          <div><span>Document vault</span><strong>Basic</strong><strong>With expiry tracking</strong></div>
           <div><span>Landlord reports</span><strong>-</strong><strong>Included</strong></div>
           <div><span>Best for</span><strong>Tracking</strong><strong>Monthly landlord ops</strong></div>
         </div>
@@ -707,7 +709,7 @@
                 <span>Remind me before expiry</span>
               </label>
               <button class="tax-button" type="submit">Upload document</button>
-              <p class="field-hint wide-field" id="documentMessage">Premium stores documents against each property.</p>
+              <p class="field-hint wide-field" id="documentMessage">Premium stores documents against each property. Pro adds expiry reminders.</p>
             </form>
           </section>
 
@@ -1301,6 +1303,6 @@
     </footer>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260527-document-open-export-files"></script>
+    <script src="app.js?v=20260527-plan-limits-pro"></script>
   </body>
 </html>

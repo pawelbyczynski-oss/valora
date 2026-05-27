@@ -246,6 +246,7 @@ const LEGACY_PROPERTY_STORAGE_KEY = "valo" + "ra-properties";
 const PROMO_STORAGE_KEY = "property-panel-promo-access";
 const LEGACY_PROMO_STORAGE_KEY = "valo" + "ra-promo-access";
 const THEME_STORAGE_KEY = "property-panel-theme";
+const PREMIUM_PROPERTY_LIMIT = 5;
 
 const storedProperties =
   localStorage.getItem(PROPERTY_STORAGE_KEY) || localStorage.getItem(LEGACY_PROPERTY_STORAGE_KEY);
@@ -717,7 +718,13 @@ function renderDocuments() {
   }
 
   if (premium.documentMessage) {
-    premium.documentMessage.textContent = "Documents are saved against each property. Upload PDFs, certificates, statements and tenancy files here.";
+    premium.documentMessage.textContent = hasProAccess()
+      ? "Documents are saved against each property. Pro expiry reminders are enabled."
+      : "Documents are saved against each property. Upgrade to Pro to enable expiry reminders.";
+  }
+  if (premium.documentReminder) {
+    premium.documentReminder.disabled = !hasProAccess();
+    if (!hasProAccess()) premium.documentReminder.checked = false;
   }
 
   if (!documents.length) {
@@ -1089,10 +1096,13 @@ function renderPremiumDashboard() {
   const totalDebt = properties.reduce((sum, property) => sum + latestMortgageDeal(property).balance, 0);
   const totalCashflow = properties.reduce((sum, property) => sum + propertyCashflow(property), 0);
 
-  premium.portfolioCount.textContent = properties.length;
+  premium.portfolioCount.textContent =
+    currentPlanCode() === "premium" ? `${Math.min(properties.length, PREMIUM_PROPERTY_LIMIT)}/${PREMIUM_PROPERTY_LIMIT}` : properties.length;
   premium.portfolioValue.textContent = money.format(totalValue);
   premium.portfolioDebt.textContent = money.format(totalDebt);
   premium.portfolioCashflow.textContent = money.format(totalCashflow);
+  premium.openPropertyModal.textContent = isPremiumAtPropertyLimit() ? "Upgrade for more properties" : "Add property";
+  premium.detailAddProperty.textContent = isPremiumAtPropertyLimit() ? "Upgrade for more properties" : "Add property";
 
   premium.propertyList.replaceChildren(
     ...properties.map((property) => {
@@ -1130,6 +1140,10 @@ function renderPremiumDashboard() {
       return card;
     }),
   );
+
+  if (!properties.length) {
+    premium.propertyList.innerHTML = `<p class="field-hint">No properties saved yet. Add your first property to start building the portfolio.</p>`;
+  }
 
   renderReminders();
   renderTransactions();
@@ -1244,6 +1258,11 @@ function loadPropertyIntoForm(property) {
 }
 
 function openPropertyForm(property = null) {
+  if (!property && isPremiumAtPropertyLimit()) {
+    showProUpgrade(premiumLimitMessage());
+    return;
+  }
+
   resetPropertyForm();
   if (property) loadPropertyIntoForm(property);
   premium.propertyModal.hidden = false;
@@ -1269,6 +1288,11 @@ function resetRemortgageForm() {
 }
 
 function switchPropertyDetailTab(tabName) {
+  if (["expenses", "landlord-report"].includes(tabName) && !hasProAccess()) {
+    showProUpgrade("Expenses, accountant packs and landlord reports are included in PropertyPanel Pro.");
+    return;
+  }
+
   switchSection(
     premium.propertyDetailTabButtons,
     premium.propertyDetailPanels,
@@ -1434,7 +1458,31 @@ function daysUntilDate(date) {
   return Math.ceil((date - todayMidday) / 86400000);
 }
 
+function addDatedReminder(reminders, date, label, action) {
+  const days = daysUntil(date);
+  if (!Number.isFinite(days)) return;
+
+  if (days < 0) {
+    reminders.push(`${label} expired ${Math.abs(days)} days ago. ${action}`);
+  } else if (days === 0) {
+    reminders.push(`${label} expires today. ${action}`);
+  } else if (days <= 7) {
+    reminders.push(`${label} expires in ${days} days. ${action}`);
+  } else if (days <= 31) {
+    reminders.push(`${label} expires within 1 month. ${action}`);
+  } else if (days <= 93) {
+    reminders.push(`${label} expires within 3 months. ${action}`);
+  }
+}
+
 function renderReminders() {
+  if (!hasProAccess()) {
+    const item = document.createElement("li");
+    item.textContent = "Upgrade to Pro for mortgage expiry, rent due, tenancy and certificate reminders.";
+    premium.reminderList.replaceChildren(item);
+    return;
+  }
+
   const reminders = [];
 
   properties.forEach((property) => {
@@ -1463,13 +1511,31 @@ function renderReminders() {
         `Rent ${dueText} (${formatDate(dueDate.toISOString().slice(0, 10))}) for ${property.name}: check ${money.format(property.rent)} payment.`,
       );
     }
+    (property.tenancies || []).forEach((tenancy) => {
+      addDatedReminder(
+        reminders,
+        tenancy.endDate,
+        `Tenancy for ${property.name}${tenancy.tenantName ? ` (${tenancy.tenantName})` : ""}`,
+        "Review renewal or move-out steps.",
+      );
+    });
+    documents
+      .filter((document) => document.propertyId === property.id && document.reminderEnabled)
+      .forEach((document) => {
+        addDatedReminder(
+          reminders,
+          document.expiryDate,
+          `${document.documentType} for ${property.name}`,
+          "Upload a replacement or update the expiry date.",
+        );
+      });
     if (property.region === "Scotland" && property.letType === "Long-term let") {
       reminders.push(`Scottish tenancy pack ready for ${property.name}: landlord registration, deposit scheme and tenant details can feed the official agreement checklist.`);
     }
   });
 
   premium.reminderList.replaceChildren(
-    ...reminders.slice(0, 6).map((text) => {
+    ...reminders.slice(0, 8).map((text) => {
       const item = document.createElement("li");
       item.textContent = text;
       return item;
@@ -1523,6 +1589,22 @@ function hasProAccess() {
   return currentPlanCode() === "pro";
 }
 
+function isPremiumAtPropertyLimit() {
+  return currentPlanCode() === "premium" && properties.length >= PREMIUM_PROPERTY_LIMIT;
+}
+
+function premiumLimitMessage() {
+  return `Premium includes up to ${PREMIUM_PROPERTY_LIMIT} properties. Upgrade to Pro for unlimited properties, reminders and accountant/landlord reports.`;
+}
+
+function showProUpgrade(message = "This workflow is included in PropertyPanel Pro.") {
+  premium.subscriptionNote.textContent = message;
+  switchView("dashboardView");
+  premium.dashboardPanel.hidden = false;
+  premium.propertyDetailPanel.hidden = true;
+  switchDashboardTab("subscription");
+}
+
 function clearPremiumDataForLockedAccount() {
   properties = [];
   transactions = [];
@@ -1571,6 +1653,12 @@ function selectedPlanPrice() {
   return selectedPlan === "pro" ? "£9.99/month" : "£4.99/month";
 }
 
+function selectedPlanDescription() {
+  return selectedPlan === "pro"
+    ? "Pro is selected at £9.99/month with unlimited properties, reminders, transactions and accountant/landlord reports."
+    : `Premium is selected at £4.99/month with up to ${PREMIUM_PROPERTY_LIMIT} properties, mortgage tracking, documents and basic PDF export.`;
+}
+
 function setSelectedPlan(plan) {
   selectedPlan = plan === "pro" ? "pro" : "premium";
   localStorage.setItem(SELECTED_PLAN_STORAGE_KEY, selectedPlan);
@@ -1578,8 +1666,7 @@ function setSelectedPlan(plan) {
   const label = selectedPlanLabel();
   const price = selectedPlanPrice();
   document.querySelector("#selectedPlanTitle").textContent = `Start ${label}`;
-  document.querySelector("#selectedPlanCopy").textContent =
-    `${label} is selected at ${price}. Apply a promo code if you have one, then sign in to continue.`;
+  document.querySelector("#selectedPlanCopy").textContent = `${selectedPlanDescription()} Apply a promo code if you have one, then sign in to continue.`;
 
   if (!currentSubscription || currentSubscription.status === "canceled") {
     premium.manageBilling.textContent = `Subscribe to ${label} - ${price}`;
@@ -3521,6 +3608,11 @@ premium.resetTransactionFilters.addEventListener("click", () => {
 });
 
 premium.exportQuarterPack.addEventListener("click", () => {
+  if (!hasProAccess()) {
+    showProUpgrade("Quarterly accountant packs are included in PropertyPanel Pro.");
+    return;
+  }
+
   exportQuarterPackCsv();
 });
 
@@ -3687,6 +3779,11 @@ premium.propertyManagementForm.addEventListener("submit", async (event) => {
   if (!property) return;
 
   const ownershipModel = premium.detailOwnershipModel.value;
+  if (ownershipModel !== "Owned" && !hasProAccess()) {
+    premium.propertyManagementMessage.textContent = "Rent-to-rent and managed property workflows are included in PropertyPanel Pro.";
+    return;
+  }
+
   const usesOperatorFields = ownershipModel !== "Owned";
   property.ownershipModel = ownershipModel;
   property.guaranteedRent = usesOperatorFields ? Number(premium.detailGuaranteedRent.value) || 0 : 0;
@@ -3852,6 +3949,11 @@ premium.remortgageHistoryList.addEventListener("click", async (event) => {
 });
 
 premium.printLandlordReport.addEventListener("click", () => {
+  if (!hasProAccess()) {
+    showProUpgrade("Landlord monthly reports are included in PropertyPanel Pro.");
+    return;
+  }
+
   trackEvent("landlord_report_printed", { property_id: activePropertyId });
   printActiveLandlordReport();
 });
@@ -3943,7 +4045,18 @@ premium.remortgageForm.addEventListener("submit", async (event) => {
 premium.propertyForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const existingProperty = editingPropertyId ? properties.find((item) => item.id === editingPropertyId) : null;
+
+  if (!existingProperty && isPremiumAtPropertyLimit()) {
+    showProUpgrade(premiumLimitMessage());
+    return;
+  }
+
   const property = propertyPayloadFromForm(existingProperty);
+
+  if (property.ownershipModel !== "Owned" && !hasProAccess()) {
+    showProUpgrade("Rent-to-rent and managed property workflows are included in PropertyPanel Pro.");
+    return;
+  }
 
   if (existingProperty) {
     const index = properties.findIndex((item) => item.id === existingProperty.id);
