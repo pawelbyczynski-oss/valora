@@ -347,11 +347,39 @@ function normalizeDocumentRecord(document) {
     aiResult: document.aiResult || null,
     aiError: document.aiError || "",
     aiScannedAt: document.aiScannedAt || "",
+    aiScanStartedAt: document.aiScanStartedAt || "",
     createdAt: document.createdAt || new Date().toISOString(),
   };
 }
 
 documents = documents.map(normalizeDocumentRecord);
+
+function isStaleDocumentScan(document) {
+  if (document.aiStatus !== "processing") return false;
+  if (!document.aiScanStartedAt) return true;
+  return Date.now() - new Date(document.aiScanStartedAt).getTime() > DOCUMENT_SCAN_TIMEOUT_MS + 15000;
+}
+
+function resetStaleDocumentScans() {
+  documents.forEach((document) => {
+    if (!isStaleDocumentScan(document)) return;
+    document.aiStatus = "failed";
+    document.aiError = "Previous scan did not finish. Try Scan & split again.";
+    document.aiScanStartedAt = "";
+  });
+}
+
+function storedDocumentRecords() {
+  return documents.map((document) => {
+    if (document.aiStatus !== "processing") return document;
+    return {
+      ...document,
+      aiStatus: "failed",
+      aiError: "Previous scan did not finish. Try Scan & split again.",
+      aiScanStartedAt: "",
+    };
+  });
+}
 
 function isPersistedProperty(property) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(property.id || "");
@@ -774,7 +802,8 @@ function documentActionButtons(document) {
 function renderDocuments() {
   if (!premium.documentList) return;
 
-  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
+  resetStaleDocumentScans();
+  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(storedDocumentRecords()));
   renderDocumentPropertyOptions();
   if (premium.documentCount) {
     premium.documentCount.textContent = `${documents.length} ${documents.length === 1 ? "file" : "files"}`;
@@ -1586,7 +1615,7 @@ function clearPremiumDataForLockedAccount() {
   documents = [];
   localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
   localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(transactions));
-  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
+  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(storedDocumentRecords()));
 }
 
 function showSubscriptionRequired(message = "Sign in is working. Choose Premium or Pro to unlock the portfolio dashboard.") {
@@ -2187,7 +2216,7 @@ async function loadSupabaseDocuments(userId) {
       createdAt: document.created_at,
     }),
   );
-  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
+  localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(storedDocumentRecords()));
   return true;
 }
 
@@ -2421,6 +2450,8 @@ async function analyzeDocument(documentId) {
   }
 
   documentRecord.aiStatus = "processing";
+  documentRecord.aiError = "";
+  documentRecord.aiScanStartedAt = new Date().toISOString();
   renderDocuments();
   premium.documentMessage.textContent = `Scanning and splitting ${documentRecord.label} into draft transactions. This can take up to 90 seconds.`;
   const analyzeButtons = document.querySelectorAll(`[data-analyze-document="${documentId}"]`);
@@ -2438,6 +2469,7 @@ async function analyzeDocument(documentId) {
     scanTimedOut = true;
     documentRecord.aiStatus = "failed";
     documentRecord.aiError = "AI scan did not connect to Supabase within 90 seconds. Refresh the page and try again.";
+    documentRecord.aiScanStartedAt = "";
     renderDocuments();
     premium.documentMessage.textContent = documentRecord.aiError;
     analyzeButtons.forEach((button) => {
@@ -2471,6 +2503,7 @@ async function analyzeDocument(documentId) {
     const latestDocumentRecord = documents.find((item) => item.id === documentId) || documentRecord;
     latestDocumentRecord.aiStatus = "failed";
     latestDocumentRecord.aiError = data?.error || error?.message || "AI scan failed.";
+    latestDocumentRecord.aiScanStartedAt = "";
     renderDocuments();
     premium.documentMessage.textContent = latestDocumentRecord.aiError;
     supabaseClient.auth
@@ -2486,6 +2519,7 @@ async function analyzeDocument(documentId) {
   }
 
   const draftCount = data?.draft_transaction_ids?.length || (data?.draft_transaction_id ? 1 : 0);
+  documentRecord.aiScanStartedAt = "";
   await loadSupabaseDocuments((await supabaseClient.auth.getUser()).data.user.id);
   await loadSupabaseTransactions((await supabaseClient.auth.getUser()).data.user.id);
   renderPremiumDashboard();
