@@ -1553,6 +1553,17 @@ select {
 
 .property-detail-shell {
   min-height: calc(100vh - 120px);
+  grid-template-columns: 212px minmax(0, 1fr);
+}
+
+.property-detail-shell > .section-tabs {
+  width: 100%;
+  min-width: 0;
+}
+
+.property-detail-shell > .section-tabs .section-tab {
+  width: 100%;
+  min-width: 0;
 }
 
 .property-detail-summary,
