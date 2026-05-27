@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260527-property-record-fixes" />
+    <link rel="stylesheet" href="styles.css?v=20260527-property-record-feedback" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -1094,6 +1094,7 @@
             </label>
             <button class="tax-button" type="submit">Save tenancy record</button>
           </form>
+          <p class="field-hint action-message" id="tenancyMessage">Save a tenancy to create rent due transactions.</p>
           <div class="detail-list" id="tenancyHistoryList"></div>
         </section>
 
@@ -1147,6 +1148,7 @@
             </label>
             <button class="tax-button" type="submit">Save remortgage record</button>
           </form>
+          <p class="field-hint action-message" id="remortgageMessage">Save a remortgage record to update this property's mortgage history.</p>
           <div class="detail-list" id="remortgageHistoryList"></div>
         </section>
 
@@ -1305,6 +1307,6 @@
     </footer>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260527-property-record-fixes"></script>
+    <script src="app.js?v=20260527-property-record-feedback"></script>
   </body>
 </html>

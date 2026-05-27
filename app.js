@@ -104,8 +104,10 @@ const premium = {
   detailRentReminder: document.querySelector("#detailRentReminder"),
   propertyManagementMessage: document.querySelector("#propertyManagementMessage"),
   tenancyForm: document.querySelector("#tenancyForm"),
+  tenancyMessage: document.querySelector("#tenancyMessage"),
   tenancyHistoryList: document.querySelector("#tenancyHistoryList"),
   remortgageForm: document.querySelector("#remortgageForm"),
+  remortgageMessage: document.querySelector("#remortgageMessage"),
   remortgageHistoryList: document.querySelector("#remortgageHistoryList"),
   propertyExpenseFilters: document.querySelector("#propertyExpenseFilters"),
   propertyExpenseSearch: document.querySelector("#propertyExpenseSearch"),
@@ -1435,6 +1437,19 @@ function resetRemortgageForm() {
   premium.remortgageForm.reset();
   document.querySelector("#detailMortgageEnd").dataset.autoCalculated = "";
   premium.remortgageForm.querySelector("button[type='submit']").textContent = "Save remortgage record";
+}
+
+function setButtonBusy(button, busy, busyText = "Saving...") {
+  if (!button) return;
+  if (busy) {
+    button.dataset.originalText = button.textContent;
+    button.textContent = busyText;
+    button.disabled = true;
+    return;
+  }
+  button.textContent = button.dataset.originalText || button.textContent;
+  button.disabled = false;
+  delete button.dataset.originalText;
 }
 
 function switchPropertyDetailTab(tabName) {
@@ -4082,12 +4097,15 @@ premium.tenancyHistoryList.addEventListener("click", async (event) => {
     document.querySelector("#detailTenancyStart").value = tenancy.startDate || "";
     document.querySelector("#detailTenancyEnd").value = tenancy.endDate || "";
     document.querySelector("#detailTenancyRent").value = tenancy.rent || "";
+    premium.tenancyMessage.textContent = `Editing tenancy for ${tenancy.tenantName || property.name}.`;
     premium.tenancyForm.querySelector("button[type='submit']").textContent = "Update tenancy record";
     return;
   }
 
   const deleteButton = event.target.closest("[data-delete-tenancy]");
   if (deleteButton) {
+    setButtonBusy(deleteButton, true, "Deleting...");
+    premium.tenancyMessage.textContent = "Deleting tenancy and linked rent payments...";
     await deleteTenancyFromSupabase(property, deleteButton.dataset.deleteTenancy);
     await deleteTenancyRentSchedule(deleteButton.dataset.deleteTenancy);
     property.tenancies = (property.tenancies || []).filter((item) => item.id !== deleteButton.dataset.deleteTenancy);
@@ -4095,11 +4113,14 @@ premium.tenancyHistoryList.addEventListener("click", async (event) => {
     await updateSupabasePropertySnapshot(property);
     renderPremiumDashboard();
     renderPropertyDetail();
+    switchPropertyDetailTab("tenancies");
+    premium.tenancyMessage.textContent = "Tenancy deleted. Linked future rent payments were removed.";
     return;
   }
 
   const approveRentButton = event.target.closest("[data-approve-tenancy-rent]");
   if (approveRentButton) {
+    setButtonBusy(approveRentButton, true, "Saving...");
     const transaction = transactions.find((item) => item.id === approveRentButton.dataset.approveTenancyRent);
     if (!transaction) return;
     transaction.status = "approved";
@@ -4108,6 +4129,7 @@ premium.tenancyHistoryList.addEventListener("click", async (event) => {
     renderTransactions();
     renderPropertyDetail();
     switchPropertyDetailTab("tenancies");
+    premium.tenancyMessage.textContent = `Rent payment for ${formatDate(transaction.date)} marked as paid.`;
     return;
   }
 
@@ -4130,12 +4152,15 @@ premium.tenancyHistoryList.addEventListener("click", async (event) => {
   if (!transaction) return;
   const confirmed = window.confirm(`Delete rent payment for ${formatDate(transaction.date)}?`);
   if (!confirmed) return;
+  setButtonBusy(deleteRentButton, true, "Deleting...");
+  premium.tenancyMessage.textContent = "Deleting rent payment...";
   await deleteTransactionFromSupabase(transaction.id);
   transactions = transactions.filter((item) => item.id !== transaction.id);
   if (editingTransactionId === transaction.id) resetTransactionForm();
   renderTransactions();
   renderPropertyDetail();
   switchPropertyDetailTab("tenancies");
+  premium.tenancyMessage.textContent = "Rent payment deleted.";
 });
 
 premium.remortgageHistoryList.addEventListener("click", async (event) => {
@@ -4156,6 +4181,7 @@ premium.remortgageHistoryList.addEventListener("click", async (event) => {
     document.querySelector("#detailMortgageEnd").dataset.autoCalculated = "false";
     document.querySelector("#detailEquityRelease").value = remortgage.equityRelease || "";
     document.querySelector("#detailMortgageNotes").value = remortgage.notes || "";
+    premium.remortgageMessage.textContent = "Editing remortgage record.";
     premium.remortgageForm.querySelector("button[type='submit']").textContent = "Update remortgage record";
     return;
   }
@@ -4164,12 +4190,16 @@ premium.remortgageHistoryList.addEventListener("click", async (event) => {
   if (!deleteButton) return;
   const confirmed = window.confirm("Are you sure you want to delete this remortgage record?");
   if (!confirmed) return;
+  setButtonBusy(deleteButton, true, "Deleting...");
+  premium.remortgageMessage.textContent = "Deleting remortgage record...";
   await deleteRemortgageFromSupabase(property, deleteButton.dataset.deleteRemortgage);
   property.remortgages = (property.remortgages || []).filter((item) => item.id !== deleteButton.dataset.deleteRemortgage);
   resetRemortgageForm();
   await updateSupabasePropertySnapshot(property);
   renderPremiumDashboard();
   renderPropertyDetail();
+  switchPropertyDetailTab("remortgages");
+  premium.remortgageMessage.textContent = "Remortgage record deleted.";
 });
 
 premium.printLandlordReport.addEventListener("click", () => {
@@ -4201,72 +4231,99 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const property = activeProperty();
   if (!property) return;
+  const submitButton = premium.tenancyForm.querySelector("button[type='submit']");
+  setButtonBusy(submitButton, true, editingTenancyId ? "Updating..." : "Saving...");
+  premium.tenancyMessage.textContent = editingTenancyId
+    ? "Updating tenancy and rent payment schedule..."
+    : "Saving tenancy and creating rent payment schedule...";
 
-  const files = Array.from(document.querySelector("#detailTenancyFiles").files || []).map((file) => file.name);
-  const tenancy = {
-    id: editingTenancyId || createId("tenancy"),
-    tenantName: document.querySelector("#detailTenantName").value,
-    tenantContact: document.querySelector("#detailTenantContact").value,
-    startDate: document.querySelector("#detailTenancyStart").value,
-    endDate: document.querySelector("#detailTenancyEnd").value,
-    rent: Number(document.querySelector("#detailTenancyRent").value) || 0,
-    documents: files,
-  };
+  try {
+    const files = Array.from(document.querySelector("#detailTenancyFiles").files || []).map((file) => file.name);
+    const tenancy = {
+      id: editingTenancyId || createId("tenancy"),
+      tenantName: document.querySelector("#detailTenantName").value,
+      tenantContact: document.querySelector("#detailTenantContact").value,
+      startDate: document.querySelector("#detailTenancyStart").value,
+      endDate: document.querySelector("#detailTenancyEnd").value,
+      rent: Number(document.querySelector("#detailTenancyRent").value) || 0,
+      documents: files,
+    };
 
-  if (editingTenancyId) {
-    const index = (property.tenancies || []).findIndex((item) => item.id === editingTenancyId);
-    if (index >= 0) {
-      tenancy.documents = files.length ? files : property.tenancies[index].documents || [];
-      property.tenancies[index] = tenancy;
-      await updateTenancyInSupabase(property, tenancy);
+    if (editingTenancyId) {
+      const index = (property.tenancies || []).findIndex((item) => item.id === editingTenancyId);
+      if (index >= 0) {
+        tenancy.documents = files.length ? files : property.tenancies[index].documents || [];
+        property.tenancies[index] = tenancy;
+        await updateTenancyInSupabase(property, tenancy);
+      }
+    } else {
+      const savedId = await saveTenancyToSupabase(property, tenancy);
+      if (savedId) tenancy.id = savedId;
+      property.tenancies = [tenancy, ...(property.tenancies || [])];
     }
-  } else {
-    const savedId = await saveTenancyToSupabase(property, tenancy);
-    if (savedId) tenancy.id = savedId;
-    property.tenancies = [tenancy, ...(property.tenancies || [])];
+    if (tenancy.rent) property.rent = tenancy.rent;
+    await syncTenancyRentSchedule(property, tenancy);
+    await updateSupabasePropertySnapshot(property);
+    renderPremiumDashboard();
+    renderPropertyDetail();
+    switchPropertyDetailTab("tenancies");
+    resetTenancyForm();
+    delete submitButton.dataset.originalText;
+    premium.tenancyMessage.textContent = `Tenancy saved. Rent payment schedule refreshed for ${tenancy.tenantName || property.name}.`;
+  } catch (error) {
+    premium.tenancyMessage.textContent = error?.message || "Could not save tenancy record.";
+  } finally {
+    setButtonBusy(submitButton, false);
   }
-  if (tenancy.rent) property.rent = tenancy.rent;
-  await syncTenancyRentSchedule(property, tenancy);
-  await updateSupabasePropertySnapshot(property);
-  renderPremiumDashboard();
-  renderPropertyDetail();
-  switchPropertyDetailTab("tenancies");
-  resetTenancyForm();
 });
 
 premium.remortgageForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const property = activeProperty();
   if (!property) return;
+  const submitButton = premium.remortgageForm.querySelector("button[type='submit']");
+  setButtonBusy(submitButton, true, editingRemortgageId ? "Updating..." : "Saving...");
+  premium.remortgageMessage.textContent = editingRemortgageId
+    ? "Updating remortgage record..."
+    : "Saving remortgage record...";
   updateMortgageEndFromTerm({ force: !document.querySelector("#detailMortgageEnd").value });
 
-  const remortgage = {
-    id: editingRemortgageId || createId("remortgage"),
-    productType: document.querySelector("#detailMortgageProduct").value,
-    rate: Number(document.querySelector("#detailMortgageRate").value) || 0,
-    balance: Number(document.querySelector("#detailMortgageBalance").value) || 0,
-    termMonths: Number(document.querySelector("#detailMortgageTermMonths").value) || null,
-    startDate: document.querySelector("#detailMortgageStart").value,
-    expiryDate: document.querySelector("#detailMortgageEnd").value,
-    equityRelease: Number(document.querySelector("#detailEquityRelease").value) || 0,
-    notes: document.querySelector("#detailMortgageNotes").value,
-  };
+  try {
+    const remortgage = {
+      id: editingRemortgageId || createId("remortgage"),
+      productType: document.querySelector("#detailMortgageProduct").value,
+      rate: Number(document.querySelector("#detailMortgageRate").value) || 0,
+      balance: Number(document.querySelector("#detailMortgageBalance").value) || 0,
+      termMonths: Number(document.querySelector("#detailMortgageTermMonths").value) || null,
+      startDate: document.querySelector("#detailMortgageStart").value,
+      expiryDate: document.querySelector("#detailMortgageEnd").value,
+      equityRelease: Number(document.querySelector("#detailEquityRelease").value) || 0,
+      notes: document.querySelector("#detailMortgageNotes").value,
+    };
 
-  if (editingRemortgageId) {
-    const index = (property.remortgages || []).findIndex((item) => item.id === editingRemortgageId);
-    if (index >= 0) {
-      property.remortgages[index] = remortgage;
-      await updateRemortgageInSupabase(property, remortgage);
+    if (editingRemortgageId) {
+      const index = (property.remortgages || []).findIndex((item) => item.id === editingRemortgageId);
+      if (index >= 0) {
+        property.remortgages[index] = remortgage;
+        await updateRemortgageInSupabase(property, remortgage);
+      }
+    } else {
+      const savedId = await saveRemortgageToSupabase(property, remortgage);
+      if (savedId) remortgage.id = savedId;
+      property.remortgages = [remortgage, ...(property.remortgages || [])];
     }
-  } else {
-    const savedId = await saveRemortgageToSupabase(property, remortgage);
-    if (savedId) remortgage.id = savedId;
-    property.remortgages = [remortgage, ...(property.remortgages || [])];
+    await updateSupabasePropertySnapshot(property);
+    renderPremiumDashboard();
+    renderPropertyDetail();
+    switchPropertyDetailTab("remortgages");
+    resetRemortgageForm();
+    delete submitButton.dataset.originalText;
+    premium.remortgageMessage.textContent = "Remortgage record saved and mortgage history refreshed.";
+  } catch (error) {
+    premium.remortgageMessage.textContent = error?.message || "Could not save remortgage record.";
+  } finally {
+    setButtonBusy(submitButton, false);
   }
-  await updateSupabasePropertySnapshot(property);
-  renderPremiumDashboard();
-  renderPropertyDetail();
-  resetRemortgageForm();
 });
 
 premium.propertyForm.addEventListener("submit", async (event) => {
