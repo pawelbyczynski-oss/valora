@@ -775,6 +775,21 @@ async function invokeSupabaseFunction(functionName, body, accessToken, timeoutMs
   }
 }
 
+async function getSessionWithTimeout(timeoutMs = 5000) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error("Could not read your sign-in session within 5 seconds. Refresh and sign in again."));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([supabaseClient.auth.getSession(), timeoutPromise]);
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
+  }
+}
+
 function documentActionButtons(document) {
   const draftCount = documentDraftCount(document.id);
   const scanLabel =
@@ -2412,6 +2427,7 @@ async function openDocument(documentRecord) {
 }
 
 async function analyzeDocument(documentId) {
+  premium.documentMessage.textContent = "Preparing AI scan...";
   if (!hasProAccess()) {
     premium.documentMessage.textContent = "AI smart scans require PropertyPanel Pro.";
     switchDashboardTab("subscription");
@@ -2422,9 +2438,16 @@ async function analyzeDocument(documentId) {
     return;
   }
 
+  let sessionResponse;
+  try {
+    sessionResponse = await getSessionWithTimeout();
+  } catch (sessionError) {
+    premium.documentMessage.textContent = sessionError.message || "Could not read your sign-in session.";
+    return;
+  }
   const {
     data: { session },
-  } = await supabaseClient.auth.getSession();
+  } = sessionResponse;
   if (!session) {
     premium.documentMessage.textContent = "Sign in again before running an AI scan.";
     return;
@@ -3756,6 +3779,8 @@ async function handleDocumentActionClick(event) {
   const analyzeButton = event.target.closest("[data-analyze-document]");
   if (analyzeButton) {
     event.preventDefault();
+    analyzeButton.textContent = "Starting...";
+    premium.documentMessage.textContent = "Starting AI scan...";
     await analyzeDocument(analyzeButton.dataset.analyzeDocument);
     return;
   }
