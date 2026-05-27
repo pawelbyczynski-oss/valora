@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260527-tenancy-tenant-details" />
+    <link rel="stylesheet" href="styles.css?v=20260527-property-documents" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -19,7 +19,7 @@
       <div class="nav-actions">
         <button class="nav-button active" type="button" data-view="homeView">Calculator</button>
         <button class="nav-button" type="button" data-view="premiumView">Premium</button>
-        <button class="nav-button" type="button" data-view="loginView">Sign in</button>
+        <button class="nav-button" id="navAuthButton" type="button" data-view="loginView">Sign in</button>
         <button class="nav-button theme-toggle" id="themeToggle" type="button" aria-pressed="false">Dark</button>
         <button class="nav-button admin-nav" type="button" data-view="adminView" hidden>Admin</button>
       </div>
@@ -487,17 +487,15 @@
           </div>
           <div class="dashboard-actions">
             <button class="tax-button small-button" id="openPropertyModal" type="button">Add property</button>
-            <button class="secondary-button small-button" id="logoutButton" type="button">Log out</button>
           </div>
         </div>
 
         <div class="section-tabs" aria-label="Premium sections">
-          <button class="section-tab active" type="button" data-dashboard-tab="overview">Overview</button>
-          <button class="section-tab" type="button" data-dashboard-tab="properties">Properties</button>
-          <button class="section-tab" type="button" data-dashboard-tab="transactions">Transactions</button>
-          <button class="section-tab" type="button" data-dashboard-tab="subscription">Subscription</button>
-          <button class="section-tab" type="button" data-dashboard-tab="documents">Documents</button>
-          <button class="section-tab" type="button" data-dashboard-tab="account">Account</button>
+          <button class="section-tab active" type="button" data-dashboard-tab="overview"><span class="tab-icon">□</span>Overview</button>
+          <button class="section-tab" type="button" data-dashboard-tab="properties"><span class="tab-icon">⌂</span>Properties</button>
+          <button class="section-tab" type="button" data-dashboard-tab="transactions"><span class="tab-icon">£</span>Transactions</button>
+          <button class="section-tab" type="button" data-dashboard-tab="subscription"><span class="tab-icon">◉</span>Subscription</button>
+          <button class="section-tab" type="button" data-dashboard-tab="account"><span class="tab-icon">⚙</span>Account</button>
         </div>
 
         <div class="portfolio-metrics dashboard-panel" data-dashboard-panel="overview">
@@ -658,63 +656,6 @@
             <ul class="reminder-list" id="reminderList"></ul>
           </aside>
 
-          <section class="panel-card dashboard-panel" data-dashboard-panel="documents">
-            <div class="section-heading">
-              <p class="eyebrow">Documents</p>
-              <h2>Property vault</h2>
-            </div>
-            <div class="section-heading split-heading document-list-heading">
-              <div>
-                <p class="eyebrow">Uploaded files</p>
-                <h2>Saved documents</h2>
-              </div>
-              <span class="pill" id="documentCount">0 files</span>
-            </div>
-            <div class="document-action-bar" id="documentActionBar"></div>
-            <div class="document-list" id="documentList"></div>
-            <form class="transaction-form document-form" id="documentForm">
-              <label>
-                <span>Property</span>
-                <select id="documentProperty" required></select>
-              </label>
-              <label>
-                <span>Label</span>
-                <input id="documentLabel" placeholder="Gas safety certificate" required />
-              </label>
-              <label>
-                <span>Type</span>
-                <select id="documentType">
-                  <option>Invoice</option>
-                  <option>Rent statement</option>
-                  <option>Tenancy agreement</option>
-                  <option>Mortgage offer</option>
-                  <option>Gas safety</option>
-                  <option>EICR</option>
-                  <option>Insurance</option>
-                  <option>Other</option>
-                </select>
-              </label>
-              <label>
-                <span>Expiry date</span>
-                <input id="documentExpiry" type="date" />
-              </label>
-              <label>
-                <span>Pages for smart scan</span>
-                <input id="documentPages" type="number" min="1" max="5" value="1" />
-              </label>
-              <label class="wide-field">
-                <span>File</span>
-                <input id="documentFile" type="file" accept=".pdf,image/*" required />
-              </label>
-              <label class="checkbox-field wide-field">
-                <input id="documentReminder" type="checkbox" />
-                <span>Remind me before expiry</span>
-              </label>
-              <button class="tax-button" type="submit">Upload document</button>
-              <p class="field-hint wide-field" id="documentMessage">Premium stores documents against each property. Pro adds expiry reminders.</p>
-            </form>
-          </section>
-
           <section class="panel-card dashboard-panel" data-dashboard-panel="subscription">
             <div class="section-heading">
               <p class="eyebrow">Billing</p>
@@ -740,14 +681,6 @@
             </form>
           </section>
 
-          <section class="panel-card tenancy-card dashboard-panel" data-dashboard-panel="documents">
-            <div class="section-heading">
-              <p class="eyebrow">Scotland tenancy setup</p>
-              <h2>Prepare once, create faster</h2>
-            </div>
-            <p>Store landlord, tenant, rent, deposit and property details in PropertyPanel, then use them to complete the official Scottish Government tenancy agreement faster.</p>
-            <a class="external-link" href="https://www.mygov.scot/create-tenancy-agreement" target="_blank" rel="noreferrer">Open official mygov.scot generator</a>
-          </section>
         </div>
       </section>
     </section>
@@ -1004,12 +937,13 @@
         </div>
 
         <div class="section-tabs detail-tabs" aria-label="Property detail sections">
-          <button class="section-tab active" type="button" data-property-detail-tab="overview">Overview</button>
-          <button class="section-tab" type="button" data-property-detail-tab="management">Management</button>
-          <button class="section-tab" type="button" data-property-detail-tab="tenancies">Long-term rents</button>
-          <button class="section-tab" type="button" data-property-detail-tab="remortgages">Remortgage history</button>
-          <button class="section-tab" type="button" data-property-detail-tab="expenses">Expenses</button>
-          <button class="section-tab" type="button" data-property-detail-tab="landlord-report">Landlord report</button>
+          <button class="section-tab active" type="button" data-property-detail-tab="overview"><span class="tab-icon">□</span>Overview</button>
+          <button class="section-tab" type="button" data-property-detail-tab="management"><span class="tab-icon">⚙</span>Management</button>
+          <button class="section-tab" type="button" data-property-detail-tab="tenancies"><span class="tab-icon">▦</span>Long-term rents</button>
+          <button class="section-tab" type="button" data-property-detail-tab="remortgages"><span class="tab-icon">↗</span>Remortgage history</button>
+          <button class="section-tab" type="button" data-property-detail-tab="expenses"><span class="tab-icon">£</span>Expenses</button>
+          <button class="section-tab" type="button" data-property-detail-tab="documents"><span class="tab-icon">◇</span>Documents</button>
+          <button class="section-tab" type="button" data-property-detail-tab="landlord-report"><span class="tab-icon">☰</span>Landlord report</button>
         </div>
 
         <section class="property-detail-panel" data-property-detail-panel="overview">
@@ -1200,6 +1134,52 @@
             <p class="eyebrow">Property transactions</p>
             <h2>Income and expenses</h2>
           </div>
+          <form class="transaction-form document-form property-document-form" id="expenseDocumentForm">
+            <label>
+              <span>Document label</span>
+              <input id="expenseDocumentLabel" placeholder="Invoice or expense name" />
+            </label>
+            <label>
+              <span>Type</span>
+              <select id="expenseDocumentType">
+                <option>Invoice</option>
+                <option>Receipt</option>
+                <option>Rent statement</option>
+                <option>Insurance</option>
+                <option>Other</option>
+              </select>
+            </label>
+            <label>
+              <span>Payment status</span>
+              <select id="expenseDocumentPaymentStatus">
+                <option value="paid">Paid</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="not_applicable">Not applicable</option>
+              </select>
+            </label>
+            <label>
+              <span>Expense date</span>
+              <input id="expenseDocumentDate" type="date" />
+            </label>
+            <label>
+              <span>Amount</span>
+              <input id="expenseDocumentAmount" type="number" min="0" step="0.01" placeholder="0.00" />
+            </label>
+            <label>
+              <span>Category</span>
+              <input id="expenseDocumentCategory" placeholder="Repair, insurance, service charge..." />
+            </label>
+            <label class="wide-field">
+              <span>Notes</span>
+              <input id="expenseDocumentNotes" placeholder="Optional note" />
+            </label>
+            <label class="wide-field">
+              <span>File</span>
+              <input id="expenseDocumentFile" type="file" accept=".pdf,image/*" />
+            </label>
+            <button class="tax-button" type="submit">Save document / expense</button>
+            <p class="field-hint wide-field" id="expenseDocumentMessage">Add an expense with or without an attached document.</p>
+          </form>
           <div class="detail-actions expense-bulk-actions">
             <button class="secondary-button small-button" id="approvePropertyDrafts" type="button">Approve visible drafts</button>
             <button class="secondary-button small-button" id="exportPropertyTransactions" type="button">Export visible CSV</button>
@@ -1236,6 +1216,76 @@
             </label>
           </form>
           <div class="detail-list" id="propertyExpenseList"></div>
+        </section>
+
+        <section class="property-detail-panel" data-property-detail-panel="documents" hidden>
+          <div class="section-heading split-heading document-list-heading">
+            <div>
+              <p class="eyebrow">Property vault</p>
+              <h2>Documents for this property</h2>
+            </div>
+            <span class="pill" id="documentCount">0 files</span>
+          </div>
+          <div class="document-action-bar" id="documentActionBar"></div>
+          <div class="document-list" id="documentList"></div>
+          <form class="transaction-form document-form property-document-form" id="documentForm">
+            <label>
+              <span>Label</span>
+              <input id="documentLabel" placeholder="Gas safety certificate or expense name" />
+            </label>
+            <label>
+              <span>Type</span>
+              <select id="documentType">
+                <option>Invoice</option>
+                <option>Receipt</option>
+                <option>Rent statement</option>
+                <option>Tenancy agreement</option>
+                <option>Mortgage offer</option>
+                <option>Gas safety</option>
+                <option>EICR</option>
+                <option>Insurance</option>
+                <option>Other</option>
+              </select>
+            </label>
+            <label>
+              <span>Payment status</span>
+              <select id="documentPaymentStatus">
+                <option value="paid">Paid</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="not_applicable">Not applicable</option>
+              </select>
+            </label>
+            <label>
+              <span>Expiry date</span>
+              <input id="documentExpiry" type="date" />
+            </label>
+            <label>
+              <span>Expense date</span>
+              <input id="documentExpenseDate" type="date" />
+            </label>
+            <label>
+              <span>Amount</span>
+              <input id="documentExpenseAmount" type="number" min="0" step="0.01" placeholder="0.00" />
+            </label>
+            <label>
+              <span>Category</span>
+              <input id="documentExpenseCategory" placeholder="Repair, insurance, service charge..." />
+            </label>
+            <label class="wide-field">
+              <span>Notes</span>
+              <input id="documentExpenseNotes" placeholder="Optional note" />
+            </label>
+            <label class="wide-field">
+              <span>File</span>
+              <input id="documentFile" type="file" accept=".pdf,image/*" />
+            </label>
+            <label class="checkbox-field wide-field">
+              <input id="documentReminder" type="checkbox" />
+              <span>Remind me before expiry</span>
+            </label>
+            <button class="tax-button" type="submit">Save document / expense</button>
+            <p class="field-hint wide-field" id="documentMessage">Save a document, an expense, or both against this property.</p>
+          </form>
         </section>
 
         <section class="property-detail-panel" data-property-detail-panel="landlord-report" hidden>

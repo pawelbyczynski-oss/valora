@@ -900,6 +900,9 @@ select {
 }
 
 .section-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   flex: 0 0 auto;
   min-height: 38px;
   padding: 0 12px;
@@ -908,6 +911,16 @@ select {
   color: var(--text);
   white-space: nowrap;
   text-align: left;
+}
+
+.tab-icon {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  color: var(--mint);
+  font-size: 0.95rem;
+  line-height: 1;
 }
 
 .dashboard-shell > .section-tabs .section-tab,
@@ -941,6 +954,10 @@ select {
 
 .property-record-metrics {
   margin-bottom: 12px;
+}
+
+.property-document-form {
+  margin: 12px 0;
 }
 
 .portfolio-metrics article,

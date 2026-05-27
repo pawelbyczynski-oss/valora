@@ -47,6 +47,7 @@ const outputs = {
 const premium = {
   views: document.querySelectorAll(".app-view"),
   navButtons: document.querySelectorAll(".nav-button"),
+  navAuthButton: document.querySelector("#navAuthButton"),
   premiumHero: document.querySelector(".premium-hero"),
   showLogin: document.querySelector("#showLogin"),
   loginPanel: document.querySelector("#loginPanel"),
@@ -190,17 +191,30 @@ const premium = {
   quarterSummary: document.querySelector("#quarterSummary"),
   exportQuarterPack: document.querySelector("#exportQuarterPack"),
   documentForm: document.querySelector("#documentForm"),
-  documentProperty: document.querySelector("#documentProperty"),
   documentLabel: document.querySelector("#documentLabel"),
   documentType: document.querySelector("#documentType"),
+  documentPaymentStatus: document.querySelector("#documentPaymentStatus"),
   documentExpiry: document.querySelector("#documentExpiry"),
-  documentPages: document.querySelector("#documentPages"),
+  documentExpenseDate: document.querySelector("#documentExpenseDate"),
+  documentExpenseAmount: document.querySelector("#documentExpenseAmount"),
+  documentExpenseCategory: document.querySelector("#documentExpenseCategory"),
+  documentExpenseNotes: document.querySelector("#documentExpenseNotes"),
   documentFile: document.querySelector("#documentFile"),
   documentReminder: document.querySelector("#documentReminder"),
   documentMessage: document.querySelector("#documentMessage"),
   documentCount: document.querySelector("#documentCount"),
   documentActionBar: document.querySelector("#documentActionBar"),
   documentList: document.querySelector("#documentList"),
+  expenseDocumentForm: document.querySelector("#expenseDocumentForm"),
+  expenseDocumentLabel: document.querySelector("#expenseDocumentLabel"),
+  expenseDocumentType: document.querySelector("#expenseDocumentType"),
+  expenseDocumentPaymentStatus: document.querySelector("#expenseDocumentPaymentStatus"),
+  expenseDocumentDate: document.querySelector("#expenseDocumentDate"),
+  expenseDocumentAmount: document.querySelector("#expenseDocumentAmount"),
+  expenseDocumentCategory: document.querySelector("#expenseDocumentCategory"),
+  expenseDocumentNotes: document.querySelector("#expenseDocumentNotes"),
+  expenseDocumentFile: document.querySelector("#expenseDocumentFile"),
+  expenseDocumentMessage: document.querySelector("#expenseDocumentMessage"),
   adminTabButtons: document.querySelectorAll("[data-admin-tab]"),
   adminPanels: document.querySelectorAll("[data-admin-panel]"),
 };
@@ -211,7 +225,6 @@ const SUPABASE_ANON_KEY = appConfig.SUPABASE_ANON_KEY || "";
 const CHECKOUT_FUNCTION = "create-checkout-session";
 const PORTAL_FUNCTION = "create-billing-portal-session";
 const SYNC_SUBSCRIPTION_FUNCTION = "sync-subscription";
-const ANALYZE_DOCUMENT_FUNCTION = "analyze-document";
 const ACTIVE_SUBSCRIPTION_STATUSES = ["active", "trialing"];
 let passwordRecoveryPending =
   window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery");
@@ -259,6 +272,7 @@ const LEGACY_PROPERTY_STORAGE_KEY = "valo" + "ra-properties";
 const PROMO_STORAGE_KEY = "property-panel-promo-access";
 const LEGACY_PROMO_STORAGE_KEY = "valo" + "ra-promo-access";
 const THEME_STORAGE_KEY = "property-panel-theme";
+const UI_STATE_STORAGE_KEY = "property-panel-ui-state";
 const PREMIUM_PROPERTY_LIMIT = 5;
 const TENANCY_META_PREFIX = "PROPERTY_PANEL_TENANCY_META:";
 const REMORTGAGE_META_PREFIX = "PROPERTY_PANEL_REMORTGAGE_META:";
@@ -289,6 +303,7 @@ let editingRemortgageId = null;
 let editingTransactionId = null;
 let tenancyTenantDrafts = [];
 let currentSubscription = null;
+let currentUser = null;
 let subscriptionSyncAttempted = false;
 let selectedPlan = localStorage.getItem(SELECTED_PLAN_STORAGE_KEY) === "pro" ? "pro" : "premium";
 
@@ -363,6 +378,8 @@ function normalizeDocumentRecord(document) {
     reminderEnabled: document.reminderEnabled === true,
     pageCount: Math.min(Math.max(Number(document.pageCount || 1), 1), 5),
     aiStatus: document.aiStatus || "not_requested",
+    paymentStatus: document.paymentStatus || document.aiResult?.paymentStatus || "not_applicable",
+    linkedTransactionId: document.linkedTransactionId || "",
     aiResult: document.aiResult || null,
     aiError: document.aiError || "",
     aiScannedAt: document.aiScannedAt || "",
@@ -713,6 +730,12 @@ function fileSizeLabel(size) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function paymentStatusLabel(status) {
+  if (status === "paid") return "Paid";
+  if (status === "unpaid") return "Unpaid";
+  return "Not applicable";
+}
+
 function dateFromInput(value) {
   if (!value) return null;
   const [year, month, day] = value.split("-").map(Number);
@@ -901,10 +924,6 @@ function tenancyDocumentsPayload(tenancy) {
   return [...(tenancy.documents || []), `${TENANCY_META_PREFIX}${JSON.stringify(metadata)}`];
 }
 
-function documentDraftCount(documentId) {
-  return transactions.filter((transaction) => transaction.documentId === documentId && transaction.status !== "approved").length;
-}
-
 function documentActionButtons(document) {
   return `
     <button class="secondary-button small-button" type="button" data-download-document="${document.id}">Open</button>
@@ -915,9 +934,10 @@ function renderDocuments() {
   if (!premium.documentList) return;
 
   localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
-  renderDocumentPropertyOptions();
+  const property = activeProperty();
+  const visibleDocuments = property ? documents.filter((documentRecord) => documentRecord.propertyId === property.id) : documents;
   if (premium.documentCount) {
-    premium.documentCount.textContent = `${documents.length} ${documents.length === 1 ? "file" : "files"}`;
+    premium.documentCount.textContent = `${visibleDocuments.length} ${visibleDocuments.length === 1 ? "file" : "files"}`;
   }
 
   if (!properties.length) {
@@ -928,22 +948,22 @@ function renderDocuments() {
 
   if (premium.documentMessage) {
     premium.documentMessage.textContent = hasProAccess()
-      ? "Documents are saved against each property. Pro expiry reminders are enabled."
-      : "Documents are saved against each property. Upgrade to Pro to enable expiry reminders.";
+      ? "Documents and manual costs are saved against this property."
+      : "Documents are saved against this property. Upgrade to Pro to enable expiry reminders.";
   }
   if (premium.documentReminder) {
     premium.documentReminder.disabled = !hasProAccess();
     if (!hasProAccess()) premium.documentReminder.checked = false;
   }
 
-  if (!documents.length) {
+  if (!visibleDocuments.length) {
     if (premium.documentActionBar) premium.documentActionBar.replaceChildren();
-    premium.documentList.innerHTML = '<p class="field-hint">No documents uploaded yet.</p>';
+    premium.documentList.innerHTML = '<p class="field-hint">No documents saved for this property yet.</p>';
     return;
   }
 
   if (premium.documentActionBar) {
-    const latestDocument = documents[0];
+    const latestDocument = visibleDocuments[0];
     premium.documentActionBar.innerHTML = `
       <div>
         <span>Latest document</span>
@@ -960,14 +980,14 @@ function renderDocuments() {
   heading.className = "document-row document-row-head";
   heading.innerHTML = `
     <span>Document</span>
-    <span>Property</span>
+    <span>Type</span>
     <span>Status</span>
     <span>Actions</span>
   `;
 
   premium.documentList.replaceChildren(
     heading,
-    ...documents.map((documentRecord) => {
+    ...visibleDocuments.map((documentRecord) => {
       const row = document.createElement("div");
       row.className = "document-row";
       row.dataset.documentRow = documentRecord.id;
@@ -977,8 +997,8 @@ function renderDocuments() {
 
       row.innerHTML = `
         <span>${documentRecord.label}<small>${documentRecord.documentType} · ${documentRecord.fileName || "File"} · ${fileSizeLabel(documentRecord.fileSize)}</small></span>
-        <span>${documentPropertyName(documentRecord.propertyId)}<small>${documentRecord.expiryDate ? `Expires ${formatDate(documentRecord.expiryDate)}` : "No expiry"}</small></span>
-        <strong>Stored<small>${fileSummary}</small></strong>
+        <span>${documentRecord.documentType}<small>${documentRecord.expiryDate ? `Expires ${formatDate(documentRecord.expiryDate)}` : "No expiry"}</small></span>
+        <strong>${paymentStatusLabel(documentRecord.paymentStatus)}<small>${fileSummary}</small></strong>
         <div class="detail-actions">
           ${documentActionButtons(documentRecord)}
           <button class="secondary-button small-button danger-button" type="button" data-delete-document="${documentRecord.id}">Delete</button>
@@ -1674,6 +1694,8 @@ function setButtonBusy(button, busy, busyText = "Saving...") {
 }
 
 function switchPropertyDetailTab(tabName) {
+  const availableTabs = [...premium.propertyDetailTabButtons].map((button) => button.dataset.propertyDetailTab);
+  if (!availableTabs.includes(tabName)) tabName = "overview";
   if (["expenses", "landlord-report"].includes(tabName) && !hasProAccess()) {
     showProUpgrade("Expenses, accountant packs and landlord reports are included in PropertyPanel Pro.");
     return;
@@ -1686,6 +1708,7 @@ function switchPropertyDetailTab(tabName) {
     "propertyDetailTab",
     "propertyDetailPanel",
   );
+  saveUiState({ viewId: "propertyDetailView", activePropertyId, propertyDetailTab: tabName });
 }
 
 function renderPropertyDetail() {
@@ -1837,18 +1860,20 @@ function renderPropertyDetail() {
   }
 
   renderPropertyExpenses(property);
+  renderDocuments();
   renderLandlordReport(property);
 }
 
 function openPropertyDetail(propertyId) {
   activePropertyId = propertyId;
   renderPropertyDetail();
-  switchPropertyDetailTab("overview");
+  switchPropertyDetailTab(readUiState().activePropertyId === propertyId ? readUiState().propertyDetailTab || "overview" : "overview");
   premium.deletePropertyMessage.textContent = "Deleting a property removes it from your portfolio and lender export.";
   resetTenancyForm();
   resetRemortgageForm();
   premium.propertyDetailPanel.hidden = false;
   switchView("propertyDetailView");
+  saveUiState({ viewId: "propertyDetailView", activePropertyId: propertyId });
 }
 
 async function deleteActiveProperty() {
@@ -1997,6 +2022,27 @@ function renderReminders() {
 function switchView(viewId) {
   premium.views.forEach((view) => view.classList.toggle("active", view.id === viewId));
   premium.navButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === viewId));
+  saveUiState({ viewId });
+}
+
+function updateNavAuthButton(isSignedIn) {
+  if (!premium.navAuthButton) return;
+  premium.navAuthButton.textContent = isSignedIn ? "Log out" : "Sign in";
+  premium.navAuthButton.dataset.authAction = isSignedIn ? "logout" : "signin";
+  premium.navAuthButton.dataset.view = isSignedIn ? "" : "loginView";
+}
+
+function readUiState() {
+  try {
+    return JSON.parse(localStorage.getItem(UI_STATE_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveUiState(nextState = {}) {
+  const state = { ...readUiState(), ...nextState };
+  localStorage.setItem(UI_STATE_STORAGE_KEY, JSON.stringify(state));
 }
 
 function openDashboard() {
@@ -2010,6 +2056,25 @@ function openDashboard() {
   premium.dashboardPanel.hidden = false;
   switchDashboardTab("overview");
   renderPremiumDashboard();
+}
+
+function restoreSavedLocation() {
+  const state = readUiState();
+  if (state.viewId === "propertyDetailView" && state.activePropertyId) {
+    const propertyExists = properties.some((property) => property.id === state.activePropertyId);
+    if (propertyExists) {
+      activePropertyId = state.activePropertyId;
+      renderPropertyDetail();
+      switchPropertyDetailTab(state.propertyDetailTab || "overview");
+      premium.propertyDetailPanel.hidden = false;
+      switchView("propertyDetailView");
+      return true;
+    }
+  }
+
+  openDashboard();
+  switchDashboardTab(state.dashboardTab || "overview");
+  return true;
 }
 
 function hasPremiumAccess() {
@@ -2665,6 +2730,7 @@ async function loadSupabaseDocuments(userId) {
       pageCount: document.page_count,
       aiStatus: document.ai_status,
       aiResult: document.ai_result,
+      paymentStatus: document.ai_result?.paymentStatus,
       aiError: document.ai_error,
       aiScannedAt: document.ai_scanned_at,
       createdAt: document.created_at,
@@ -2736,6 +2802,7 @@ async function saveTransactionToSupabase(transaction) {
     .insert({
       user_id: user.id,
       property_id: isPersistedProperty({ id: transaction.propertyId }) ? transaction.propertyId : null,
+      document_id: isPersistedProperty({ id: transaction.documentId }) ? transaction.documentId : null,
       transaction_date: transaction.date,
       amount: transaction.amount,
       transaction_type: transaction.type,
@@ -2759,6 +2826,7 @@ async function updateTransactionInSupabase(transaction) {
     .from("property_transactions")
     .update({
       property_id: isPersistedProperty({ id: transaction.propertyId }) ? transaction.propertyId : null,
+      document_id: isPersistedProperty({ id: transaction.documentId }) ? transaction.documentId : null,
       transaction_date: transaction.date,
       amount: transaction.amount,
       transaction_type: transaction.type,
@@ -2796,8 +2864,7 @@ async function saveDocumentToSupabase(document, file) {
     .upload(storagePath, file, { contentType: file.type || "application/octet-stream" });
 
   if (uploadError) {
-    premium.documentMessage.textContent = uploadError.message;
-    return null;
+    throw uploadError;
   }
 
   const { data, error } = await supabaseClient
@@ -2814,13 +2881,13 @@ async function saveDocumentToSupabase(document, file) {
       expiry_date: document.expiryDate || null,
       reminder_enabled: document.reminderEnabled,
       page_count: document.pageCount,
+      ai_result: { paymentStatus: document.paymentStatus || "not_applicable" },
     })
     .select("*")
     .single();
 
   if (error) {
-    premium.documentMessage.textContent = error.message;
-    return null;
+    throw error;
   }
 
   return normalizeDocumentRecord({
@@ -2837,10 +2904,120 @@ async function saveDocumentToSupabase(document, file) {
     pageCount: data.page_count,
     aiStatus: data.ai_status,
     aiResult: data.ai_result,
+    paymentStatus: data.ai_result?.paymentStatus,
     aiError: data.ai_error,
     aiScannedAt: data.ai_scanned_at,
     createdAt: data.created_at,
   });
+}
+
+function propertyDocumentPayloadFromControls(source) {
+  if (source === "expenses") {
+    return {
+      label: premium.expenseDocumentLabel.value.trim(),
+      documentType: premium.expenseDocumentType.value,
+      paymentStatus: premium.expenseDocumentPaymentStatus.value,
+      expiryDate: "",
+      expenseDate: premium.expenseDocumentDate.value,
+      amount: Number(premium.expenseDocumentAmount.value) || 0,
+      category: premium.expenseDocumentCategory.value.trim(),
+      notes: premium.expenseDocumentNotes.value.trim(),
+      file: premium.expenseDocumentFile.files?.[0] || null,
+      message: premium.expenseDocumentMessage,
+      form: premium.expenseDocumentForm,
+    };
+  }
+
+  return {
+    label: premium.documentLabel.value.trim(),
+    documentType: premium.documentType.value,
+    paymentStatus: premium.documentPaymentStatus.value,
+    expiryDate: premium.documentExpiry.value,
+    expenseDate: premium.documentExpenseDate.value,
+    amount: Number(premium.documentExpenseAmount.value) || 0,
+    category: premium.documentExpenseCategory.value.trim(),
+    notes: premium.documentExpenseNotes.value.trim(),
+    file: premium.documentFile.files?.[0] || null,
+    message: premium.documentMessage,
+    form: premium.documentForm,
+  };
+}
+
+async function savePropertyDocumentOrExpense(source = "documents") {
+  if (!hasPremiumAccess()) {
+    showSubscriptionRequired();
+    return;
+  }
+
+  const property = activeProperty();
+  const payload = propertyDocumentPayloadFromControls(source);
+  if (!property) {
+    payload.message.textContent = "Open a property record before saving documents or expenses.";
+    return;
+  }
+
+  if (!payload.file && !payload.amount) {
+    payload.message.textContent = "Add a file, an expense amount, or both.";
+    return;
+  }
+
+  const submitButton = payload.form.querySelector("button[type='submit']");
+  setButtonBusy(submitButton, true, "Saving...");
+  payload.message.textContent = "Saving...";
+
+  try {
+    let savedDocument = null;
+    if (payload.file) {
+      savedDocument = await saveDocumentToSupabase(
+        normalizeDocumentRecord({
+          propertyId: property.id,
+          label: payload.label || payload.category || payload.file.name,
+          documentType: payload.documentType,
+          expiryDate: payload.expiryDate,
+          reminderEnabled: source === "documents" ? premium.documentReminder?.checked || false : false,
+          paymentStatus: payload.paymentStatus,
+          pageCount: 1,
+        }),
+        payload.file,
+      );
+      if (savedDocument) documents = [savedDocument, ...documents.filter((item) => item.id !== savedDocument.id)];
+      if (!savedDocument) throw new Error("Could not save document.");
+    }
+
+    if (payload.amount) {
+      const transaction = normalizeTransactionRecord({
+        propertyId: property.id,
+        documentId: savedDocument?.id || "",
+        date: payload.expenseDate || new Date().toISOString().slice(0, 10),
+        amount: payload.amount,
+        type: "expense",
+        category: payload.category || payload.label || payload.documentType || "Expense",
+        taxTreatment: "revenue",
+        source: savedDocument ? "document" : "manual",
+        status: payload.paymentStatus === "paid" ? "approved" : "draft",
+        notes: payload.notes || (savedDocument ? `Linked document: ${savedDocument.label}` : ""),
+      });
+      const savedId = await saveTransactionToSupabase(transaction);
+      if (savedId) transaction.id = savedId;
+      transactions = [transaction, ...transactions];
+    }
+
+    payload.form.reset();
+    if (premium.documentReminder && !hasProAccess()) premium.documentReminder.checked = false;
+    payload.message.textContent = payload.file && payload.amount
+      ? "Document and expense saved."
+      : payload.file
+        ? "Document saved."
+        : "Expense saved.";
+    renderTransactions();
+    renderDocuments();
+    renderPropertyDetail();
+    switchPropertyDetailTab(source === "expenses" ? "expenses" : "documents");
+  } catch (error) {
+    payload.message.textContent = error?.message || "Could not save document or expense.";
+  } finally {
+    setButtonBusy(submitButton, false);
+  }
 }
 
 async function deleteDocumentFromSupabase(document) {
@@ -3214,6 +3391,8 @@ function switchSection(buttons, panels, activeKey, buttonAttr, panelAttr) {
 }
 
 function switchDashboardTab(tabName) {
+  const availableTabs = [...premium.dashboardTabButtons].map((button) => button.dataset.dashboardTab);
+  if (!availableTabs.includes(tabName)) tabName = "overview";
   if (tabName === "transactions" && !hasProAccess()) {
     premium.subscriptionNote.textContent = "Transactions, quarterly packs and landlord reports are included in PropertyPanel Pro.";
     tabName = "subscription";
@@ -3226,6 +3405,7 @@ function switchDashboardTab(tabName) {
     "dashboardTab",
     "dashboardPanel",
   );
+  saveUiState({ viewId: "dashboardView", dashboardTab: tabName });
 }
 
 function switchAdminTab(tabName) {
@@ -3235,7 +3415,9 @@ function switchAdminTab(tabName) {
 async function logoutUser() {
   promoAccess = false;
   isAdminUser = false;
+  currentUser = null;
   localStorage.removeItem(PROMO_STORAGE_KEY);
+  localStorage.removeItem(UI_STATE_STORAGE_KEY);
 
   if (supabaseClient) {
     await supabaseClient.auth.signOut();
@@ -3247,6 +3429,7 @@ async function logoutUser() {
   premium.passwordResetForm.hidden = true;
   premium.authMessage.textContent = "Signed out.";
   setAuthMode("signin");
+  updateNavAuthButton(false);
   switchView("homeView");
 }
 
@@ -3278,6 +3461,8 @@ async function initAuth() {
   }
 
   if (session?.user) {
+    currentUser = session.user;
+    updateNavAuthButton(true);
     if (checkoutStatus === "success") {
       premium.subscriptionNote.textContent = "Payment completed. Syncing your subscription...";
       await syncSubscriptionFromStripe(checkoutSessionId);
@@ -3314,7 +3499,7 @@ async function initAuth() {
             await loadSupabaseProperties(session.user.id);
             await loadSupabaseTransactions(session.user.id);
             await loadSupabaseDocuments(session.user.id);
-            openDashboard();
+            restoreSavedLocation();
             switchDashboardTab("subscription");
           }
         }, 3000);
@@ -3329,7 +3514,7 @@ async function initAuth() {
     await loadSupabaseProperties(session.user.id);
     await loadSupabaseTransactions(session.user.id);
     await loadSupabaseDocuments(session.user.id);
-    openDashboard();
+    restoreSavedLocation();
     if (checkoutStatus) {
       switchDashboardTab("subscription");
       sessionStorage.removeItem(CHECKOUT_PENDING_STORAGE_KEY);
@@ -3337,6 +3522,9 @@ async function initAuth() {
     }
     return;
   }
+
+  currentUser = null;
+  updateNavAuthButton(false);
 
   if (checkoutStatus === "success") {
     const pendingPlan = sessionStorage.getItem(CHECKOUT_PENDING_STORAGE_KEY);
@@ -3890,7 +4078,12 @@ document.addEventListener("keydown", (event) => {
 });
 
 premium.navButtons.forEach((button) => {
-  button.addEventListener("click", () => {
+  button.addEventListener("click", async () => {
+    if (button.dataset.authAction === "logout") {
+      await logoutUser();
+      return;
+    }
+    if (!button.dataset.view) return;
     switchView(button.dataset.view);
     if (button.dataset.view === "premiumView") {
       refreshPlanContinueButton();
@@ -3959,7 +4152,7 @@ premium.manageBilling.addEventListener("click", () => {
   handleSubscriptionAction();
 });
 
-premium.logoutButton.addEventListener("click", () => {
+premium.logoutButton?.addEventListener("click", () => {
   logoutUser();
 });
 
@@ -4081,52 +4274,12 @@ premium.exportQuarterPack.addEventListener("click", () => {
 
 premium.documentForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  await savePropertyDocumentOrExpense("documents");
+});
 
-  if (!hasPremiumAccess()) {
-    showSubscriptionRequired();
-    return;
-  }
-
-  if (!properties.length) {
-    premium.documentMessage.textContent = "Add a property before uploading documents.";
-    return;
-  }
-
-  const file = premium.documentFile.files?.[0];
-  if (!file) {
-    premium.documentMessage.textContent = "Choose a PDF or image file.";
-    return;
-  }
-
-  const pageCount = Math.min(Math.max(Number(premium.documentPages.value) || 1, 1), 5);
-  const document = normalizeDocumentRecord({
-    propertyId: premium.documentProperty.value,
-    label: premium.documentLabel.value.trim(),
-    documentType: premium.documentType.value,
-    expiryDate: premium.documentExpiry.value,
-    reminderEnabled: premium.documentReminder.checked,
-    pageCount,
-  });
-
-  premium.documentMessage.textContent = "Uploading document...";
-  const savedDocument = await saveDocumentToSupabase(document, file);
-  if (!savedDocument) return;
-
-  const {
-    data: { user },
-  } = await supabaseClient.auth.getUser();
-  if (user) {
-    await loadSupabaseDocuments(user.id);
-  } else {
-    documents = [savedDocument, ...documents];
-  }
-
-  premium.documentForm.reset();
-  premium.documentPages.value = 1;
-  premium.documentMessage.textContent = "Document uploaded.";
-  renderDocuments();
-  const uploadedRow = premium.documentList.querySelector(`[data-document-row="${savedDocument.id}"]`);
-  uploadedRow?.scrollIntoView({ behavior: "smooth", block: "center" });
+premium.expenseDocumentForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await savePropertyDocumentOrExpense("expenses");
 });
 
 async function handleDocumentActionClick(event) {
@@ -4765,7 +4918,7 @@ premium.exportPortfolio.addEventListener("click", () => {
 
 renderTaxBands("higher");
 initTheme();
-switchDashboardTab("overview");
+switchSection(premium.dashboardTabButtons, premium.dashboardPanels, "overview", "dashboardTab", "dashboardPanel");
 switchAdminTab("overview");
 setSelectedPlan(selectedPlan);
 trackEvent("page_view", { path: window.location.pathname });
