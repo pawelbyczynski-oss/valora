@@ -88,6 +88,7 @@ const premium = {
   propertyDetailSummary: document.querySelector("#propertyDetailSummary"),
   propertyDetailTabButtons: document.querySelectorAll("[data-property-detail-tab]"),
   propertyDetailPanels: document.querySelectorAll("[data-property-detail-panel]"),
+  editPropertyButton: document.querySelector("#editPropertyButton"),
   deletePropertyButton: document.querySelector("#deletePropertyButton"),
   deletePropertyMessage: document.querySelector("#deletePropertyMessage"),
   propertyOwnershipModel: document.querySelector("#propertyOwnershipModel"),
@@ -267,6 +268,7 @@ let authMode = "signup";
 let authListenerAttached = false;
 let isAdminUser = false;
 let activePropertyId = null;
+let editingPropertyId = null;
 let editingTenancyId = null;
 let editingRemortgageId = null;
 let editingTransactionId = null;
@@ -1198,6 +1200,101 @@ function updateOperatorFieldsVisibility() {
   premium.propertyOperatorFields.forEach((field) => {
     field.hidden = !showOperatorFields;
   });
+}
+
+function resetPropertyForm() {
+  editingPropertyId = null;
+  premium.propertyForm.reset();
+  document.querySelector("#propertyRentDueDay").value = "1";
+  document.querySelector("#propertyRentReminder").value = "On";
+  document.querySelector("#propertyOwnershipModel").value = "Owned";
+  document.querySelector("#propertyMortgageProduct").value = "Fixed";
+  document.querySelector("#propertyModal .eyebrow").textContent = "Add property";
+  document.querySelector("#propertyModalTitle").textContent = "Save a premium portfolio record";
+  premium.propertyForm.querySelector("button[type='submit']").textContent = "Save property";
+  updateOperatorFieldsVisibility();
+}
+
+function propertyPayloadFromForm(existingProperty = null) {
+  const displayName = document.querySelector("#propertyName").value.trim();
+  const addressLine1 = document.querySelector("#propertyAddress1").value.trim();
+  const addressLine2 = document.querySelector("#propertyAddress2").value.trim();
+  const town = document.querySelector("#propertyTown").value.trim();
+  const postcode = document.querySelector("#propertyPostcode").value.trim().toUpperCase();
+  const ownershipModel = document.querySelector("#propertyOwnershipModel").value;
+  const usesOperatorFields = ownershipModel !== "Owned";
+
+  return normalizePropertyRecord({
+    ...(existingProperty || {}),
+    id: existingProperty?.id || createId("property"),
+    name: displayName || propertyDisplayNameFromAddress(),
+    addressLine1,
+    addressLine2,
+    town,
+    postcode,
+    region: document.querySelector("#propertyRegion").value,
+    letType: document.querySelector("#propertyLetType").value,
+    ownershipModel,
+    guaranteedRent: usesOperatorFields ? Number(document.querySelector("#propertyGuaranteedRent").value) || 0 : 0,
+    maintenanceModel: usesOperatorFields ? document.querySelector("#propertyMaintenanceModel").value : "Landlord charged for repairs",
+    maintenanceFee: usesOperatorFields ? Number(document.querySelector("#propertyMaintenanceFee").value) || 0 : 0,
+    purchaseDate: document.querySelector("#propertyPurchaseDate").value,
+    purchasePrice: Number(document.querySelector("#propertyPurchasePrice").value) || 0,
+    currentValue: Number(document.querySelector("#propertyCurrentValue").value) || 0,
+    deposit: Number(document.querySelector("#propertyDeposit").value) || 0,
+    mortgageBalance: Number(document.querySelector("#propertyMortgage").value) || 0,
+    mortgageProductType: document.querySelector("#propertyMortgageProduct").value,
+    rate: Number(document.querySelector("#propertyRate").value) || 0,
+    mortgageExpiry: document.querySelector("#propertyMortgageExpiry").value,
+    rent: Number(document.querySelector("#propertyRent").value) || 0,
+    expenses: Number(document.querySelector("#propertyExpenses").value) || 0,
+    tenantName: existingProperty?.tenantName || "",
+    tenantContact: existingProperty?.tenantContact || "",
+    rentDueDay: Math.min(Math.max(Number(document.querySelector("#propertyRentDueDay").value) || 1, 1), 31),
+    rentReminder: document.querySelector("#propertyRentReminder").value,
+    landlordRegistration: document.querySelector("#landlordRegistration").value,
+    documents: existingProperty?.documents || "",
+    tenancies: existingProperty?.tenancies || [],
+    remortgages: existingProperty?.remortgages || [],
+  });
+}
+
+function loadPropertyIntoForm(property) {
+  editingPropertyId = property.id;
+  document.querySelector("#propertyName").value = property.name || "";
+  document.querySelector("#propertyAddress1").value = property.addressLine1 || "";
+  document.querySelector("#propertyAddress2").value = property.addressLine2 || "";
+  document.querySelector("#propertyTown").value = property.town || "";
+  document.querySelector("#propertyPostcode").value = property.postcode || "";
+  document.querySelector("#propertyRegion").value = property.region || "Scotland";
+  document.querySelector("#propertyLetType").value = property.letType || "Long-term let";
+  document.querySelector("#propertyOwnershipModel").value = property.ownershipModel || "Owned";
+  document.querySelector("#propertyGuaranteedRent").value = property.guaranteedRent || "";
+  document.querySelector("#propertyMaintenanceModel").value = property.maintenanceModel || "Landlord charged for repairs";
+  document.querySelector("#propertyMaintenanceFee").value = property.maintenanceFee || "";
+  document.querySelector("#propertyPurchaseDate").value = property.purchaseDate || "";
+  document.querySelector("#propertyPurchasePrice").value = property.purchasePrice || "";
+  document.querySelector("#propertyCurrentValue").value = property.currentValue || "";
+  document.querySelector("#propertyDeposit").value = property.deposit || "";
+  document.querySelector("#propertyMortgage").value = property.mortgageBalance || latestMortgageDeal(property).balance || "";
+  document.querySelector("#propertyRate").value = property.rate || latestMortgageDeal(property).rate || "";
+  document.querySelector("#propertyMortgageProduct").value = property.mortgageProductType || latestMortgageDeal(property).productType || "Fixed";
+  document.querySelector("#propertyMortgageExpiry").value = property.mortgageExpiry || latestMortgageDeal(property).expiryDate || "";
+  document.querySelector("#propertyRent").value = property.rent || "";
+  document.querySelector("#propertyRentDueDay").value = property.rentDueDay || 1;
+  document.querySelector("#propertyRentReminder").value = property.rentReminder || "On";
+  document.querySelector("#propertyExpenses").value = property.expenses || "";
+  document.querySelector("#landlordRegistration").value = property.landlordRegistration || "";
+  document.querySelector("#propertyModal .eyebrow").textContent = "Edit property";
+  document.querySelector("#propertyModalTitle").textContent = "Update portfolio record";
+  premium.propertyForm.querySelector("button[type='submit']").textContent = "Update property";
+  updateOperatorFieldsVisibility();
+}
+
+function openPropertyForm(property = null) {
+  resetPropertyForm();
+  if (property) loadPropertyIntoForm(property);
+  premium.propertyModal.hidden = false;
 }
 
 function updateDetailOperatorFieldsVisibility() {
@@ -2476,6 +2573,17 @@ async function updateSupabasePropertySnapshot(property) {
   await supabaseClient
     .from("properties")
     .update({
+      name: property.name,
+      address_line_1: property.addressLine1 || null,
+      address_line_2: property.addressLine2 || null,
+      city: property.town || null,
+      postcode: property.postcode || null,
+      region: property.region.toLowerCase(),
+      let_type: property.letType === "Short-term let" ? "short_term" : "long_term",
+      purchase_date: property.purchaseDate || null,
+      purchase_price: property.purchasePrice,
+      current_value: property.currentValue,
+      deposit_paid: property.deposit,
       monthly_rent: property.rent,
       operating_expenses: property.expenses,
       ownership_model: property.ownershipModel,
@@ -2488,6 +2596,7 @@ async function updateSupabasePropertySnapshot(property) {
       mortgage_product_type: mortgageDeal.productType,
       mortgage_rate: mortgageDeal.rate,
       mortgage_expiry_date: mortgageDeal.expiryDate || null,
+      landlord_registration_number: property.landlordRegistration || null,
     })
     .eq("id", property.id);
 }
@@ -3643,23 +3752,23 @@ premium.accountPasswordForm.addEventListener("submit", async (event) => {
 });
 
 premium.openPropertyModal.addEventListener("click", () => {
-  updateOperatorFieldsVisibility();
-  premium.propertyModal.hidden = false;
+  openPropertyForm();
 });
 
 premium.closePropertyModal.addEventListener("click", () => {
   premium.propertyModal.hidden = true;
+  resetPropertyForm();
 });
 
 premium.propertyModal.addEventListener("click", (event) => {
   if (event.target === premium.propertyModal) {
     premium.propertyModal.hidden = true;
+    resetPropertyForm();
   }
 });
 
 premium.detailAddProperty.addEventListener("click", () => {
-  updateOperatorFieldsVisibility();
-  premium.propertyModal.hidden = false;
+  openPropertyForm();
 });
 
 premium.propertyList.addEventListener("click", (event) => {
@@ -3877,6 +3986,11 @@ premium.deletePropertyButton.addEventListener("click", () => {
   deleteActiveProperty();
 });
 
+premium.editPropertyButton.addEventListener("click", () => {
+  const property = activeProperty();
+  if (property) openPropertyForm(property);
+});
+
 premium.tenancyForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const property = activeProperty();
@@ -3948,45 +4062,21 @@ premium.remortgageForm.addEventListener("submit", async (event) => {
 
 premium.propertyForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const displayName = document.querySelector("#propertyName").value.trim();
-  const addressLine1 = document.querySelector("#propertyAddress1").value.trim();
-  const addressLine2 = document.querySelector("#propertyAddress2").value.trim();
-  const town = document.querySelector("#propertyTown").value.trim();
-  const postcode = document.querySelector("#propertyPostcode").value.trim().toUpperCase();
-  const ownershipModel = document.querySelector("#propertyOwnershipModel").value;
-  const usesOperatorFields = ownershipModel !== "Owned";
-  const property = {
-    id: createId("property"),
-    name: displayName || propertyDisplayNameFromAddress(),
-    addressLine1,
-    addressLine2,
-    town,
-    postcode,
-    region: document.querySelector("#propertyRegion").value,
-    letType: document.querySelector("#propertyLetType").value,
-    ownershipModel,
-    guaranteedRent: usesOperatorFields ? Number(document.querySelector("#propertyGuaranteedRent").value) || 0 : 0,
-    maintenanceModel: usesOperatorFields ? document.querySelector("#propertyMaintenanceModel").value : "Landlord charged for repairs",
-    maintenanceFee: usesOperatorFields ? Number(document.querySelector("#propertyMaintenanceFee").value) || 0 : 0,
-    purchaseDate: document.querySelector("#propertyPurchaseDate").value,
-    purchasePrice: Number(document.querySelector("#propertyPurchasePrice").value) || 0,
-    currentValue: Number(document.querySelector("#propertyCurrentValue").value) || 0,
-    deposit: Number(document.querySelector("#propertyDeposit").value) || 0,
-    mortgageBalance: Number(document.querySelector("#propertyMortgage").value) || 0,
-    mortgageProductType: document.querySelector("#propertyMortgageProduct").value,
-    rate: Number(document.querySelector("#propertyRate").value) || 0,
-    mortgageExpiry: document.querySelector("#propertyMortgageExpiry").value,
-    rent: Number(document.querySelector("#propertyRent").value) || 0,
-    expenses: Number(document.querySelector("#propertyExpenses").value) || 0,
-    tenantName: "",
-    tenantContact: "",
-    rentDueDay: Math.min(Math.max(Number(document.querySelector("#propertyRentDueDay").value) || 1, 1), 31),
-    rentReminder: document.querySelector("#propertyRentReminder").value,
-    landlordRegistration: document.querySelector("#landlordRegistration").value,
-    documents: "",
-    tenancies: [],
-    remortgages: [],
-  };
+  const existingProperty = editingPropertyId ? properties.find((item) => item.id === editingPropertyId) : null;
+  const property = propertyPayloadFromForm(existingProperty);
+
+  if (existingProperty) {
+    const index = properties.findIndex((item) => item.id === existingProperty.id);
+    if (index >= 0) properties[index] = property;
+    await updateSupabasePropertySnapshot(property);
+    trackEvent("property_updated", { property_name: property.name, region: property.region });
+    activePropertyId = property.id;
+    premium.propertyModal.hidden = true;
+    resetPropertyForm();
+    renderPremiumDashboard();
+    renderPropertyDetail();
+    return;
+  }
 
   if (property.mortgageBalance || property.rate || property.mortgageExpiry) {
     property.remortgages.push({
@@ -4013,8 +4103,7 @@ premium.propertyForm.addEventListener("submit", async (event) => {
   properties = [property, ...properties];
   trackEvent("property_added", { property_name: property.name, region: property.region });
   premium.propertyModal.hidden = true;
-  premium.propertyForm.reset();
-  updateOperatorFieldsVisibility();
+  resetPropertyForm();
   renderPremiumDashboard();
 });
 

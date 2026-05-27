@@ -1043,6 +1043,15 @@ select {
   min-height: 48px;
 }
 
+#propertyReportFilters {
+  grid-template-columns: repeat(2, minmax(160px, 1fr)) repeat(4, minmax(108px, 0.7fr));
+  align-items: end;
+}
+
+#propertyReportFilters .checkbox-field {
+  white-space: nowrap;
+}
+
 .quarter-summary {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

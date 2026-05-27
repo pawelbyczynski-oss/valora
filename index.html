@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260527-property-edit-report-filters" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -890,6 +890,7 @@
               <option>Managed</option>
               <option>Rent-to-rent</option>
             </select>
+            <small class="field-hint">Choose Managed or Rent-to-rent to add guaranteed rent and repair terms.</small>
           </label>
           <div class="form-note operator-note" id="propertyOperatorNote" hidden>
             <span>Rent-to-rent / managed setup</span>
@@ -1005,7 +1006,10 @@
 
         <section class="property-detail-panel" data-property-detail-panel="overview">
           <div class="property-detail-summary" id="propertyDetailSummary"></div>
-          <button class="secondary-button danger-button" id="deletePropertyButton" type="button">Delete property</button>
+          <div class="detail-actions property-overview-actions">
+            <button class="secondary-button" id="editPropertyButton" type="button">Edit property</button>
+            <button class="secondary-button danger-button" id="deletePropertyButton" type="button">Delete property</button>
+          </div>
           <p class="field-hint" id="deletePropertyMessage">Deleting a property removes it from your portfolio and lender export.</p>
         </section>
 
@@ -1297,6 +1301,6 @@
     </footer>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260527-ai-scan-timeout"></script>
+    <script src="app.js?v=20260527-property-edit-report-filters"></script>
   </body>
 </html>
