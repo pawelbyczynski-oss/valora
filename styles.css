@@ -755,6 +755,7 @@ select {
 :root[data-theme="dark"] .subscription-grid div,
 :root[data-theme="dark"] .quarter-summary div,
 :root[data-theme="dark"] .transaction-row,
+:root[data-theme="dark"] .landlord-report-intro div,
 :root[data-theme="dark"] .landlord-report-metrics div,
 :root[data-theme="dark"] .admin-row,
 :root[data-theme="dark"] .document-list div,
@@ -1120,12 +1121,18 @@ select {
   gap: 12px;
 }
 
+.landlord-report-intro,
 .landlord-report-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
+.landlord-report-intro {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.landlord-report-intro div,
 .landlord-report-metrics div {
   display: grid;
   gap: 6px;
@@ -1135,12 +1142,14 @@ select {
   background: #f8fbfa;
 }
 
+.landlord-report-intro span,
 .landlord-report-metrics span {
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 800;
 }
 
+.landlord-report-intro strong,
 .landlord-report-metrics strong {
   overflow-wrap: anywhere;
   font-size: 1.05rem;
@@ -2169,6 +2178,7 @@ li {
   .subscription-grid,
   .transaction-form,
   .quarter-summary,
+  .landlord-report-intro,
   .landlord-report-metrics,
   .admin-metrics,
   .dashboard-stats {
@@ -2217,6 +2227,7 @@ li {
   .transaction-form,
   .quarter-summary,
   .transaction-row,
+  .landlord-report-intro,
   .landlord-report-metrics,
   .admin-metrics,
   .admin-form,
@@ -2560,6 +2571,7 @@ li {
     margin-bottom: 10px;
   }
 
+  body.print-landlord-report .landlord-report-intro,
   body.print-landlord-report .landlord-report-metrics {
     display: grid !important;
     grid-template-columns: repeat(4, 1fr);
@@ -2567,6 +2579,7 @@ li {
     border: 1px solid #222222;
   }
 
+  body.print-landlord-report .landlord-report-intro div,
   body.print-landlord-report .landlord-report-metrics div,
   body.print-landlord-report .landlord-report-lines div {
     border: 0;

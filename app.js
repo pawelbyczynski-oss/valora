@@ -97,6 +97,7 @@ const premium = {
   propertyManagementForm: document.querySelector("#propertyManagementForm"),
   detailOwnershipModel: document.querySelector("#detailOwnershipModel"),
   detailOperatorFields: document.querySelectorAll(".detail-operator-field"),
+  detailLandlordName: document.querySelector("#detailLandlordName"),
   detailGuaranteedRent: document.querySelector("#detailGuaranteedRent"),
   detailMaintenanceModel: document.querySelector("#detailMaintenanceModel"),
   detailMaintenanceFee: document.querySelector("#detailMaintenanceFee"),
@@ -301,6 +302,7 @@ function normalizePropertyRecord(property) {
     ...property,
     id: property.id || createId("property"),
     ownershipModel: property.ownershipModel || "Owned",
+    landlordName: property.landlordName || "",
     guaranteedRent: Number(property.guaranteedRent || 0),
     maintenanceModel: property.maintenanceModel || "Landlord charged for repairs",
     maintenanceFee: Number(property.maintenanceFee || 0),
@@ -741,6 +743,34 @@ function updateMortgageEndFromTerm({ force = false } = {}) {
   }
 }
 
+function propertyAddressLabel(property) {
+  return [property.addressLine1, property.addressLine2, property.town, property.postcode].filter(Boolean).join(", ") || property.name;
+}
+
+function propertyNotesPayload(property) {
+  const metadata = {
+    landlordName: property.landlordName || "",
+    documents: property.documents || "",
+  };
+  return `PROPERTY_PANEL_META:${JSON.stringify(metadata)}`;
+}
+
+function parsePropertyNotes(notes) {
+  if (!notes || !String(notes).startsWith("PROPERTY_PANEL_META:")) {
+    return { landlordName: "", documents: notes || "" };
+  }
+
+  try {
+    const metadata = JSON.parse(String(notes).replace("PROPERTY_PANEL_META:", ""));
+    return {
+      landlordName: metadata.landlordName || "",
+      documents: metadata.documents || "",
+    };
+  } catch {
+    return { landlordName: "", documents: "" };
+  }
+}
+
 function documentDraftCount(documentId) {
   return transactions.filter((transaction) => transaction.documentId === documentId && transaction.status !== "approved").length;
 }
@@ -1146,6 +1176,13 @@ function renderLandlordReport(property) {
   const landlordGrossRent = guaranteedRent || rentReceived || Number(property.rent || 0);
   const netPayable = landlordGrossRent - landlordRepairCharge - maintenanceFee;
   const periodLabel = [startDate ? formatDate(startDate) : "", endDate ? formatDate(endDate) : ""].filter(Boolean).join(" to ") || currentMonthLabel();
+  const reportIntro = document.createElement("div");
+  reportIntro.className = "landlord-report-intro";
+  reportIntro.append(
+    createReportMetric("Landlord", property.landlordName || "-"),
+    createReportMetric("Property", property.name || "-"),
+    createReportMetric("Address", propertyAddressLabel(property)),
+  );
 
   const metrics = document.createElement("div");
   metrics.className = "landlord-report-metrics";
@@ -1212,7 +1249,7 @@ function renderLandlordReport(property) {
     transactionList.append(empty);
   }
 
-  const sections = [metrics, note, transactionList];
+  const sections = [reportIntro, metrics, note, transactionList];
   if (includeTenancies) {
     const tenancyList = document.createElement("div");
     tenancyList.className = "document-list landlord-report-lines";
@@ -1325,6 +1362,7 @@ function resetPropertyForm() {
   document.querySelector("#propertyRentDueDay").value = "1";
   document.querySelector("#propertyRentReminder").value = "On";
   document.querySelector("#propertyOwnershipModel").value = "Owned";
+  document.querySelector("#propertyLandlordName").value = "";
   document.querySelector("#propertyMortgageProduct").value = "Fixed";
   document.querySelector("#propertyModal .eyebrow").textContent = "Add property";
   document.querySelector("#propertyModalTitle").textContent = "Save a premium portfolio record";
@@ -1352,6 +1390,7 @@ function propertyPayloadFromForm(existingProperty = null) {
     region: document.querySelector("#propertyRegion").value,
     letType: document.querySelector("#propertyLetType").value,
     ownershipModel,
+    landlordName: usesOperatorFields ? document.querySelector("#propertyLandlordName").value.trim() : existingProperty?.landlordName || "",
     guaranteedRent: usesOperatorFields ? Number(document.querySelector("#propertyGuaranteedRent").value) || 0 : 0,
     maintenanceModel: usesOperatorFields ? document.querySelector("#propertyMaintenanceModel").value : "Landlord charged for repairs",
     maintenanceFee: usesOperatorFields ? Number(document.querySelector("#propertyMaintenanceFee").value) || 0 : 0,
@@ -1386,6 +1425,7 @@ function loadPropertyIntoForm(property) {
   document.querySelector("#propertyRegion").value = property.region || "Scotland";
   document.querySelector("#propertyLetType").value = property.letType || "Long-term let";
   document.querySelector("#propertyOwnershipModel").value = property.ownershipModel || "Owned";
+  document.querySelector("#propertyLandlordName").value = property.landlordName || "";
   document.querySelector("#propertyGuaranteedRent").value = property.guaranteedRent || "";
   document.querySelector("#propertyMaintenanceModel").value = property.maintenanceModel || "Landlord charged for repairs";
   document.querySelector("#propertyMaintenanceFee").value = property.maintenanceFee || "";
@@ -1480,6 +1520,7 @@ function renderPropertyDetail() {
   document.querySelector("#detailMortgageBalance").value = mortgageDeal.balance || "";
   document.querySelector("#detailMortgageEnd").value = mortgageDeal.expiryDate || "";
   premium.detailOwnershipModel.value = property.ownershipModel || "Owned";
+  premium.detailLandlordName.value = property.landlordName || "";
   premium.detailGuaranteedRent.value = property.guaranteedRent || "";
   premium.detailMaintenanceModel.value = property.maintenanceModel || "Landlord charged for repairs";
   premium.detailMaintenanceFee.value = property.maintenanceFee || "";
@@ -1491,8 +1532,9 @@ function renderPropertyDetail() {
       : "Managed/rent-to-rent setup is active. Landlord reports use guaranteed rent and maintenance rules.";
   updateDetailOperatorFieldsVisibility();
   premium.propertyDetailSummary.innerHTML = `
-    <div><span>Address</span><strong>${[property.addressLine1, property.addressLine2, property.town, property.postcode].filter(Boolean).join(", ") || property.name}</strong></div>
+    <div><span>Address</span><strong>${propertyAddressLabel(property)}</strong></div>
     <div><span>Ownership</span><strong>${property.ownershipModel || "Owned"}</strong></div>
+    <div><span>Landlord</span><strong>${property.landlordName || "-"}</strong></div>
     <div><span>Region</span><strong>${property.region}</strong></div>
     <div><span>Let type</span><strong>${property.letType}</strong></div>
     <div><span>Purchase price</span><strong>${money.format(property.purchasePrice)}</strong></div>
@@ -2287,60 +2329,64 @@ async function loadSupabaseProperties(userId) {
     return true;
   }
 
-  properties = data.map((property) => ({
-    id: property.id,
-    name: property.name,
-    addressLine1: property.address_line_1 || "",
-    addressLine2: property.address_line_2 || "",
-    town: property.city || "",
-    postcode: property.postcode || "",
-    region: property.region === "scotland" ? "Scotland" : "England",
-    letType: property.let_type === "short_term" ? "Short-term let" : "Long-term let",
-    ownershipModel: property.ownership_model || "Owned",
-    guaranteedRent: Number(property.guaranteed_rent || 0),
-    maintenanceModel: property.maintenance_model || "Landlord charged for repairs",
-    maintenanceFee: Number(property.maintenance_fee || 0),
-    purchaseDate: property.purchase_date,
-    purchasePrice: Number(property.purchase_price),
-    currentValue: Number(property.current_value),
-    deposit: Number(property.deposit_paid),
-    mortgageBalance: Number(property.mortgage_balance),
-    mortgageProductType: property.mortgage_product_type || "Fixed",
-    rate: Number(property.mortgage_rate),
-    mortgageExpiry: property.mortgage_expiry_date,
-    rent: Number(property.monthly_rent),
-    expenses: Number(property.operating_expenses),
-    tenantName: property.tenant_name,
-    tenantContact: property.tenant_email || property.tenant_phone,
-    rentDueDay: property.rent_due_day || 1,
-    rentReminder: property.rent_reminder_enabled ? "On" : "Off",
-    landlordRegistration: property.landlord_registration_number,
-    documents: "",
-    tenancies: (tenancies || [])
-      .filter((tenancy) => tenancy.property_id === property.id)
-      .map((tenancy) => ({
-        id: tenancy.id,
-        tenantName: tenancy.tenant_name,
-        tenantContact: tenancy.tenant_contact,
-        startDate: tenancy.tenancy_start_date,
-        endDate: tenancy.tenancy_end_date,
-        rent: Number(tenancy.monthly_rent),
-        documents: tenancy.document_names || [],
-      })),
-    remortgages: (remortgages || [])
-      .filter((event) => event.property_id === property.id)
-      .map((event) => ({
-        id: event.id,
-        productType: event.product_type,
-        rate: Number(event.rate),
-        balance: Number(event.mortgage_balance),
-        termMonths: event.term_months,
-        startDate: event.start_date,
-        expiryDate: event.expiry_date,
-        equityRelease: Number(event.equity_released),
-        notes: event.notes,
-      })),
-  }));
+  properties = data.map((property) => {
+    const propertyNotes = parsePropertyNotes(property.notes);
+    return {
+      id: property.id,
+      name: property.name,
+      addressLine1: property.address_line_1 || "",
+      addressLine2: property.address_line_2 || "",
+      town: property.city || "",
+      postcode: property.postcode || "",
+      region: property.region === "scotland" ? "Scotland" : "England",
+      letType: property.let_type === "short_term" ? "Short-term let" : "Long-term let",
+      ownershipModel: property.ownership_model || "Owned",
+      landlordName: propertyNotes.landlordName,
+      guaranteedRent: Number(property.guaranteed_rent || 0),
+      maintenanceModel: property.maintenance_model || "Landlord charged for repairs",
+      maintenanceFee: Number(property.maintenance_fee || 0),
+      purchaseDate: property.purchase_date,
+      purchasePrice: Number(property.purchase_price),
+      currentValue: Number(property.current_value),
+      deposit: Number(property.deposit_paid),
+      mortgageBalance: Number(property.mortgage_balance),
+      mortgageProductType: property.mortgage_product_type || "Fixed",
+      rate: Number(property.mortgage_rate),
+      mortgageExpiry: property.mortgage_expiry_date,
+      rent: Number(property.monthly_rent),
+      expenses: Number(property.operating_expenses),
+      tenantName: property.tenant_name,
+      tenantContact: property.tenant_email || property.tenant_phone,
+      rentDueDay: property.rent_due_day || 1,
+      rentReminder: property.rent_reminder_enabled ? "On" : "Off",
+      landlordRegistration: property.landlord_registration_number,
+      documents: propertyNotes.documents,
+      tenancies: (tenancies || [])
+        .filter((tenancy) => tenancy.property_id === property.id)
+        .map((tenancy) => ({
+          id: tenancy.id,
+          tenantName: tenancy.tenant_name,
+          tenantContact: tenancy.tenant_contact,
+          startDate: tenancy.tenancy_start_date,
+          endDate: tenancy.tenancy_end_date,
+          rent: Number(tenancy.monthly_rent),
+          documents: tenancy.document_names || [],
+        })),
+      remortgages: (remortgages || [])
+        .filter((event) => event.property_id === property.id)
+        .map((event) => ({
+          id: event.id,
+          productType: event.product_type,
+          rate: Number(event.rate),
+          balance: Number(event.mortgage_balance),
+          termMonths: event.term_months,
+          startDate: event.start_date,
+          expiryDate: event.expiry_date,
+          equityRelease: Number(event.equity_released),
+          notes: event.notes,
+        })),
+    };
+  });
 
   return true;
 }
@@ -2450,7 +2496,7 @@ async function savePropertyToSupabase(property) {
       tenant_email: property.tenantContact?.includes("@") ? property.tenantContact : null,
       tenant_phone: property.tenantContact?.includes("@") ? null : property.tenantContact || null,
       landlord_registration_number: property.landlordRegistration || null,
-      notes: property.documents || null,
+      notes: propertyNotesPayload(property),
     })
     .select("id")
     .single();
@@ -2765,6 +2811,7 @@ async function updateSupabasePropertySnapshot(property) {
       mortgage_rate: mortgageDeal.rate,
       mortgage_expiry_date: mortgageDeal.expiryDate || null,
       landlord_registration_number: property.landlordRegistration || null,
+      notes: propertyNotesPayload(property),
     })
     .eq("id", property.id);
 }
@@ -3982,6 +4029,7 @@ premium.propertyManagementForm.addEventListener("submit", async (event) => {
 
   const usesOperatorFields = ownershipModel !== "Owned";
   property.ownershipModel = ownershipModel;
+  property.landlordName = usesOperatorFields ? premium.detailLandlordName.value.trim() : property.landlordName || "";
   property.guaranteedRent = usesOperatorFields ? Number(premium.detailGuaranteedRent.value) || 0 : 0;
   property.maintenanceModel = usesOperatorFields
     ? premium.detailMaintenanceModel.value

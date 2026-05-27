@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260527-property-record-feedback" />
+    <link rel="stylesheet" href="styles.css?v=20260527-landlord-report-owner" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -901,6 +901,10 @@
             <p>Use these fields only when you pay the owner a guaranteed rent or manage repairs under a separate maintenance arrangement.</p>
           </div>
           <label class="operator-field" hidden>
+            <span>Landlord name</span>
+            <input id="propertyLandlordName" placeholder="Owner / landlord name" />
+          </label>
+          <label class="operator-field" hidden>
             <span>Guaranteed rent to landlord</span>
             <input id="propertyGuaranteedRent" type="number" step="25" />
           </label>
@@ -1030,6 +1034,10 @@
                 <option>Managed</option>
                 <option>Rent-to-rent</option>
               </select>
+            </label>
+            <label class="detail-operator-field">
+              <span>Landlord name</span>
+              <input id="detailLandlordName" placeholder="Owner / landlord name" />
             </label>
             <label class="detail-operator-field">
               <span>Guaranteed rent to landlord</span>
@@ -1307,6 +1315,6 @@
     </footer>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260527-property-record-feedback"></script>
+    <script src="app.js?v=20260527-landlord-report-owner"></script>
   </body>
 </html>
