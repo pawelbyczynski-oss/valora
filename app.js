@@ -4083,6 +4083,23 @@ premium.navButtons.forEach((button) => {
       await logoutUser();
       return;
     }
+    if (button.dataset.navAction === "portfolio") {
+      const session = await getCurrentSession();
+      if (!session) {
+        switchView("loginView");
+        setAuthMode("signin");
+        premium.authMessage.textContent = "Sign in to open your portfolio.";
+        premium.loginEmail.focus();
+        return;
+      }
+      if (!hasPremiumAccess()) {
+        showSubscriptionRequired();
+        return;
+      }
+      openDashboard();
+      switchDashboardTab(readUiState().dashboardTab || "properties");
+      return;
+    }
     if (!button.dataset.view) return;
     switchView(button.dataset.view);
     if (button.dataset.view === "premiumView") {
