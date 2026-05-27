@@ -703,19 +703,28 @@ function documentDraftCount(documentId) {
 
 async function invokeSupabaseFunction(functionName, body, accessToken, timeoutMs = DOCUMENT_SCAN_TIMEOUT_MS) {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      controller.abort();
+      reject(new Error("AI scan did not connect to Supabase within 90 seconds. Refresh the page and try again."));
+    }, timeoutMs);
+  });
 
   try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        apikey: SUPABASE_ANON_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
+    const response = await Promise.race([
+      fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: SUPABASE_ANON_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      }),
+      timeoutPromise,
+    ]);
     const responseText = await response.text();
     let data = null;
 
@@ -734,11 +743,11 @@ async function invokeSupabaseFunction(functionName, body, accessToken, timeoutMs
     return data || {};
   } catch (error) {
     if (error?.name === "AbortError") {
-      throw new Error("AI scan is taking too long. Refresh documents in a moment, then try again if no drafts appear.");
+      throw new Error("AI scan did not connect to Supabase within 90 seconds. Refresh the page and try again.");
     }
     throw error;
   } finally {
-    window.clearTimeout(timeoutId);
+    if (timeoutId) window.clearTimeout(timeoutId);
   }
 }
 
@@ -2424,6 +2433,18 @@ async function analyzeDocument(documentId) {
       premium.documentMessage.textContent = "AI scanner is still working. Large PDFs and cold starts can take up to 90 seconds.";
     }
   }, 15000);
+  let scanTimedOut = false;
+  const scanFailSafeTimer = window.setTimeout(() => {
+    scanTimedOut = true;
+    documentRecord.aiStatus = "failed";
+    documentRecord.aiError = "AI scan did not connect to Supabase within 90 seconds. Refresh the page and try again.";
+    renderDocuments();
+    premium.documentMessage.textContent = documentRecord.aiError;
+    analyzeButtons.forEach((button) => {
+      button.disabled = false;
+      button.textContent = "Retry scan";
+    });
+  }, DOCUMENT_SCAN_TIMEOUT_MS + 1000);
 
   let data;
   let error;
@@ -2437,23 +2458,30 @@ async function analyzeDocument(documentId) {
     error = functionError;
   } finally {
     window.clearTimeout(scanStatusTimer);
+    window.clearTimeout(scanFailSafeTimer);
     analyzeButtons.forEach((button) => {
       button.disabled = false;
       button.textContent = "Scan & split";
     });
   }
 
+  if (scanTimedOut && !data && !error) return;
+
   if (error || data?.error) {
-    const user = (await supabaseClient.auth.getUser()).data.user;
-    if (user) {
-      await loadSupabaseDocuments(user.id);
-      await loadSupabaseTransactions(user.id);
-    }
     const latestDocumentRecord = documents.find((item) => item.id === documentId) || documentRecord;
     latestDocumentRecord.aiStatus = "failed";
     latestDocumentRecord.aiError = data?.error || error?.message || "AI scan failed.";
     renderDocuments();
     premium.documentMessage.textContent = latestDocumentRecord.aiError;
+    supabaseClient.auth
+      .getUser()
+      .then(async ({ data: { user } }) => {
+        if (!user) return;
+        await loadSupabaseDocuments(user.id);
+        await loadSupabaseTransactions(user.id);
+        renderDocuments();
+      })
+      .catch(() => {});
     return;
   }
 
