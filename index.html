@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260527-landlord-report-owner" />
+    <link rel="stylesheet" href="styles.css?v=20260527-tenancy-tenant-details" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -1081,8 +1081,38 @@
               <input id="detailTenantName" placeholder="Tenant name" />
             </label>
             <label>
-              <span>Contact</span>
-              <input id="detailTenantContact" placeholder="Email or phone" />
+              <span>Tenant phone</span>
+              <input id="detailTenantPhone" placeholder="Phone number" />
+            </label>
+            <label>
+              <span>Tenant email</span>
+              <input id="detailTenantEmail" type="email" placeholder="tenant@example.com" />
+            </label>
+            <label>
+              <span>Previous address</span>
+              <input id="detailTenantPreviousAddress" placeholder="Previous address" />
+            </label>
+            <div class="form-note tenant-note">
+              <span>Additional tenants</span>
+              <p>Add another tenant before saving if the tenancy has more than one named occupier.</p>
+              <button class="secondary-button small-button" id="addTenantToTenancy" type="button">Add tenant</button>
+            </div>
+            <div class="tenant-list" id="detailTenantList"></div>
+            <div class="form-note tenant-note">
+              <span>Guarantor</span>
+              <p>Optional guarantor details for this tenancy.</p>
+            </div>
+            <label>
+              <span>Guarantor name</span>
+              <input id="detailGuarantorName" placeholder="Guarantor name" />
+            </label>
+            <label>
+              <span>Guarantor phone</span>
+              <input id="detailGuarantorPhone" placeholder="Phone number" />
+            </label>
+            <label>
+              <span>Guarantor email</span>
+              <input id="detailGuarantorEmail" type="email" placeholder="guarantor@example.com" />
             </label>
             <label>
               <span>Tenancy start</span>
@@ -1315,6 +1345,6 @@
     </footer>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260527-landlord-report-owner"></script>
+    <script src="app.js?v=20260527-tenancy-tenant-details"></script>
   </body>
 </html>

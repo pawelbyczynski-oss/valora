@@ -755,6 +755,7 @@ select {
 :root[data-theme="dark"] .subscription-grid div,
 :root[data-theme="dark"] .quarter-summary div,
 :root[data-theme="dark"] .transaction-row,
+:root[data-theme="dark"] .tenant-chip,
 :root[data-theme="dark"] .landlord-report-intro div,
 :root[data-theme="dark"] .landlord-report-metrics div,
 :root[data-theme="dark"] .admin-row,
@@ -1487,6 +1488,42 @@ select {
 
 .operator-note {
   grid-column: 1 / -1;
+}
+
+.tenant-note {
+  align-content: start;
+}
+
+.tenant-note .secondary-button {
+  margin-top: 8px;
+}
+
+.tenant-list {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+}
+
+.tenant-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f8fbfa;
+}
+
+.tenant-chip div {
+  display: grid;
+  gap: 2px;
+}
+
+.tenant-chip span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
 .detail-operator-field[hidden] {

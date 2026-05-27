@@ -107,6 +107,15 @@ const premium = {
   tenancyForm: document.querySelector("#tenancyForm"),
   tenancyMessage: document.querySelector("#tenancyMessage"),
   tenancyHistoryList: document.querySelector("#tenancyHistoryList"),
+  detailTenantName: document.querySelector("#detailTenantName"),
+  detailTenantPhone: document.querySelector("#detailTenantPhone"),
+  detailTenantEmail: document.querySelector("#detailTenantEmail"),
+  detailTenantPreviousAddress: document.querySelector("#detailTenantPreviousAddress"),
+  addTenantToTenancy: document.querySelector("#addTenantToTenancy"),
+  detailTenantList: document.querySelector("#detailTenantList"),
+  detailGuarantorName: document.querySelector("#detailGuarantorName"),
+  detailGuarantorPhone: document.querySelector("#detailGuarantorPhone"),
+  detailGuarantorEmail: document.querySelector("#detailGuarantorEmail"),
   remortgageForm: document.querySelector("#remortgageForm"),
   remortgageMessage: document.querySelector("#remortgageMessage"),
   remortgageHistoryList: document.querySelector("#remortgageHistoryList"),
@@ -250,6 +259,7 @@ const PROMO_STORAGE_KEY = "property-panel-promo-access";
 const LEGACY_PROMO_STORAGE_KEY = "valo" + "ra-promo-access";
 const THEME_STORAGE_KEY = "property-panel-theme";
 const PREMIUM_PROPERTY_LIMIT = 5;
+const TENANCY_META_PREFIX = "PROPERTY_PANEL_TENANCY_META:";
 
 const storedProperties =
   localStorage.getItem(PROPERTY_STORAGE_KEY) || localStorage.getItem(LEGACY_PROPERTY_STORAGE_KEY);
@@ -275,6 +285,7 @@ let editingPropertyId = null;
 let editingTenancyId = null;
 let editingRemortgageId = null;
 let editingTransactionId = null;
+let tenancyTenantDrafts = [];
 let currentSubscription = null;
 let subscriptionSyncAttempted = false;
 let selectedPlan = localStorage.getItem(SELECTED_PLAN_STORAGE_KEY) === "pro" ? "pro" : "premium";
@@ -307,7 +318,7 @@ function normalizePropertyRecord(property) {
     maintenanceModel: property.maintenanceModel || "Landlord charged for repairs",
     maintenanceFee: Number(property.maintenanceFee || 0),
     mortgageProductType: property.mortgageProductType || "Fixed",
-    tenancies: property.tenancies || [],
+    tenancies: (property.tenancies || []).map(normalizeTenancyRecord),
     remortgages: property.remortgages || [],
   };
 }
@@ -769,6 +780,86 @@ function parsePropertyNotes(notes) {
   } catch {
     return { landlordName: "", documents: "" };
   }
+}
+
+function contactFromTenant(tenant) {
+  return [tenant.phone, tenant.email].filter(Boolean).join(" / ");
+}
+
+function primaryTenant(tenancy) {
+  return (tenancy.tenants || []).find((tenant) => tenant.name || tenant.phone || tenant.email) || {
+    name: tenancy.tenantName || "",
+    phone: tenancy.tenantContact && !tenancy.tenantContact.includes("@") ? tenancy.tenantContact : "",
+    email: tenancy.tenantContact && tenancy.tenantContact.includes("@") ? tenancy.tenantContact : "",
+    previousAddress: "",
+  };
+}
+
+function parseTenancyDocuments(documentNames = []) {
+  const names = Array.isArray(documentNames) ? documentNames : [];
+  const metadataEntry = names.find((name) => String(name).startsWith(TENANCY_META_PREFIX));
+  const documents = names.filter((name) => !String(name).startsWith(TENANCY_META_PREFIX));
+
+  if (!metadataEntry) {
+    return { documents, tenants: [], guarantor: { name: "", phone: "", email: "" } };
+  }
+
+  try {
+    const metadata = JSON.parse(String(metadataEntry).replace(TENANCY_META_PREFIX, ""));
+    return {
+      documents,
+      tenants: Array.isArray(metadata.tenants) ? metadata.tenants : [],
+      guarantor: metadata.guarantor || { name: "", phone: "", email: "" },
+    };
+  } catch {
+    return { documents, tenants: [], guarantor: { name: "", phone: "", email: "" } };
+  }
+}
+
+function normalizeTenantRecord(tenant = {}) {
+  return {
+    id: tenant.id || createId("tenant"),
+    name: tenant.name || "",
+    phone: tenant.phone || "",
+    email: tenant.email || "",
+    previousAddress: tenant.previousAddress || "",
+  };
+}
+
+function normalizeTenancyRecord(tenancy = {}) {
+  const parsedDocuments = parseTenancyDocuments(tenancy.documents || tenancy.document_names || []);
+  const fallbackTenant = {
+    name: tenancy.tenantName || "",
+    phone: tenancy.tenantContact && !String(tenancy.tenantContact).includes("@") ? tenancy.tenantContact : "",
+    email: tenancy.tenantContact && String(tenancy.tenantContact).includes("@") ? tenancy.tenantContact : "",
+    previousAddress: "",
+  };
+  const tenants = (parsedDocuments.tenants.length ? parsedDocuments.tenants : tenancy.tenants || [fallbackTenant])
+    .map(normalizeTenantRecord)
+    .filter((tenant) => tenant.name || tenant.phone || tenant.email || tenant.previousAddress);
+  const leadTenant = tenants[0] || normalizeTenantRecord(fallbackTenant);
+  const guarantor = tenancy.guarantor || parsedDocuments.guarantor || {};
+
+  return {
+    ...tenancy,
+    tenantName: leadTenant.name || tenancy.tenantName || "",
+    tenantContact: contactFromTenant(leadTenant) || tenancy.tenantContact || "",
+    tenants,
+    guarantor: {
+      name: guarantor.name || "",
+      phone: guarantor.phone || "",
+      email: guarantor.email || "",
+    },
+    documents: parsedDocuments.documents,
+  };
+}
+
+function tenancyDocumentsPayload(tenancy) {
+  const metadata = {
+    tenants: (tenancy.tenants || []).map(normalizeTenantRecord),
+    guarantor: tenancy.guarantor || { name: "", phone: "", email: "" },
+  };
+  return [...(tenancy.documents || []), `${TENANCY_META_PREFIX}${JSON.stringify(metadata)}`];
 }
 
 function documentDraftCount(documentId) {
@@ -1466,9 +1557,60 @@ function updateDetailOperatorFieldsVisibility() {
   });
 }
 
+function tenantFromFormFields() {
+  return normalizeTenantRecord({
+    name: premium.detailTenantName.value.trim(),
+    phone: premium.detailTenantPhone.value.trim(),
+    email: premium.detailTenantEmail.value.trim(),
+    previousAddress: premium.detailTenantPreviousAddress.value.trim(),
+  });
+}
+
+function clearTenantFormFields() {
+  premium.detailTenantName.value = "";
+  premium.detailTenantPhone.value = "";
+  premium.detailTenantEmail.value = "";
+  premium.detailTenantPreviousAddress.value = "";
+}
+
+function renderTenantDrafts() {
+  if (!premium.detailTenantList) return;
+
+  if (!tenancyTenantDrafts.length) {
+    premium.detailTenantList.innerHTML = '<p class="field-hint">No additional tenants added yet.</p>';
+    return;
+  }
+
+  premium.detailTenantList.replaceChildren(
+    ...tenancyTenantDrafts.map((tenant) => {
+      const row = document.createElement("div");
+      row.className = "tenant-chip";
+      row.innerHTML = `
+        <div>
+          <strong>${tenant.name || "Tenant"}</strong>
+          <span>${[tenant.phone, tenant.email, tenant.previousAddress].filter(Boolean).join(" · ") || "No contact details"}</span>
+        </div>
+        <button class="secondary-button small-button danger-button" type="button" data-remove-tenant-draft="${tenant.id}">Remove</button>
+      `;
+      return row;
+    }),
+  );
+}
+
+function tenancyTenantsFromForm() {
+  const typedTenant = tenantFromFormFields();
+  const tenants = [...tenancyTenantDrafts];
+  if (typedTenant.name || typedTenant.phone || typedTenant.email || typedTenant.previousAddress) {
+    tenants.unshift(typedTenant);
+  }
+  return tenants.map(normalizeTenantRecord);
+}
+
 function resetTenancyForm() {
   editingTenancyId = null;
+  tenancyTenantDrafts = [];
   premium.tenancyForm.reset();
+  renderTenantDrafts();
   premium.tenancyForm.querySelector("button[type='submit']").textContent = "Save tenancy record";
 }
 
@@ -1552,6 +1694,17 @@ function renderPropertyDetail() {
     ...((property.tenancies || []).map((tenancy) => {
       const row = document.createElement("div");
       row.className = "detail-row";
+      const tenants = (tenancy.tenants || []).length ? tenancy.tenants : [primaryTenant(tenancy)];
+      const tenantSummary = tenants
+        .map((tenant) => `${tenant.name || "Tenant"}${contactFromTenant(tenant) ? ` (${contactFromTenant(tenant)})` : ""}`)
+        .join(", ");
+      const previousAddressSummary = tenants
+        .map((tenant) => tenant.previousAddress)
+        .filter(Boolean)
+        .join(" / ");
+      const guarantorSummary = tenancy.guarantor?.name
+        ? `${tenancy.guarantor.name}${contactFromTenant(tenancy.guarantor) ? ` (${contactFromTenant(tenancy.guarantor)})` : ""}`
+        : "-";
       const rentTransactions = tenancyRentTransactions(tenancy.id);
       const rentSchedule = rentTransactions.length
         ? `
@@ -1576,8 +1729,9 @@ function renderPropertyDetail() {
         `
         : `<div class="tenancy-rent-schedule"><span>Rent payment schedule</span><p class="field-hint">Save tenancy dates and monthly rent to create rent payment records.</p></div>`;
       row.innerHTML = `
-        <div><span>Tenant</span><strong>${tenancy.tenantName || "-"}</strong></div>
-        <div><span>Contact</span><strong>${tenancy.tenantContact || "-"}</strong></div>
+        <div><span>Tenant(s)</span><strong>${tenantSummary || "-"}</strong></div>
+        <div><span>Previous address</span><strong>${previousAddressSummary || "-"}</strong></div>
+        <div><span>Guarantor</span><strong>${guarantorSummary}</strong></div>
         <div><span>Start</span><strong>${formatDate(tenancy.startDate)}</strong></div>
         <div><span>Move-out</span><strong>${formatDate(tenancy.endDate)}</strong></div>
         <div><span>Rent</span><strong>${money.format(Number(tenancy.rent || 0))}</strong></div>
@@ -2363,15 +2517,17 @@ async function loadSupabaseProperties(userId) {
       documents: propertyNotes.documents,
       tenancies: (tenancies || [])
         .filter((tenancy) => tenancy.property_id === property.id)
-        .map((tenancy) => ({
-          id: tenancy.id,
-          tenantName: tenancy.tenant_name,
-          tenantContact: tenancy.tenant_contact,
-          startDate: tenancy.tenancy_start_date,
-          endDate: tenancy.tenancy_end_date,
-          rent: Number(tenancy.monthly_rent),
-          documents: tenancy.document_names || [],
-        })),
+        .map((tenancy) =>
+          normalizeTenancyRecord({
+            id: tenancy.id,
+            tenantName: tenancy.tenant_name,
+            tenantContact: tenancy.tenant_contact,
+            startDate: tenancy.tenancy_start_date,
+            endDate: tenancy.tenancy_end_date,
+            rent: Number(tenancy.monthly_rent),
+            documents: tenancy.document_names || [],
+          }),
+        ),
       remortgages: (remortgages || [])
         .filter((event) => event.property_id === property.id)
         .map((event) => ({
@@ -2501,7 +2657,7 @@ async function savePropertyToSupabase(property) {
     .select("id")
     .single();
 
-  if (error) return null;
+  if (error) throw error;
   return data?.id || null;
 }
 
@@ -2698,7 +2854,7 @@ async function saveTenancyToSupabase(property, tenancy) {
       tenancy_start_date: tenancy.startDate || null,
       tenancy_end_date: tenancy.endDate || null,
       monthly_rent: tenancy.rent || 0,
-      document_names: tenancy.documents || [],
+      document_names: tenancyDocumentsPayload(tenancy),
     })
     .select("id")
     .single();
@@ -2710,7 +2866,7 @@ async function saveTenancyToSupabase(property, tenancy) {
 async function updateTenancyInSupabase(property, tenancy) {
   if (!supabaseClient || !isPersistedProperty(property) || !isPersistedProperty(tenancy)) return;
 
-  await supabaseClient
+  const { error } = await supabaseClient
     .from("tenancy_periods")
     .update({
       tenant_name: tenancy.tenantName || null,
@@ -2718,9 +2874,10 @@ async function updateTenancyInSupabase(property, tenancy) {
       tenancy_start_date: tenancy.startDate || null,
       tenancy_end_date: tenancy.endDate || null,
       monthly_rent: tenancy.rent || 0,
-      document_names: tenancy.documents || [],
+      document_names: tenancyDocumentsPayload(tenancy),
     })
     .eq("id", tenancy.id);
+  if (error) throw error;
 }
 
 async function deleteTenancyFromSupabase(property, tenancyId) {
@@ -2784,7 +2941,7 @@ async function updateSupabasePropertySnapshot(property) {
   if (!supabaseClient || !isPersistedProperty(property)) return;
 
   const mortgageDeal = latestMortgageDeal(property);
-  await supabaseClient
+  const { error } = await supabaseClient
     .from("properties")
     .update({
       name: property.name,
@@ -2814,6 +2971,7 @@ async function updateSupabasePropertySnapshot(property) {
       notes: propertyNotesPayload(property),
     })
     .eq("id", property.id);
+  if (error) throw error;
 }
 
 function getAuthRedirectUrl() {
@@ -4020,6 +4178,7 @@ premium.propertyManagementForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const property = activeProperty();
   if (!property) return;
+  const submitButton = premium.propertyManagementForm.querySelector("button[type='submit']");
 
   const ownershipModel = premium.detailOwnershipModel.value;
   if (ownershipModel !== "Owned" && !hasProAccess()) {
@@ -4027,22 +4186,31 @@ premium.propertyManagementForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  const usesOperatorFields = ownershipModel !== "Owned";
-  property.ownershipModel = ownershipModel;
-  property.landlordName = usesOperatorFields ? premium.detailLandlordName.value.trim() : property.landlordName || "";
-  property.guaranteedRent = usesOperatorFields ? Number(premium.detailGuaranteedRent.value) || 0 : 0;
-  property.maintenanceModel = usesOperatorFields
-    ? premium.detailMaintenanceModel.value
-    : "Landlord charged for repairs";
-  property.maintenanceFee = usesOperatorFields ? Number(premium.detailMaintenanceFee.value) || 0 : 0;
-  property.rentDueDay = Math.min(Math.max(Number(premium.detailRentDueDay.value) || 1, 1), 31);
-  property.rentReminder = premium.detailRentReminder.value;
+  setButtonBusy(submitButton, true, "Saving...");
+  premium.propertyManagementMessage.textContent = "Saving management setup...";
 
-  await updateSupabasePropertySnapshot(property);
-  premium.propertyManagementMessage.textContent = "Management setup saved.";
-  renderPremiumDashboard();
-  renderPropertyDetail();
-  switchPropertyDetailTab("management");
+  try {
+    const usesOperatorFields = ownershipModel !== "Owned";
+    property.ownershipModel = ownershipModel;
+    property.landlordName = usesOperatorFields ? premium.detailLandlordName.value.trim() : property.landlordName || "";
+    property.guaranteedRent = usesOperatorFields ? Number(premium.detailGuaranteedRent.value) || 0 : 0;
+    property.maintenanceModel = usesOperatorFields
+      ? premium.detailMaintenanceModel.value
+      : "Landlord charged for repairs";
+    property.maintenanceFee = usesOperatorFields ? Number(premium.detailMaintenanceFee.value) || 0 : 0;
+    property.rentDueDay = Math.min(Math.max(Number(premium.detailRentDueDay.value) || 1, 1), 31);
+    property.rentReminder = premium.detailRentReminder.value;
+
+    await updateSupabasePropertySnapshot(property);
+    renderPremiumDashboard();
+    renderPropertyDetail();
+    switchPropertyDetailTab("management");
+    premium.propertyManagementMessage.textContent = "Management setup saved and refreshed.";
+  } catch (error) {
+    premium.propertyManagementMessage.textContent = error?.message || "Could not save management setup.";
+  } finally {
+    setButtonBusy(submitButton, false);
+  }
 });
 
 premium.propertyExpenseFilters.addEventListener("input", () => {
@@ -4131,6 +4299,26 @@ premium.propertyReportFilters.addEventListener("change", () => {
   if (property) renderLandlordReport(property);
 });
 
+premium.addTenantToTenancy.addEventListener("click", () => {
+  const tenant = tenantFromFormFields();
+  if (!tenant.name && !tenant.phone && !tenant.email && !tenant.previousAddress) {
+    premium.tenancyMessage.textContent = "Add tenant name, phone, email or previous address first.";
+    return;
+  }
+
+  tenancyTenantDrafts = [...tenancyTenantDrafts, tenant];
+  clearTenantFormFields();
+  renderTenantDrafts();
+  premium.tenancyMessage.textContent = "Tenant added to this tenancy. Save the tenancy record to keep it.";
+});
+
+premium.detailTenantList.addEventListener("click", (event) => {
+  const removeButton = event.target.closest("[data-remove-tenant-draft]");
+  if (!removeButton) return;
+  tenancyTenantDrafts = tenancyTenantDrafts.filter((tenant) => tenant.id !== removeButton.dataset.removeTenantDraft);
+  renderTenantDrafts();
+});
+
 premium.tenancyHistoryList.addEventListener("click", async (event) => {
   const property = activeProperty();
   if (!property) return;
@@ -4140,11 +4328,20 @@ premium.tenancyHistoryList.addEventListener("click", async (event) => {
     const tenancy = (property.tenancies || []).find((item) => item.id === editButton.dataset.editTenancy);
     if (!tenancy) return;
     editingTenancyId = tenancy.id;
-    document.querySelector("#detailTenantName").value = tenancy.tenantName || "";
-    document.querySelector("#detailTenantContact").value = tenancy.tenantContact || "";
+    const tenants = (tenancy.tenants || []).length ? tenancy.tenants : [primaryTenant(tenancy)];
+    const leadTenant = tenants[0] || normalizeTenantRecord();
+    tenancyTenantDrafts = tenants.slice(1).map(normalizeTenantRecord);
+    premium.detailTenantName.value = leadTenant.name || "";
+    premium.detailTenantPhone.value = leadTenant.phone || "";
+    premium.detailTenantEmail.value = leadTenant.email || "";
+    premium.detailTenantPreviousAddress.value = leadTenant.previousAddress || "";
+    premium.detailGuarantorName.value = tenancy.guarantor?.name || "";
+    premium.detailGuarantorPhone.value = tenancy.guarantor?.phone || "";
+    premium.detailGuarantorEmail.value = tenancy.guarantor?.email || "";
     document.querySelector("#detailTenancyStart").value = tenancy.startDate || "";
     document.querySelector("#detailTenancyEnd").value = tenancy.endDate || "";
     document.querySelector("#detailTenancyRent").value = tenancy.rent || "";
+    renderTenantDrafts();
     premium.tenancyMessage.textContent = `Editing tenancy for ${tenancy.tenantName || property.name}.`;
     premium.tenancyForm.querySelector("button[type='submit']").textContent = "Update tenancy record";
     return;
@@ -4287,10 +4484,18 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
 
   try {
     const files = Array.from(document.querySelector("#detailTenancyFiles").files || []).map((file) => file.name);
+    const tenants = tenancyTenantsFromForm();
+    const leadTenant = tenants[0] || normalizeTenantRecord();
     const tenancy = {
       id: editingTenancyId || createId("tenancy"),
-      tenantName: document.querySelector("#detailTenantName").value,
-      tenantContact: document.querySelector("#detailTenantContact").value,
+      tenantName: leadTenant.name,
+      tenantContact: contactFromTenant(leadTenant),
+      tenants,
+      guarantor: {
+        name: premium.detailGuarantorName.value.trim(),
+        phone: premium.detailGuarantorPhone.value.trim(),
+        email: premium.detailGuarantorEmail.value.trim(),
+      },
       startDate: document.querySelector("#detailTenancyStart").value,
       endDate: document.querySelector("#detailTenancyEnd").value,
       rent: Number(document.querySelector("#detailTenancyRent").value) || 0,
@@ -4376,6 +4581,7 @@ premium.remortgageForm.addEventListener("submit", async (event) => {
 
 premium.propertyForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  const submitButton = premium.propertyForm.querySelector("button[type='submit']");
   const existingProperty = editingPropertyId ? properties.find((item) => item.id === editingPropertyId) : null;
 
   if (!existingProperty && isPremiumAtPropertyLimit()) {
@@ -4390,16 +4596,28 @@ premium.propertyForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  setButtonBusy(submitButton, true, existingProperty ? "Updating..." : "Saving...");
+
   if (existingProperty) {
-    const index = properties.findIndex((item) => item.id === existingProperty.id);
-    if (index >= 0) properties[index] = property;
-    await updateSupabasePropertySnapshot(property);
-    trackEvent("property_updated", { property_name: property.name, region: property.region });
-    activePropertyId = property.id;
-    premium.propertyModal.hidden = true;
-    resetPropertyForm();
-    renderPremiumDashboard();
-    renderPropertyDetail();
+    try {
+      const index = properties.findIndex((item) => item.id === existingProperty.id);
+      if (index >= 0) properties[index] = property;
+      await updateSupabasePropertySnapshot(property);
+      trackEvent("property_updated", { property_name: property.name, region: property.region });
+      activePropertyId = property.id;
+      premium.propertyModal.hidden = true;
+      resetPropertyForm();
+      renderPremiumDashboard();
+      premium.propertyDetailPanel.hidden = false;
+      switchView("propertyDetailView");
+      renderPropertyDetail();
+      switchPropertyDetailTab("overview");
+      premium.deletePropertyMessage.textContent = "Property saved and refreshed.";
+    } catch (error) {
+      premium.deletePropertyMessage.textContent = error?.message || "Could not save property.";
+    } finally {
+      setButtonBusy(submitButton, false);
+    }
     return;
   }
 
@@ -4417,19 +4635,25 @@ premium.propertyForm.addEventListener("submit", async (event) => {
     });
   }
 
-  const savedId = await savePropertyToSupabase(property);
-  if (savedId) property.id = savedId;
-  const initialMortgage = property.remortgages[0];
-  if (initialMortgage) {
-    const savedMortgageId = await saveRemortgageToSupabase(property, initialMortgage);
-    if (savedMortgageId) initialMortgage.id = savedMortgageId;
-  }
+  try {
+    const savedId = await savePropertyToSupabase(property);
+    if (savedId) property.id = savedId;
+    const initialMortgage = property.remortgages[0];
+    if (initialMortgage) {
+      const savedMortgageId = await saveRemortgageToSupabase(property, initialMortgage);
+      if (savedMortgageId) initialMortgage.id = savedMortgageId;
+    }
 
-  properties = [property, ...properties];
-  trackEvent("property_added", { property_name: property.name, region: property.region });
-  premium.propertyModal.hidden = true;
-  resetPropertyForm();
-  renderPremiumDashboard();
+    properties = [property, ...properties];
+    trackEvent("property_added", { property_name: property.name, region: property.region });
+    premium.propertyModal.hidden = true;
+    resetPropertyForm();
+    renderPremiumDashboard();
+  } catch (error) {
+    premium.deletePropertyMessage.textContent = error?.message || "Could not save property.";
+  } finally {
+    setButtonBusy(submitButton, false);
+  }
 });
 
 premium.exportPortfolio.addEventListener("click", () => {
