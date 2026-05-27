@@ -894,10 +894,65 @@ function loadTransactionIntoForm(transaction) {
 function printActiveLandlordReport() {
   const property = activeProperty();
   if (!property) return;
+  const includeDocuments = confirmIncludePropertyDocuments(property);
   document.body.classList.add("print-landlord-report");
   document.body.dataset.printPropertyName = property.name;
   renderLandlordReport(property);
+  renderPrintDocumentAppendix(includeDocuments ? [property] : []);
   window.print();
+}
+
+function confirmIncludePropertyDocuments(property = null) {
+  const relatedDocuments = property
+    ? documents.filter((document) => document.propertyId === property.id)
+    : documents;
+  if (!relatedDocuments.length) return false;
+  const target = property ? ` for ${property.name}` : " for saved properties";
+  return window.confirm(`Include a document list${target} in this PDF export?`);
+}
+
+function renderPrintDocumentAppendix(targetProperties = []) {
+  document.querySelector("#printDocumentAppendix")?.remove();
+  if (!targetProperties.length) return;
+
+  const propertiesWithDocuments = targetProperties
+    .map((property) => ({
+      property,
+      relatedDocuments: documents.filter((document) => document.propertyId === property.id),
+    }))
+    .filter((item) => item.relatedDocuments.length);
+
+  if (!propertiesWithDocuments.length) return;
+
+  const appendix = document.createElement("section");
+  appendix.id = "printDocumentAppendix";
+  appendix.className = "print-document-appendix";
+  appendix.innerHTML = `
+    <h2>Attached property documents</h2>
+    ${propertiesWithDocuments
+      .map(
+        ({ property, relatedDocuments }) => `
+          <section class="print-document-property">
+            <h3>${property.name}</h3>
+            <div class="print-document-list">
+              ${relatedDocuments
+        .map(
+          (document) => `
+            <div>
+              <strong>${document.label}</strong>
+              <span>${document.documentType} · ${document.fileName || "File"} · ${fileSizeLabel(document.fileSize)}</span>
+              <span>${document.expiryDate ? `Expires ${formatDate(document.expiryDate)}` : "No expiry date"}</span>
+            </div>
+          `,
+        )
+        .join("")}
+            </div>
+          </section>
+        `,
+      )
+      .join("")}
+  `;
+  document.body.append(appendix);
 }
 
 function renderLandlordReport(property) {
@@ -2255,23 +2310,40 @@ async function deleteDocumentFromSupabase(document) {
 
 async function openDocument(documentRecord, popupWindow = null) {
   if (!supabaseClient || !documentRecord.storagePath) {
-    if (popupWindow) popupWindow.close();
+    if (popupWindow && !popupWindow.closed) popupWindow.close();
     return;
   }
   premium.documentMessage.textContent = "Opening document...";
+  if (popupWindow && !popupWindow.closed) {
+    popupWindow.document.open();
+    popupWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head><title>Opening document</title></head>
+        <body style="font-family: sans-serif; padding: 16px;">
+          <p>Opening document...</p>
+        </body>
+      </html>
+    `);
+    popupWindow.document.close();
+  }
   const { data, error } = await supabaseClient.storage
     .from("property-documents")
     .createSignedUrl(documentRecord.storagePath, 300);
   if (error || !data?.signedUrl) {
-    if (popupWindow) popupWindow.close();
+    if (popupWindow && !popupWindow.closed) popupWindow.close();
     premium.documentMessage.textContent = error?.message || "Could not open document.";
     return;
   }
 
-  if (popupWindow) {
-    popupWindow.location.href = data.signedUrl;
-    premium.documentMessage.textContent = "Document opened in a new tab.";
-    return;
+  if (popupWindow && !popupWindow.closed) {
+    try {
+      popupWindow.location.assign(data.signedUrl);
+      premium.documentMessage.innerHTML = `Document opened in a new tab. If it stays blank, <a class="inline-link" href="${data.signedUrl}" target="_blank" rel="noopener">open file</a>.`;
+      return;
+    } catch (error) {
+      popupWindow.close();
+    }
   }
 
   const link = window.document.createElement("a");
@@ -3507,8 +3579,9 @@ async function handleDocumentActionClick(event) {
   if (downloadButton) {
     event.preventDefault();
     const document = documents.find((item) => item.id === downloadButton.dataset.downloadDocument);
-    const popupWindow = window.open("", "_blank", "noopener");
+    const popupWindow = document ? window.open("about:blank", "_blank") : null;
     if (document) await openDocument(document, popupWindow);
+    if (!document && popupWindow && !popupWindow.closed) popupWindow.close();
     return;
   }
 
@@ -3786,6 +3859,7 @@ premium.printLandlordReport.addEventListener("click", () => {
 window.addEventListener("afterprint", () => {
   document.body.classList.remove("print-landlord-report");
   delete document.body.dataset.printPropertyName;
+  document.querySelector("#printDocumentAppendix")?.remove();
 });
 
 premium.deletePropertyButton.addEventListener("click", () => {
@@ -3914,6 +3988,8 @@ premium.propertyForm.addEventListener("submit", async (event) => {
 });
 
 premium.exportPortfolio.addEventListener("click", () => {
+  const includeDocuments = confirmIncludePropertyDocuments();
+  renderPrintDocumentAppendix(includeDocuments ? properties : []);
   trackEvent("pdf_exported", { property_count: properties.length });
   window.print();
 });

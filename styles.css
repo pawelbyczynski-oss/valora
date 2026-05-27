@@ -2170,6 +2170,10 @@ li {
   }
 }
 
+.print-document-appendix {
+  display: none;
+}
+
 @media print {
   :root {
     color-scheme: light;
@@ -2355,6 +2359,62 @@ li {
 
   h2,
   h3 {
+    color: #111111;
+  }
+
+  .print-document-appendix {
+    break-before: page;
+    page-break-before: always;
+    display: block !important;
+    margin: 18px 0 0;
+    padding: 0;
+    color: #111111;
+  }
+
+  .print-document-appendix h2 {
+    margin: 0 0 10px;
+    color: #111111;
+    font-size: 20px;
+    font-weight: 850;
+  }
+
+  .print-document-property {
+    break-inside: avoid;
+    margin: 0 0 12px;
+    border: 1px solid #222222;
+  }
+
+  .print-document-property h3 {
+    margin: 0;
+    padding: 7px 8px;
+    border-bottom: 1px solid #222222;
+    background: #ffffff;
+    color: #111111;
+    font-size: 12px;
+    font-weight: 850;
+  }
+
+  .print-document-list {
+    display: grid;
+    gap: 0;
+  }
+
+  .print-document-list div {
+    display: grid;
+    grid-template-columns: 1.3fr 2fr 1fr;
+    gap: 8px;
+    padding: 7px 8px;
+    border-bottom: 1px solid #222222;
+    color: #111111;
+    font-size: 10px;
+  }
+
+  .print-document-list div:last-child {
+    border-bottom: 0;
+  }
+
+  .print-document-list strong,
+  .print-document-list span {
     color: #111111;
   }
 
