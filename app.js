@@ -777,7 +777,6 @@ async function invokeSupabaseFunction(functionName, body, accessToken, timeoutMs
 
 function documentActionButtons(document) {
   const draftCount = documentDraftCount(document.id);
-  const isProcessing = document.aiStatus === "processing" && activeDocumentScans.has(document.id);
   const scanLabel =
     document.aiStatus === "failed"
       ? "Retry scan"
@@ -790,7 +789,7 @@ function documentActionButtons(document) {
       : "";
   return `
     <button class="secondary-button small-button" type="button" data-download-document="${document.id}">Open</button>
-    <button class="tax-button small-button" type="button" data-analyze-document="${document.id}" ${isProcessing ? "disabled" : ""}>${isProcessing ? "Connecting..." : scanLabel}</button>
+    <button class="tax-button small-button" type="button" data-analyze-document="${document.id}">${scanLabel}</button>
     ${reviewButton}
   `;
 }
@@ -2451,11 +2450,16 @@ async function analyzeDocument(documentId) {
   activeDocumentScans.add(documentId);
   renderDocuments();
   premium.documentMessage.textContent = `Connecting to AI scanner for ${documentRecord.label}...`;
-  const analyzeButtons = document.querySelectorAll(`[data-analyze-document="${documentId}"]`);
-  analyzeButtons.forEach((button) => {
-    button.disabled = true;
-    button.textContent = "Connecting...";
-  });
+  window.setTimeout(() => {
+    const latestDocumentRecord = documents.find((item) => item.id === documentId);
+    if (!latestDocumentRecord || !activeDocumentScans.has(documentId)) return;
+    activeDocumentScans.delete(documentId);
+    latestDocumentRecord.aiStatus = "failed";
+    latestDocumentRecord.aiError = "AI scan is still running in the background. Check back shortly or try again.";
+    latestDocumentRecord.aiScanStartedAt = "";
+    renderDocuments();
+    premium.documentMessage.textContent = latestDocumentRecord.aiError;
+  }, DOCUMENT_SCAN_TIMEOUT_MS + 3000);
   const scanStatusTimer = window.setTimeout(() => {
     if (premium.documentMessage) {
       premium.documentMessage.textContent = "Still waiting for Supabase AI scanner. This should not take longer than 15 seconds.";
@@ -2470,10 +2474,6 @@ async function analyzeDocument(documentId) {
     documentRecord.aiScanStartedAt = "";
     renderDocuments();
     premium.documentMessage.textContent = documentRecord.aiError;
-    analyzeButtons.forEach((button) => {
-      button.disabled = false;
-      button.textContent = "Retry scan";
-    });
   }, DOCUMENT_SCAN_TIMEOUT_MS + 1000);
 
   let data;
@@ -2492,10 +2492,6 @@ async function analyzeDocument(documentId) {
     window.clearTimeout(scanStatusTimer);
     window.clearTimeout(scanFailSafeTimer);
     activeDocumentScans.delete(documentId);
-    analyzeButtons.forEach((button) => {
-      button.disabled = false;
-      button.textContent = "Retry scan";
-    });
   }
 
   if (scanTimedOut && !data && !error) return;
