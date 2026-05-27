@@ -1864,6 +1864,60 @@ select:focus {
   font-weight: 750;
 }
 
+.metrics-grid .metric-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+}
+
+.metric-help {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--soft-teal);
+  color: var(--teal-dark);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1;
+  cursor: help;
+}
+
+.metric-help::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  z-index: 30;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  width: min(240px, 70vw);
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--ink);
+  color: #ffffff;
+  font-size: 0.74rem;
+  font-weight: 650;
+  line-height: 1.35;
+  text-align: left;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.metric-help:hover::after,
+.metric-help:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .metrics-grid strong {
   font-size: 1.35rem;
 }
