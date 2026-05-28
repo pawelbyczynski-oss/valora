@@ -1424,8 +1424,20 @@ function renderLandlordReport(property) {
     const tenancyList = document.createElement("div");
     tenancyList.className = "document-list landlord-report-lines";
     const visibleTenancies = (property.tenancies || []).filter((tenancy) => {
+      const tenants = (tenancy.tenants || []).length ? tenancy.tenants : [primaryTenant(tenancy)];
+      const tenantSearchText = tenants
+        .flatMap((tenant) => [tenant.name, tenant.phone, tenant.email, tenant.previousAddress])
+        .join(" ");
       if (!reportSearch) return true;
-      return [tenancy.tenantName, tenancy.tenantPhone, tenancy.tenantEmail, tenancy.tenantPreviousAddress, tenancy.notes]
+      return [
+        tenancy.tenantName,
+        tenancy.tenantContact,
+        tenantSearchText,
+        tenancy.guarantor?.name,
+        tenancy.guarantor?.phone,
+        tenancy.guarantor?.email,
+        tenancy.notes,
+      ]
         .join(" ")
         .toLowerCase()
         .includes(reportSearch);
@@ -1435,8 +1447,19 @@ function renderLandlordReport(property) {
         const item = document.createElement("div");
         const label = document.createElement("span");
         const value = document.createElement("strong");
-        label.textContent = `${tenancy.tenantName || "Tenant"} · ${formatDate(tenancy.startDate)} to ${formatDate(tenancy.endDate)}`;
-        value.textContent = money.format(Number(tenancy.rent || 0));
+        const tenants = (tenancy.tenants || []).length ? tenancy.tenants : [primaryTenant(tenancy)];
+        const tenantSummary = tenants
+          .map((tenant) => `${tenant.name || "Tenant"}${contactFromTenant(tenant) ? ` (${contactFromTenant(tenant)})` : ""}`)
+          .join(", ");
+        const previousAddresses = tenants
+          .map((tenant) => tenant.previousAddress)
+          .filter(Boolean)
+          .join(" / ");
+        const guarantor = tenancy.guarantor?.name
+          ? `Guarantor: ${tenancy.guarantor.name}${contactFromTenant(tenancy.guarantor) ? ` (${contactFromTenant(tenancy.guarantor)})` : ""}`
+          : "No guarantor";
+        label.textContent = `${tenantSummary || "Tenant"} · ${formatDate(tenancy.startDate)} to ${formatDate(tenancy.endDate)}`;
+        value.textContent = `${money.format(Number(tenancy.rent || 0))}${previousAddresses ? ` · Previous: ${previousAddresses}` : ""} · ${guarantor}`;
         item.append(label, value);
         tenancyList.append(item);
       });
