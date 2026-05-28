@@ -4436,17 +4436,11 @@ document.querySelectorAll("[data-plan]").forEach((button) => {
 premium.providerButtons.forEach((button) => {
   button.addEventListener("click", () => {
     trackEvent("login_started", { provider: button.dataset.loginProvider });
-    if (button.dataset.loginProvider === "Email") {
-      setAuthMode("signup");
-      premium.authMessage.textContent = supabaseClient
-        ? "Create an account or sign in with email and password."
-        : "Supabase is not configured yet. Add your public Supabase URL and publishable key to config.js.";
-      premium.loginEmail.focus();
-      return;
-    }
-
     setAuthMode("signup");
-    premium.authMessage.textContent = `${button.dataset.loginProvider} sign-in is coming later. Use email and password for the test version.`;
+    premium.authMessage.textContent = supabaseClient
+      ? "Create an account or sign in with email and password."
+      : "Supabase is not configured yet. Add your public Supabase URL and publishable key to config.js.";
+    premium.loginEmail.focus();
   });
 });
 
