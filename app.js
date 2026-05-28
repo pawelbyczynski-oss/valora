@@ -4544,9 +4544,15 @@ async function handleDocumentActionClick(event) {
   try {
     await deleteDocumentFromSupabase(document);
     documents = documents.filter((item) => item.id !== document.id);
+    transactions = transactions.map((transaction) =>
+      transaction.documentId === document.id
+        ? { ...transaction, documentId: "" }
+        : transaction,
+    );
+    localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(transactions));
     renderDocuments();
     renderPropertyDetail();
-    premium.documentMessage.textContent = "Document deleted.";
+    premium.documentMessage.textContent = "Document deleted. Linked expense records were kept.";
   } catch (error) {
     premium.documentMessage.textContent = error?.message || "Could not delete document.";
   } finally {
