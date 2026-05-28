@@ -83,6 +83,7 @@ const premium = {
   closePropertyModal: document.querySelector("#closePropertyModal"),
   propertyModal: document.querySelector("#propertyModal"),
   propertyForm: document.querySelector("#propertyForm"),
+  propertySearch: document.querySelector("#propertySearch"),
   propertyList: document.querySelector("#propertyList"),
   propertyDetailView: document.querySelector("#propertyDetailView"),
   propertyDetailPanel: document.querySelector("#propertyDetailPanel"),
@@ -1453,11 +1454,40 @@ function renderLandlordReport(property) {
   premium.landlordReport.replaceChildren(...sections);
 }
 
+function propertyMatchesSearch(property, search) {
+  if (!search) return true;
+  const tenancyText = (property.tenancies || [])
+    .flatMap((tenancy) => [
+      tenancy.tenantName,
+      tenancy.tenantContact,
+      ...(tenancy.tenants || []).flatMap((tenant) => [tenant.name, tenant.phone, tenant.email, tenant.previousAddress]),
+    ])
+    .join(" ");
+  return [
+    property.name,
+    property.addressLine1,
+    property.addressLine2,
+    property.town,
+    property.postcode,
+    property.region,
+    property.letType,
+    property.ownershipModel,
+    property.landlordName,
+    property.landlordRegistration,
+    tenancyText,
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(search);
+}
+
 function renderPremiumDashboard() {
   localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
   const totalValue = properties.reduce((sum, property) => sum + Number(property.currentValue || 0), 0);
   const totalDebt = properties.reduce((sum, property) => sum + latestMortgageDeal(property).balance, 0);
   const totalCashflow = properties.reduce((sum, property) => sum + propertyCashflow(property), 0);
+  const propertySearch = (premium.propertySearch?.value || "").trim().toLowerCase();
+  const visibleProperties = properties.filter((property) => propertyMatchesSearch(property, propertySearch));
 
   premium.portfolioCount.textContent =
     currentPlanCode() === "premium" ? `${Math.min(properties.length, PREMIUM_PROPERTY_LIMIT)}/${PREMIUM_PROPERTY_LIMIT}` : properties.length;
@@ -1468,7 +1498,7 @@ function renderPremiumDashboard() {
   premium.detailAddProperty.textContent = isPremiumAtPropertyLimit() ? "Upgrade for more properties" : "Add property";
 
   premium.propertyList.replaceChildren(
-    ...properties.map((property) => {
+    ...visibleProperties.map((property) => {
       const card = document.createElement("article");
       card.className = "property-card";
       card.setAttribute("role", "button");
@@ -1506,6 +1536,8 @@ function renderPremiumDashboard() {
 
   if (!properties.length) {
     premium.propertyList.innerHTML = `<p class="field-hint">No properties saved yet. Add your first property to start building the portfolio.</p>`;
+  } else if (!visibleProperties.length) {
+    premium.propertyList.innerHTML = `<p class="field-hint">No properties match this search.</p>`;
   }
 
   renderReminders();
@@ -4612,6 +4644,8 @@ premium.propertyModal.addEventListener("click", (event) => {
 premium.detailAddProperty.addEventListener("click", () => {
   openPropertyForm();
 });
+
+premium.propertySearch?.addEventListener("input", renderPremiumDashboard);
 
 premium.propertyList.addEventListener("click", (event) => {
   const card = event.target.closest("[data-property-id]");

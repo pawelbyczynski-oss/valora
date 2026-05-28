@@ -1019,6 +1019,12 @@ select {
   grid-row: span 2;
 }
 
+.property-search {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
 .subscription-card {
   grid-column: 1 / -1;
 }
