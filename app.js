@@ -47,6 +47,7 @@ const outputs = {
 const premium = {
   views: document.querySelectorAll(".app-view"),
   navButtons: document.querySelectorAll(".nav-button"),
+  sidebarItems: document.querySelectorAll("[data-sidebar-target]"),
   navAuthButton: document.querySelector("#navAuthButton"),
   premiumHero: document.querySelector(".premium-hero"),
   showLogin: document.querySelector("#showLogin"),
@@ -2170,6 +2171,23 @@ function openDashboard() {
   premium.dashboardPanel.hidden = false;
   switchDashboardTab("overview");
   renderPremiumDashboard();
+}
+
+function openPortfolioTarget(target = "overview") {
+  if (!hasPremiumAccess()) {
+    showSubscriptionRequired();
+    return;
+  }
+
+  const activePropertyForTarget = activeProperty();
+  if (["documents", "tenancies", "remortgages"].includes(target) && activePropertyForTarget) {
+    renderPropertyDetail(activePropertyForTarget.id);
+    switchPropertyDetailTab(target === "tenancies" ? "tenancies" : target);
+    return;
+  }
+
+  openDashboard();
+  switchDashboardTab(["overview", "properties", "transactions", "subscription", "account"].includes(target) ? target : "overview");
 }
 
 function restoreSavedLocation() {
@@ -4377,6 +4395,21 @@ premium.navButtons.forEach((button) => {
       refreshPlanContinueButton();
       trackEvent("premium_viewed");
     }
+  });
+});
+
+premium.sidebarItems.forEach((button) => {
+  button.addEventListener("click", async () => {
+    premium.sidebarItems.forEach((item) => item.classList.toggle("active", item === button));
+    const session = await getCurrentSession();
+    if (!session) {
+      switchView("loginView");
+      setAuthMode("signin");
+      premium.authMessage.textContent = "Sign in to open this portfolio section.";
+      premium.loginEmail.focus();
+      return;
+    }
+    openPortfolioTarget(button.dataset.sidebarTarget);
   });
 });
 
