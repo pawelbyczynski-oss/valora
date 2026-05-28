@@ -5,7 +5,15 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
 );
 
-Deno.serve(async () => {
+Deno.serve(async (request) => {
+  const cronSecret = Deno.env.get("REMINDER_CRON_SECRET");
+  const authHeader = request.headers.get("Authorization") || "";
+  const suppliedSecret = authHeader.replace(/^Bearer\s+/i, "");
+
+  if (!cronSecret || suppliedSecret !== cronSecret) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   const { data: reminders, error } = await supabase
     .from("reminders")
