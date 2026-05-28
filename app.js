@@ -2974,12 +2974,18 @@ async function savePropertyDocumentOrExpense(source = "documents") {
     return;
   }
 
+  if (payload.amount && !hasProAccess() && !payload.file) {
+    payload.message.textContent = "Manual expense tracking is included in PropertyPanel Pro.";
+    return;
+  }
+
   const submitButton = payload.form.querySelector("button[type='submit']");
   setButtonBusy(submitButton, true, "Saving...");
   payload.message.textContent = "Saving...";
 
   try {
     let savedDocument = null;
+    let savedExpense = false;
     if (payload.file) {
       savedDocument = await saveDocumentToSupabase(
         normalizeDocumentRecord({
@@ -2997,7 +3003,7 @@ async function savePropertyDocumentOrExpense(source = "documents") {
       if (!savedDocument) throw new Error("Could not save document.");
     }
 
-    if (payload.amount) {
+    if (payload.amount && hasProAccess()) {
       const transaction = normalizeTransactionRecord({
         propertyId: property.id,
         documentId: savedDocument?.id || "",
@@ -3006,26 +3012,30 @@ async function savePropertyDocumentOrExpense(source = "documents") {
         type: "expense",
         category: payload.category || payload.label || payload.documentType || "Expense",
         taxTreatment: "revenue",
-        source: savedDocument ? "document" : "manual",
+        source: savedDocument ? "pdf" : "manual",
         status: payload.paymentStatus === "paid" ? "approved" : "draft",
         notes: payload.notes || (savedDocument ? `Linked document: ${savedDocument.label}` : ""),
       });
       const savedId = await saveTransactionToSupabase(transaction);
       if (savedId) transaction.id = savedId;
       transactions = [transaction, ...transactions];
+      savedExpense = true;
     }
 
     payload.form.reset();
     if (premium.documentReminder && !hasProAccess()) premium.documentReminder.checked = false;
-    payload.message.textContent = payload.file && payload.amount
+    const successMessage = payload.file && savedExpense
       ? "Document and expense saved."
       : payload.file
-        ? "Document saved."
+        ? payload.amount
+          ? "Document saved. Upgrade to Pro to track the expense."
+          : "Document saved."
         : "Expense saved.";
     renderTransactions();
     renderDocuments();
     renderPropertyDetail();
     switchPropertyDetailTab(source === "expenses" ? "expenses" : "documents");
+    payload.message.textContent = successMessage;
   } catch (error) {
     payload.message.textContent = error?.message || "Could not save document or expense.";
   } finally {
@@ -3035,10 +3045,12 @@ async function savePropertyDocumentOrExpense(source = "documents") {
 
 async function deleteDocumentFromSupabase(document) {
   if (!supabaseClient || !isPersistedProperty(document)) return;
-  await supabaseClient.from("documents").delete().eq("id", document.id);
   if (document.storagePath) {
-    await supabaseClient.storage.from("property-documents").remove([document.storagePath]);
+    const { error: storageError } = await supabaseClient.storage.from("property-documents").remove([document.storagePath]);
+    if (storageError) throw storageError;
   }
+  const { error } = await supabaseClient.from("documents").delete().eq("id", document.id);
+  if (error) throw error;
 }
 
 async function openDocument(documentRecord, popupWindow = null) {
@@ -3478,9 +3490,14 @@ async function deletePortfolioData() {
     localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(transactions));
     localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
     localStorage.removeItem(ACTIVE_PROPERTY_STORAGE_KEY);
+    premium.propertyDetailPanel.hidden = true;
+    premium.propertyModal.hidden = true;
+    switchView("dashboardView");
+    premium.dashboardPanel.hidden = false;
+    switchDashboardTab("overview");
+    saveUiState({ viewId: "dashboardView", dashboardTab: "overview", activePropertyId: null, propertyDetailTab: "overview" });
     renderPremiumDashboard();
     premium.privacyMessage.textContent = "Portfolio data deleted. Billing and login details were not removed.";
-    switchDashboardTab("overview");
   } catch (error) {
     premium.privacyMessage.textContent = error?.message || "Could not delete portfolio data.";
   } finally {
@@ -4427,10 +4444,20 @@ async function handleDocumentActionClick(event) {
   const confirmed = window.confirm(`Delete ${document.label}? This removes the file from the vault.`);
   if (!confirmed) return;
 
-  await deleteDocumentFromSupabase(document);
-  documents = documents.filter((item) => item.id !== document.id);
-  premium.documentMessage.textContent = "Document deleted.";
-  renderDocuments();
+  setButtonBusy(deleteButton, true, "Deleting...");
+  premium.documentMessage.textContent = "Deleting document...";
+
+  try {
+    await deleteDocumentFromSupabase(document);
+    documents = documents.filter((item) => item.id !== document.id);
+    renderDocuments();
+    renderPropertyDetail();
+    premium.documentMessage.textContent = "Document deleted.";
+  } catch (error) {
+    premium.documentMessage.textContent = error?.message || "Could not delete document.";
+  } finally {
+    setButtonBusy(deleteButton, false);
+  }
 }
 
 premium.documentList.addEventListener("click", handleDocumentActionClick);
