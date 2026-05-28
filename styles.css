@@ -1417,6 +1417,11 @@ select {
   background: #f8fbfa;
 }
 
+#invoiceList > div {
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  max-width: 100%;
+}
+
 .document-row-head {
   background: transparent !important;
   border: 0 !important;
