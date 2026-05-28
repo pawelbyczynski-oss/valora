@@ -136,6 +136,7 @@ const premium = {
   propertyReportFilters: document.querySelector("#propertyReportFilters"),
   propertyReportFrom: document.querySelector("#propertyReportFrom"),
   propertyReportTo: document.querySelector("#propertyReportTo"),
+  propertyReportSearch: document.querySelector("#propertyReportSearch"),
   reportIncludeRent: document.querySelector("#reportIncludeRent"),
   reportIncludeMortgage: document.querySelector("#reportIncludeMortgage"),
   reportIncludeExpenses: document.querySelector("#reportIncludeExpenses"),
@@ -1157,6 +1158,14 @@ function propertyTransactionsForRange(property, startDate, endDate) {
   );
 }
 
+function transactionMatchesSearch(transaction, search) {
+  if (!search) return true;
+  return [transaction.category, transaction.notes, transaction.source, transaction.taxTreatment, transaction.status]
+    .join(" ")
+    .toLowerCase()
+    .includes(search);
+}
+
 function filteredPropertyTransactions(property) {
   ensurePropertyDetailFilterDefaults();
 
@@ -1169,13 +1178,7 @@ function filteredPropertyTransactions(property) {
   return propertyTransactionsForRange(property, startDate, endDate)
     .filter((transaction) => type === "all" || transaction.type === type)
     .filter((transaction) => status === "all" || transaction.status === status)
-    .filter((transaction) => {
-      if (!search) return true;
-      return [transaction.category, transaction.notes, transaction.source, transaction.taxTreatment, transaction.status]
-        .join(" ")
-        .toLowerCase()
-        .includes(search);
-    })
+    .filter((transaction) => transactionMatchesSearch(transaction, search))
     .sort((a, b) => dateValue(b.date) - dateValue(a.date));
 }
 
@@ -1316,14 +1319,16 @@ function renderLandlordReport(property) {
   const includeMortgage = premium.reportIncludeMortgage?.checked !== false;
   const includeExpenses = premium.reportIncludeExpenses?.checked !== false;
   const includeTenancies = premium.reportIncludeTenancies?.checked !== false;
-  const propertyTransactions = propertyTransactionsForRange(property, startDate, endDate);
-  const rentReceived = propertyTransactions
+  const reportSearch = (premium.propertyReportSearch?.value || "").trim().toLowerCase();
+  const reportTransactions = propertyTransactionsForRange(property, startDate, endDate)
+    .filter((transaction) => transactionMatchesSearch(transaction, reportSearch));
+  const rentReceived = reportTransactions
     .filter((transaction) => transaction.type === "income")
     .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const expenseTotal = propertyTransactions
+  const expenseTotal = reportTransactions
     .filter((transaction) => transaction.type === "expense")
     .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const repairCharges = propertyTransactions
+  const repairCharges = reportTransactions
     .filter((transaction) => {
       const category = transaction.category.toLowerCase();
       return transaction.type === "expense" && (category.includes("repair") || category.includes("maintenance"));
@@ -1384,7 +1389,7 @@ function renderLandlordReport(property) {
 
   const transactionList = document.createElement("div");
   transactionList.className = "document-list landlord-report-lines";
-  const relevantTransactions = propertyTransactions.filter(
+  const relevantTransactions = reportTransactions.filter(
     (transaction) => {
       const category = transaction.category.toLowerCase();
       if (includeRent && transaction.type === "income") return true;
@@ -1416,8 +1421,15 @@ function renderLandlordReport(property) {
   if (includeTenancies) {
     const tenancyList = document.createElement("div");
     tenancyList.className = "document-list landlord-report-lines";
-    if ((property.tenancies || []).length) {
-      property.tenancies.forEach((tenancy) => {
+    const visibleTenancies = (property.tenancies || []).filter((tenancy) => {
+      if (!reportSearch) return true;
+      return [tenancy.tenantName, tenancy.tenantPhone, tenancy.tenantEmail, tenancy.tenantPreviousAddress, tenancy.notes]
+        .join(" ")
+        .toLowerCase()
+        .includes(reportSearch);
+    });
+    if (visibleTenancies.length) {
+      visibleTenancies.forEach((tenancy) => {
         const item = document.createElement("div");
         const label = document.createElement("span");
         const value = document.createElement("strong");
