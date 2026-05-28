@@ -2620,7 +2620,9 @@ function renderAdminPromos(promos = []) {
 async function loadAdminOverview() {
   if (!supabaseClient) return;
 
-  const { data, error } = await supabaseClient.rpc("get_admin_overview");
+  const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+    body: { action: "admin-overview" },
+  });
   if (error || !data) {
     premium.adminNav.hidden = true;
     return;
@@ -2665,12 +2667,15 @@ async function createAdminPromoCode() {
 
   premium.adminPromoMessage.textContent = "Creating promo code...";
 
-  const { data, error } = await supabaseClient.rpc("create_admin_promo_code", {
-    input_code: code,
-    input_max_redemptions: maxRedemptions,
-    input_expires_at: expiresAt,
-    input_free_months: duration === "infinity" ? 0 : Number(duration),
-    input_lifetime_access: duration === "infinity",
+  const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+    body: {
+      action: "create-admin-promo",
+      code,
+      max_redemptions: maxRedemptions,
+      expires_at: expiresAt,
+      free_months: duration === "infinity" ? 0 : Number(duration),
+      lifetime_access: duration === "infinity",
+    },
   });
 
   if (error || !data?.success) {
@@ -2688,8 +2693,8 @@ async function deactivateAdminPromoCode(code) {
   if (!supabaseClient || !code) return;
 
   premium.adminPromoMessage.textContent = `Deactivating ${code}...`;
-  const { data, error } = await supabaseClient.rpc("deactivate_admin_promo_code", {
-    input_code: code,
+  const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+    body: { action: "deactivate-admin-promo", code },
   });
 
   if (error || !data?.success) {
@@ -3834,8 +3839,8 @@ async function redeemPromoCode(code, messageTarget = premium.promoMessage) {
     return;
   }
 
-  const { data, error } = await supabaseClient.rpc("redeem_promo_code", {
-    input_code: normalizedCode,
+  const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+    body: { action: "redeem-promo", code: normalizedCode },
   });
 
   if (error || !data?.accepted) {
