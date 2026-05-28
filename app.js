@@ -3198,19 +3198,6 @@ async function openDocument(documentRecord, popupWindow = null) {
     return;
   }
   premium.documentMessage.textContent = "Opening document...";
-  if (popupWindow && !popupWindow.closed) {
-    popupWindow.document.open();
-    popupWindow.document.write(`
-      <!doctype html>
-      <html>
-        <head><title>Opening document</title></head>
-        <body style="font-family: sans-serif; padding: 16px;">
-          <p>Opening document...</p>
-        </body>
-      </html>
-    `);
-    popupWindow.document.close();
-  }
   const { data, error } = await supabaseClient.storage
     .from("property-documents")
     .createSignedUrl(documentRecord.storagePath, 300);
@@ -3234,19 +3221,6 @@ async function openDocument(documentRecord, popupWindow = null) {
 
   if (popupWindow && !popupWindow.closed) {
     try {
-      popupWindow.opener = null;
-      popupWindow.document.open();
-      popupWindow.document.write(`
-        <!doctype html>
-        <html>
-          <head><title>Open document</title></head>
-          <body style="font-family: sans-serif; padding: 16px;">
-            <p>Opening document...</p>
-            <p>If this tab stays blank, use the secure link shown in PropertyPanel.</p>
-          </body>
-        </html>
-      `);
-      popupWindow.document.close();
       popupWindow.location.replace(data.signedUrl);
       showOpenLink("Document opened in a new tab. If it stays blank,");
       return;
@@ -3255,15 +3229,8 @@ async function openDocument(documentRecord, popupWindow = null) {
     }
   }
 
-  const link = window.document.createElement("a");
-  link.href = data.signedUrl;
-  link.target = "_blank";
-  link.rel = "noreferrer";
-  link.textContent = "Open document";
-  window.document.body.append(link);
-  link.click();
-  link.remove();
-  showOpenLink("Document ready:");
+  const openedWindow = window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  showOpenLink(openedWindow ? "Document opened in a new tab. If it stays blank," : "Document ready:");
 }
 
 async function saveTenancyToSupabase(property, tenancy) {
@@ -4608,9 +4575,7 @@ async function handleDocumentActionClick(event) {
   if (downloadButton) {
     event.preventDefault();
     const documentRecord = documents.find((item) => item.id === downloadButton.dataset.downloadDocument);
-    const popupWindow = documentRecord ? window.open("about:blank", "_blank") : null;
-    if (documentRecord) await openDocument(documentRecord, popupWindow);
-    if (!documentRecord && popupWindow && !popupWindow.closed) popupWindow.close();
+    if (documentRecord) await openDocument(documentRecord);
     return;
   }
 
