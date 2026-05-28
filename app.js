@@ -3136,10 +3136,35 @@ async function openDocument(documentRecord, popupWindow = null) {
     return;
   }
 
+  const showOpenLink = (message) => {
+    premium.documentMessage.replaceChildren();
+    premium.documentMessage.append(`${message} `);
+    const fallbackLink = document.createElement("a");
+    fallbackLink.className = "inline-link";
+    fallbackLink.href = data.signedUrl;
+    fallbackLink.target = "_blank";
+    fallbackLink.rel = "noreferrer";
+    fallbackLink.textContent = "Open file";
+    premium.documentMessage.append(fallbackLink);
+  };
+
   if (popupWindow && !popupWindow.closed) {
     try {
-      popupWindow.location.assign(data.signedUrl);
-      premium.documentMessage.innerHTML = `Document opened in a new tab. If it stays blank, <a class="inline-link" href="${data.signedUrl}" target="_blank" rel="noopener">open file</a>.`;
+      popupWindow.opener = null;
+      popupWindow.document.open();
+      popupWindow.document.write(`
+        <!doctype html>
+        <html>
+          <head><title>Open document</title></head>
+          <body style="font-family: sans-serif; padding: 16px;">
+            <p>Opening document...</p>
+            <p>If this tab stays blank, use the secure link shown in PropertyPanel.</p>
+          </body>
+        </html>
+      `);
+      popupWindow.document.close();
+      popupWindow.location.replace(data.signedUrl);
+      showOpenLink("Document opened in a new tab. If it stays blank,");
       return;
     } catch (error) {
       popupWindow.close();
@@ -3154,7 +3179,7 @@ async function openDocument(documentRecord, popupWindow = null) {
   window.document.body.append(link);
   link.click();
   link.remove();
-  premium.documentMessage.innerHTML = `Document ready: <a class="inline-link" href="${data.signedUrl}" target="_blank" rel="noreferrer">open file</a>.`;
+  showOpenLink("Document ready:");
 }
 
 async function saveTenancyToSupabase(property, tenancy) {
