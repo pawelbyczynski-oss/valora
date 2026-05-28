@@ -22,7 +22,7 @@ http://localhost:4173
 This is currently a static HTML/CSS/JS app. In Vercel:
 
 - Framework preset: `Other`
-- Build command: leave empty
+- Build command: `npm run build`
 - Output directory: `.`
 
 Production URL:
@@ -35,7 +35,7 @@ https://valora-property-os.vercel.app
 
 See `.env.example`.
 
-For the current static prototype, only public values are useful. Secret keys must stay server-side when the app is migrated to Next.js/API routes or Supabase Edge Functions.
+Public Supabase values are built into `config.js` during deploy. Secret keys must stay server-side in Supabase Edge Function secrets or Vercel environment variables.
 
 ## Live SaaS plan
 
