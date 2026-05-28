@@ -6,14 +6,19 @@ const stripe = new Stripe(stripeSecretKey ?? "", {
   apiVersion: "2024-06-20",
 });
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function response(body: unknown, status = 200) {
-  return Response.json(body, { status, headers: corsHeaders });
+function corsHeadersFor(request: Request) {
+  const origin = request.headers.get("Origin") || "";
+  const allowedOrigins = (Deno.env.get("APP_ALLOWED_ORIGINS") || Deno.env.get("APP_BASE_URL") || "https://valora-property-os.vercel.app")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const allowOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+  };
 }
 
 async function upsertSubscription(
@@ -52,6 +57,8 @@ async function upsertSubscription(
 }
 
 Deno.serve(async (request) => {
+  const corsHeaders = corsHeadersFor(request);
+  const response = (body: unknown, status = 200) => Response.json(body, { status, headers: corsHeaders });
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
