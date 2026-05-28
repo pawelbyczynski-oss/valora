@@ -1317,6 +1317,66 @@ select {
   border-left-color: var(--gold);
 }
 
+.reminder-list .reminder-item {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) 82px;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 0 10px 12px;
+}
+
+.reminder-type {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.reminder-item strong,
+.reminder-item small,
+.reminder-item time {
+  display: block;
+}
+
+.reminder-item strong {
+  color: var(--ink);
+  font-size: 0.86rem;
+}
+
+.reminder-item small {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.reminder-item time {
+  color: var(--gold);
+  font-size: 0.76rem;
+  font-weight: 850;
+  text-align: right;
+}
+
+.reminder-overdue {
+  border-left-color: var(--red) !important;
+}
+
+.reminder-due,
+.reminder-one-week {
+  border-left-color: var(--gold) !important;
+}
+
+.reminder-one-month,
+.reminder-three-months,
+.reminder-rent {
+  border-left-color: var(--green) !important;
+}
+
 .document-list {
   display: grid;
   gap: 8px;

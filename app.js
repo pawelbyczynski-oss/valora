@@ -1941,21 +1941,67 @@ function daysUntilDate(date) {
   return Math.ceil((date - todayMidday) / 86400000);
 }
 
-function addDatedReminder(reminders, date, label, action) {
-  const days = daysUntil(date);
-  if (!Number.isFinite(days)) return;
+function reminderStage(days) {
+  if (!Number.isFinite(days)) return null;
+  if (days < 0) return { key: "overdue", label: "Overdue", rank: 0 };
+  if (days === 0) return { key: "due", label: "Due today", rank: 1 };
+  if (days <= 7) return { key: "one-week", label: "1 week", rank: 2 };
+  if (days <= 31) return { key: "one-month", label: "1 month", rank: 3 };
+  if (days <= 93) return { key: "three-months", label: "3 months", rank: 4 };
+  return null;
+}
 
-  if (days < 0) {
-    reminders.push(`${label} expired ${Math.abs(days)} days ago. ${action}`);
-  } else if (days === 0) {
-    reminders.push(`${label} expires today. ${action}`);
-  } else if (days <= 7) {
-    reminders.push(`${label} expires in ${days} days. ${action}`);
-  } else if (days <= 31) {
-    reminders.push(`${label} expires within 1 month. ${action}`);
-  } else if (days <= 93) {
-    reminders.push(`${label} expires within 3 months. ${action}`);
-  }
+function duePhrase(days) {
+  if (!Number.isFinite(days)) return "date not set";
+  if (days < 0) return `${Math.abs(days)} day${Math.abs(days) === 1 ? "" : "s"} overdue`;
+  if (days === 0) return "due today";
+  if (days === 1) return "due tomorrow";
+  return `due in ${days} days`;
+}
+
+function addReminderRecord(reminders, { type, property, title, detail, dueDate, amount = null }) {
+  const days = typeof dueDate === "string" ? daysUntil(dueDate) : daysUntilDate(dueDate);
+  const stage = reminderStage(days);
+  if (!stage) return;
+
+  const dueDateString = typeof dueDate === "string" ? dueDate : dateInputValue(dueDate);
+  reminders.push({
+    type,
+    stage: stage.key,
+    stageLabel: stage.label,
+    rank: stage.rank,
+    days,
+    propertyName: property?.name || "",
+    title,
+    detail,
+    amount,
+    dueDate: dueDateString,
+  });
+}
+
+function renderReminderItem(reminder) {
+  const item = document.createElement("li");
+  item.className = `reminder-item reminder-${reminder.stage}`;
+  const type = document.createElement("span");
+  type.className = "reminder-type";
+  type.textContent = reminder.type;
+
+  const copy = document.createElement("div");
+  const title = document.createElement("strong");
+  title.textContent = reminder.title;
+  const detail = document.createElement("small");
+  detail.textContent = reminder.detail;
+  copy.append(title, detail);
+
+  const due = document.createElement("time");
+  due.dateTime = reminder.dueDate;
+  due.textContent = reminder.stageLabel;
+  const dateLabel = document.createElement("small");
+  dateLabel.textContent = formatDate(reminder.dueDate);
+  due.append(dateLabel);
+
+  item.append(type, copy, due);
+  return item;
 }
 
 function renderReminders() {
@@ -1969,65 +2015,62 @@ function renderReminders() {
   const reminders = [];
 
   properties.forEach((property) => {
-    const expiryDays = daysUntil(latestMortgageDeal(property).expiryDate);
-    if (Number.isFinite(expiryDays)) {
-      if (expiryDays < 0) {
-        reminders.push(`Mortgage deal for ${property.name} expired ${Math.abs(expiryDays)} days ago. Review immediately.`);
-      } else if (expiryDays <= 7) {
-        reminders.push(`Mortgage deal for ${property.name} expires in ${expiryDays} days. Review remortgage options now.`);
-      } else if (expiryDays <= 31) {
-        reminders.push(`Mortgage deal for ${property.name} expires within 1 month. Start remortgage checks.`);
-      } else if (expiryDays <= 93) {
-        reminders.push(`Mortgage deal for ${property.name} expires within 3 months. Prepare remortgage options.`);
-      }
-    }
+    const mortgageDeal = latestMortgageDeal(property);
+    addReminderRecord(reminders, {
+      type: "Mortgage",
+      property,
+      title: `${property.name} mortgage product`,
+      detail: `${duePhrase(daysUntil(mortgageDeal.expiryDate))}. Review remortgage options and lender notes.`,
+      dueDate: mortgageDeal.expiryDate,
+    });
+
     if (property.rentReminder === "On") {
       const dueDate = nextRentDueDate(property.rentDueDay);
       const rentDays = daysUntilDate(dueDate);
-      const dueText =
-        rentDays === 0
-          ? "due today"
-          : rentDays === 1
-            ? "due tomorrow"
-            : `due in ${rentDays} days`;
-      reminders.push(
-        `Rent ${dueText} (${formatDate(dueDate.toISOString().slice(0, 10))}) for ${property.name}: check ${money.format(property.rent)} payment.`,
-      );
+      reminders.push({
+        type: "Rent",
+        stage: rentDays <= 1 ? "due" : rentDays <= 7 ? "one-week" : "rent",
+        stageLabel: rentDays <= 1 ? (rentDays === 0 ? "Due today" : "Tomorrow") : "Rent due",
+        rank: rentDays <= 1 ? 1 : rentDays <= 7 ? 2 : 5,
+        days: rentDays,
+        propertyName: property.name,
+        title: `${property.name} rent payment`,
+        detail: `${duePhrase(rentDays)}. Check ${money.format(property.rent)} payment.`,
+        amount: property.rent,
+        dueDate: dateInputValue(dueDate),
+      });
     }
+
     (property.tenancies || []).forEach((tenancy) => {
-      addDatedReminder(
-        reminders,
-        tenancy.endDate,
-        `Tenancy for ${property.name}${tenancy.tenantName ? ` (${tenancy.tenantName})` : ""}`,
-        "Review renewal or move-out steps.",
-      );
+      addReminderRecord(reminders, {
+        type: "Tenancy",
+        property,
+        title: `Tenancy ending${tenancy.tenantName ? `: ${tenancy.tenantName}` : ""}`,
+        detail: `${duePhrase(daysUntil(tenancy.endDate))}. Review renewal, notice or move-out steps for ${property.name}.`,
+        dueDate: tenancy.endDate,
+      });
     });
+
     documents
       .filter((document) => document.propertyId === property.id && document.reminderEnabled)
       .forEach((document) => {
-        addDatedReminder(
-          reminders,
-          document.expiryDate,
-          `${document.documentType} for ${property.name}`,
-          "Upload a replacement or update the expiry date.",
-        );
+        addReminderRecord(reminders, {
+          type: "Document",
+          property,
+          title: `${document.documentType} expiry`,
+          detail: `${duePhrase(daysUntil(document.expiryDate))}. Upload a replacement or update the expiry date for ${property.name}.`,
+          dueDate: document.expiryDate,
+        });
       });
-    if (property.region === "Scotland" && property.letType === "Long-term let") {
-      reminders.push(`Scottish tenancy pack ready for ${property.name}: landlord registration, deposit scheme and tenant details can feed the official agreement checklist.`);
-    }
   });
 
-  premium.reminderList.replaceChildren(
-    ...reminders.slice(0, 8).map((text) => {
-      const item = document.createElement("li");
-      item.textContent = text;
-      return item;
-    }),
-  );
+  reminders.sort((a, b) => a.rank - b.rank || a.days - b.days || a.propertyName.localeCompare(b.propertyName));
+
+  premium.reminderList.replaceChildren(...reminders.slice(0, 10).map(renderReminderItem));
 
   if (!reminders.length) {
     const item = document.createElement("li");
-    item.textContent = "No urgent reminders. Mortgage and rent alerts will appear here when dates are close.";
+    item.textContent = "No urgent reminders. Mortgage, rent, tenancy and certificate alerts will appear here when dates are close.";
     premium.reminderList.replaceChildren(item);
   }
 }
