@@ -78,7 +78,6 @@ const premium = {
   deletePortfolioData: document.querySelector("#deletePortfolioData"),
   privacyMessage: document.querySelector("#privacyMessage"),
   dashboardPanel: document.querySelector("#dashboardPanel"),
-  providerButtons: document.querySelectorAll("[data-login-provider]"),
   openPropertyModal: document.querySelector("#openPropertyModal"),
   logoutButton: document.querySelector("#logoutButton"),
   closePropertyModal: document.querySelector("#closePropertyModal"),
@@ -4430,17 +4429,6 @@ document.querySelectorAll("[data-plan]").forEach((button) => {
     document.querySelector("#purchasePanel").scrollIntoView({ behavior: "smooth", block: "center" });
     await refreshPlanContinueButton();
     trackEvent("plan_selected", { plan: selectedPlan });
-  });
-});
-
-premium.providerButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    trackEvent("login_started", { provider: button.dataset.loginProvider });
-    setAuthMode("signup");
-    premium.authMessage.textContent = supabaseClient
-      ? "Create an account or sign in with email and password."
-      : "Supabase is not configured yet. Add your public Supabase URL and publishable key to config.js.";
-    premium.loginEmail.focus();
   });
 });
 

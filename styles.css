@@ -96,8 +96,7 @@ select {
 }
 
 .nav-button,
-.secondary-button,
-.provider-button {
+.secondary-button {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
@@ -740,7 +739,6 @@ select {
 :root[data-theme="dark"] .nav-actions,
 :root[data-theme="dark"] .nav-button,
 :root[data-theme="dark"] .secondary-button,
-:root[data-theme="dark"] .provider-button,
 :root[data-theme="dark"] .email-login,
 :root[data-theme="dark"] .promo-form,
 :root[data-theme="dark"] .account-password-form,
@@ -807,12 +805,6 @@ select {
   gap: 14px;
 }
 
-.login-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-}
-
 .email-login,
 .promo-form,
 .account-password-form,
@@ -852,10 +844,6 @@ select {
   border-color: rgba(15, 118, 110, 0.55);
   background: rgba(15, 118, 110, 0.1);
   color: var(--mint);
-}
-
-.provider-button {
-  min-height: 52px;
 }
 
 .dashboard-shell {
@@ -2372,7 +2360,6 @@ li {
   .input-grid,
   .metrics-grid,
   .comparison-table div,
-  .login-grid,
   .workspace-header,
   .dashboard-stats,
   .preview-property,
