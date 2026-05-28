@@ -2308,7 +2308,7 @@ function renderInvoices(invoices = []) {
   if (!premium.invoiceList) return;
 
   if (!invoices.length) {
-    premium.invoiceList.innerHTML = `<div><span>No invoices yet</span><strong>Stripe pending</strong></div>`;
+    premium.invoiceList.innerHTML = `<div><span>No invoices yet</span><strong>Available after first payment</strong></div>`;
     return;
   }
 
@@ -2437,8 +2437,7 @@ async function loadSubscriptionSummary() {
 
   if (!user) return;
 
-  const { data: adminAccess } = await supabaseClient.rpc("current_user_is_admin");
-  isAdminUser = adminAccess === true;
+  await loadAdminOverview();
   if (isAdminUser) {
     renderSubscriptionFallback();
   }
@@ -2659,16 +2658,18 @@ function renderAdminPromos(promos = []) {
 }
 
 async function loadAdminOverview() {
-  if (!supabaseClient) return;
+  if (!supabaseClient) return false;
 
   const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
     body: { action: "admin-overview" },
   });
   if (error || !data) {
+    isAdminUser = false;
     premium.adminNav.hidden = true;
-    return;
+    return false;
   }
 
+  isAdminUser = true;
   premium.adminNav.hidden = false;
   premium.adminUsers.textContent = data.totals?.users ?? 0;
   premium.adminSubscriptions.textContent = data.totals?.active_subscriptions ?? 0;
@@ -2691,6 +2692,7 @@ async function loadAdminOverview() {
     ["User", "email"],
   ]);
   renderAdminPromos(data.promo_codes || []);
+  return true;
 }
 
 async function createAdminPromoCode() {
