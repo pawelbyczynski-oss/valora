@@ -1524,8 +1524,22 @@ function propertyDisplayNameFromAddress() {
 }
 
 function updateOperatorFieldsVisibility() {
-  const showOperatorFields = premium.propertyOwnershipModel?.value !== "Owned";
-  premium.propertyOperatorNote.hidden = !showOperatorFields;
+  const selectedModel = premium.propertyOwnershipModel?.value || "Owned";
+  const wantsOperatorFields = selectedModel !== "Owned";
+  const showOperatorFields = wantsOperatorFields && hasProAccess();
+  premium.propertyOperatorNote.hidden = !wantsOperatorFields;
+  if (premium.propertyOperatorNote) {
+    const title = premium.propertyOperatorNote.querySelector("span");
+    const copy = premium.propertyOperatorNote.querySelector("p");
+    if (title && copy) {
+      title.textContent = hasProAccess()
+        ? "Rent-to-rent / managed setup"
+        : "Pro workflow";
+      copy.textContent = hasProAccess()
+        ? "Use these fields only when you pay the owner a guaranteed rent or manage repairs under a separate maintenance arrangement."
+        : "Rent-to-rent and managed property fields are included in PropertyPanel Pro.";
+    }
+  }
   premium.propertyOperatorFields.forEach((field) => {
     field.hidden = !showOperatorFields;
   });
