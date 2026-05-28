@@ -939,9 +939,9 @@ function tenancyDocumentsPayload(tenancy) {
   return [...(tenancy.documents || []), `${TENANCY_META_PREFIX}${JSON.stringify(metadata)}`];
 }
 
-function documentActionButtons(document) {
+function documentActionButtons(documentRecord) {
   return `
-    <button class="secondary-button small-button" type="button" data-download-document="${document.id}">Open</button>
+    <button class="secondary-button small-button" type="button" data-download-document="${documentRecord.id}">Open</button>
   `;
 }
 
@@ -2174,6 +2174,7 @@ function openDashboard() {
 
 function restoreSavedLocation() {
   const state = readUiState();
+
   if (state.viewId === "propertyDetailView" && state.activePropertyId) {
     const propertyExists = properties.some((property) => property.id === state.activePropertyId);
     if (propertyExists) {
@@ -2184,6 +2185,20 @@ function restoreSavedLocation() {
       switchView("propertyDetailView");
       return true;
     }
+  }
+
+  if (state.viewId === "dashboardView" || !state.viewId) {
+    openDashboard();
+    switchDashboardTab(state.dashboardTab || "overview");
+    return true;
+  }
+
+  if (["homeView", "premiumView", "loginView", "adminView"].includes(state.viewId)) {
+    premium.propertyDetailPanel.hidden = true;
+    premium.dashboardPanel.hidden = true;
+    switchView(state.viewId);
+    if (state.viewId === "premiumView") refreshPlanContinueButton();
+    return true;
   }
 
   openDashboard();
@@ -4554,10 +4569,10 @@ async function handleDocumentActionClick(event) {
   const downloadButton = event.target.closest("[data-download-document]");
   if (downloadButton) {
     event.preventDefault();
-    const document = documents.find((item) => item.id === downloadButton.dataset.downloadDocument);
-    const popupWindow = document ? window.open("about:blank", "_blank") : null;
-    if (document) await openDocument(document, popupWindow);
-    if (!document && popupWindow && !popupWindow.closed) popupWindow.close();
+    const documentRecord = documents.find((item) => item.id === downloadButton.dataset.downloadDocument);
+    const popupWindow = documentRecord ? window.open("about:blank", "_blank") : null;
+    if (documentRecord) await openDocument(documentRecord, popupWindow);
+    if (!documentRecord && popupWindow && !popupWindow.closed) popupWindow.close();
     return;
   }
 
@@ -4565,19 +4580,19 @@ async function handleDocumentActionClick(event) {
   if (!deleteButton) return;
   event.preventDefault();
 
-  const document = documents.find((item) => item.id === deleteButton.dataset.deleteDocument);
-  if (!document) return;
-  const confirmed = window.confirm(`Delete ${document.label}? This removes the file from the vault.`);
+  const documentRecord = documents.find((item) => item.id === deleteButton.dataset.deleteDocument);
+  if (!documentRecord) return;
+  const confirmed = window.confirm(`Delete ${documentRecord.label}? This removes the file from the vault.`);
   if (!confirmed) return;
 
   setButtonBusy(deleteButton, true, "Deleting...");
   premium.documentMessage.textContent = "Deleting document...";
 
   try {
-    await deleteDocumentFromSupabase(document);
-    documents = documents.filter((item) => item.id !== document.id);
+    await deleteDocumentFromSupabase(documentRecord);
+    documents = documents.filter((item) => item.id !== documentRecord.id);
     transactions = transactions.map((transaction) =>
-      transaction.documentId === document.id
+      transaction.documentId === documentRecord.id
         ? { ...transaction, documentId: "" }
         : transaction,
     );

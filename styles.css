@@ -1631,12 +1631,21 @@ select {
 
 .property-detail-shell {
   min-height: calc(100vh - 120px);
-  grid-template-columns: 212px minmax(0, 1fr);
+  grid-template-columns: minmax(184px, 212px) minmax(0, 1fr);
+  column-gap: 28px;
+}
+
+.property-detail-shell > .dashboard-head,
+.property-detail-shell > .property-detail-panel {
+  min-width: 0;
 }
 
 .property-detail-shell > .section-tabs {
+  align-self: start;
+  max-width: 212px;
   width: 100%;
   min-width: 0;
+  z-index: 3;
 }
 
 .property-detail-shell > .section-tabs .section-tab {
