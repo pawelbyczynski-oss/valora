@@ -73,6 +73,9 @@ const premium = {
   accountPasswordForm: document.querySelector("#accountPasswordForm"),
   accountPassword: document.querySelector("#accountPassword"),
   accountPasswordMessage: document.querySelector("#accountPasswordMessage"),
+  exportAccountData: document.querySelector("#exportAccountData"),
+  deletePortfolioData: document.querySelector("#deletePortfolioData"),
+  privacyMessage: document.querySelector("#privacyMessage"),
   dashboardPanel: document.querySelector("#dashboardPanel"),
   providerButtons: document.querySelectorAll("[data-login-provider]"),
   openPropertyModal: document.querySelector("#openPropertyModal"),
@@ -602,6 +605,16 @@ function downloadTransactionsCsv(rows, fileName) {
   ].join("\n");
 
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadJson(payload, fileName) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -3380,6 +3393,101 @@ async function updateDashboardPassword() {
   }
 }
 
+function buildAccountExportPayload(userId = null) {
+  return {
+    exportedAt: new Date().toISOString(),
+    account: {
+      userId,
+      subscription: currentSubscription
+        ? {
+            plan: currentPlanCode(),
+            status: currentSubscription.status || "unknown",
+            nextRenewal: currentSubscription.current_period_end || currentSubscription.currentPeriodEnd || null,
+          }
+        : null,
+    },
+    properties,
+    transactions,
+    documents: documents.map((documentRecord) => ({
+      id: documentRecord.id,
+      propertyId: documentRecord.propertyId,
+      label: documentRecord.label,
+      documentType: documentRecord.documentType,
+      fileName: documentRecord.fileName,
+      fileSize: documentRecord.fileSize,
+      mimeType: documentRecord.mimeType,
+      expiryDate: documentRecord.expiryDate,
+      reminderEnabled: documentRecord.reminderEnabled,
+      paymentStatus: documentRecord.paymentStatus,
+      createdAt: documentRecord.createdAt,
+    })),
+  };
+}
+
+async function exportAccountData() {
+  const {
+    data: { user },
+  } = supabaseClient ? await supabaseClient.auth.getUser() : { data: { user: null } };
+
+  downloadJson(buildAccountExportPayload(user?.id || null), `propertypanel-data-${new Date().toISOString().slice(0, 10)}.json`);
+  premium.privacyMessage.textContent = "Portfolio data export downloaded.";
+}
+
+async function deletePortfolioData() {
+  const firstConfirm = window.confirm(
+    "Delete all portfolio data for this account? This removes properties, documents and transactions, but keeps billing records.",
+  );
+  if (!firstConfirm) return;
+
+  const secondConfirm = window.confirm("This cannot be undone. Do you want to permanently delete the portfolio data?");
+  if (!secondConfirm) return;
+
+  const button = premium.deletePortfolioData;
+  setButtonBusy(button, true, "Deleting...");
+  premium.privacyMessage.textContent = "Deleting portfolio data...";
+
+  try {
+    const {
+      data: { user },
+    } = supabaseClient ? await supabaseClient.auth.getUser() : { data: { user: null } };
+
+    if (supabaseClient && user) {
+      const storagePaths = documents
+        .map((documentRecord) => documentRecord.storagePath)
+        .filter(Boolean);
+      if (storagePaths.length) {
+        const { error: storageError } = await supabaseClient.storage.from("property-documents").remove(storagePaths);
+        if (storageError) throw storageError;
+      }
+
+      const { error: transactionDeleteError } = await supabaseClient.from("property_transactions").delete().eq("user_id", user.id);
+      if (transactionDeleteError) throw transactionDeleteError;
+
+      const { error: documentDeleteError } = await supabaseClient.from("documents").delete().eq("user_id", user.id);
+      if (documentDeleteError) throw documentDeleteError;
+
+      const { error: propertyDeleteError } = await supabaseClient.from("properties").delete().eq("user_id", user.id);
+      if (propertyDeleteError) throw propertyDeleteError;
+    }
+
+    properties = [];
+    transactions = [];
+    documents = [];
+    activePropertyId = null;
+    localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
+    localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(transactions));
+    localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
+    localStorage.removeItem(ACTIVE_PROPERTY_STORAGE_KEY);
+    renderPremiumDashboard();
+    premium.privacyMessage.textContent = "Portfolio data deleted. Billing and login details were not removed.";
+    switchDashboardTab("overview");
+  } catch (error) {
+    premium.privacyMessage.textContent = error?.message || "Could not delete portfolio data.";
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
 function switchSection(buttons, panels, activeKey, buttonAttr, panelAttr) {
   buttons.forEach((button) => {
     button.classList.toggle("active", button.dataset[buttonAttr] === activeKey);
@@ -4354,6 +4462,9 @@ premium.accountPasswordForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   await updateDashboardPassword();
 });
+
+premium.exportAccountData.addEventListener("click", exportAccountData);
+premium.deletePortfolioData.addEventListener("click", deletePortfolioData);
 
 premium.openPropertyModal.addEventListener("click", () => {
   openPropertyForm();

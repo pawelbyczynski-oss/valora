@@ -744,6 +744,7 @@ select {
 :root[data-theme="dark"] .email-login,
 :root[data-theme="dark"] .promo-form,
 :root[data-theme="dark"] .account-password-form,
+:root[data-theme="dark"] .account-privacy-panel,
 :root[data-theme="dark"] .dashboard-workspace,
 :root[data-theme="dark"] .dashboard-stats article,
 :root[data-theme="dark"] .overview-main,
@@ -814,13 +815,24 @@ select {
 
 .email-login,
 .promo-form,
-.account-password-form {
+.account-password-form,
+.account-privacy-panel {
   display: grid;
   gap: 12px;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
+}
+
+.account-privacy-panel {
+  margin-top: 12px;
+}
+
+.account-privacy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .auth-tabs {
