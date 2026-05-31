@@ -36,14 +36,37 @@ This prototype is currently a static product demo. These files add the productio
 ## 4. Reminder emails
 
 1. Deploy `supabase/functions/send-reminders`.
-2. Schedule it daily.
-3. Add `RESEND_API_KEY` and `REMINDER_FROM_EMAIL`.
+2. Apply `supabase/migrations/021_pro_reminder_delivery.sql` to schedule it daily at `07:00 UTC`.
+3. Add `RESEND_API_KEY`, `REMINDER_FROM_EMAIL` and `REMINDER_CRON_SECRET` as Edge Function secrets.
+4. Copy the generated Vault value named `propertypanel_reminder_cron_secret` into `REMINDER_CRON_SECRET`.
+
+To read the generated cron secret once in the Supabase SQL editor:
+
+```sql
+select decrypted_secret
+from vault.decrypted_secrets
+where name = 'propertypanel_reminder_cron_secret';
+```
+
+Use this sender:
+
+`PropertyPanel Reminder <reminder@propertypanel.co.uk>`
 
 Reminder types supported by the schema:
 
 - rent due reminders
 - mortgage expiry reminders
 - document expiry reminders
+- tenancy expiry reminders
+
+Pro expiry reminders are generated 3 months, 1 month and 1 week before the saved date.
+Rent reminders are generated 1 week, 1 day and on the due date.
+
+Optional Twilio SMS delivery is prepared but disabled by default. To launch it later:
+
+1. Add `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`.
+2. Add either `TWILIO_MESSAGING_SERVICE_SID` or `TWILIO_FROM_NUMBER`.
+3. Add an explicit user opt-in UI for `profiles.sms_reminders_enabled` and save an E.164 phone number in `profiles.mobile_phone`.
 
 ## 5. Frontend work still needed
 
