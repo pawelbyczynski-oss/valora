@@ -3417,6 +3417,7 @@ function isPasswordRecoveryUrl() {
 }
 
 function showPasswordRecoveryForm() {
+  switchView("loginView");
   premium.loginPanel.scrollIntoView({ behavior: "smooth", block: "center" });
   premium.emailLoginForm.hidden = true;
   premium.passwordResetForm.hidden = false;
