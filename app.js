@@ -231,12 +231,17 @@ const CHECKOUT_FUNCTION = "create-checkout-session";
 const PORTAL_FUNCTION = "create-billing-portal-session";
 const SYNC_SUBSCRIPTION_FUNCTION = "sync-subscription";
 const ACTIVE_SUBSCRIPTION_STATUSES = ["active", "trialing"];
+const PASSWORD_REQUIREMENTS = "Password must be at least 8 characters and include a letter and a number.";
 let passwordRecoveryPending =
   window.location.hash.includes("type=recovery") || window.location.search.includes("type=recovery");
 const supabaseClient =
   window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY
     ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
     : null;
+
+function passwordMeetsRequirements(password) {
+  return password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password);
+}
 
 let investorType = "individual";
 let mortgageType = "interestOnly";
@@ -3430,10 +3435,15 @@ function setAuthMode(mode) {
   premium.loginPasswordWrap.hidden = !needsPassword;
   premium.loginPassword.required = needsPassword;
   premium.loginPassword.autocomplete = mode === "signup" ? "new-password" : "current-password";
+  if (mode === "signup") {
+    premium.loginPassword.setAttribute("pattern", "(?=.*[A-Za-z])(?=.*\\d).{8,}");
+  } else {
+    premium.loginPassword.removeAttribute("pattern");
+  }
 
   if (mode === "signup") {
     premium.emailAuthSubmit.textContent = "Create account";
-    premium.authMessage.textContent = "Create a test account with email and password.";
+    premium.authMessage.textContent = "Use at least 8 characters, including a letter and a number.";
   } else if (mode === "signin") {
     premium.emailAuthSubmit.textContent = "Sign in";
     premium.authMessage.textContent = "Sign in with your email and password.";
@@ -3454,6 +3464,12 @@ async function handleEmailAuth() {
   premium.emailAuthSubmit.disabled = true;
 
   if (authMode === "signup") {
+    if (!passwordMeetsRequirements(password)) {
+      premium.emailAuthSubmit.disabled = false;
+      premium.authMessage.textContent = PASSWORD_REQUIREMENTS;
+      return;
+    }
+
     premium.authMessage.textContent = "Creating account...";
     const { data, error } = await supabaseClient.auth.signUp({
       email,
@@ -3511,8 +3527,8 @@ async function updatePassword(password, messageTarget, buttonTarget) {
     return false;
   }
 
-  if (password.length < 8) {
-    messageTarget.textContent = "Password must be at least 8 characters.";
+  if (!passwordMeetsRequirements(password)) {
+    messageTarget.textContent = PASSWORD_REQUIREMENTS;
     return false;
   }
 

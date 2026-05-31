@@ -457,15 +457,15 @@
           </label>
           <label id="loginPasswordWrap">
             <span>Password</span>
-            <input id="loginPassword" type="password" minlength="8" placeholder="Minimum 8 characters" autocomplete="current-password" required />
+            <input id="loginPassword" type="password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*\d).{8,}" placeholder="Minimum 8 characters" autocomplete="current-password" required />
           </label>
           <button class="tax-button" id="emailAuthSubmit" type="submit">Create account</button>
-          <p class="field-hint" id="authMessage">Create a test account with email and password.</p>
+          <p class="field-hint" id="authMessage">Use at least 8 characters, including a letter and a number.</p>
         </form>
         <form class="email-login" id="passwordResetForm" hidden>
           <label>
             <span>New password</span>
-            <input id="newPassword" type="password" minlength="8" placeholder="Minimum 8 characters" autocomplete="new-password" />
+            <input id="newPassword" type="password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*\d).{8,}" placeholder="Minimum 8 characters" autocomplete="new-password" />
           </label>
           <button class="tax-button" id="resetPasswordSubmit" type="submit">Update password</button>
           <p class="field-hint" id="resetMessage">You opened a password reset link. Set a new password to recover the account.</p>
@@ -673,7 +673,7 @@
             <form class="account-password-form" id="accountPasswordForm">
               <label>
                 <span>New password</span>
-                <input id="accountPassword" type="password" minlength="8" placeholder="Minimum 8 characters" autocomplete="new-password" />
+                <input id="accountPassword" type="password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*\d).{8,}" placeholder="Minimum 8 characters" autocomplete="new-password" />
               </label>
               <button class="secondary-button" type="submit">Update password</button>
               <p class="field-hint" id="accountPasswordMessage">Use this if a reset link signs you in before showing the reset form.</p>
