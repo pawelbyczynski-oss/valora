@@ -404,6 +404,24 @@ function isPersistedProperty(property) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(property.id || "");
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function externalHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
 function formatDate(dateString) {
   if (!dateString) return "-";
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" }).format(
@@ -946,7 +964,7 @@ function tenancyDocumentsPayload(tenancy) {
 
 function documentActionButtons(documentRecord) {
   return `
-    <button class="secondary-button small-button" type="button" data-download-document="${documentRecord.id}">Open</button>
+    <button class="secondary-button small-button" type="button" data-download-document="${escapeHtml(documentRecord.id)}">Open</button>
   `;
 }
 
@@ -987,8 +1005,8 @@ function renderDocuments() {
     premium.documentActionBar.innerHTML = `
       <div>
         <span>Latest document</span>
-        <strong>${latestDocument.label}</strong>
-        <small>${documentPropertyName(latestDocument.propertyId)} · ${latestDocument.documentType} · ${latestDocument.fileName || "File"}</small>
+        <strong>${escapeHtml(latestDocument.label)}</strong>
+        <small>${escapeHtml(documentPropertyName(latestDocument.propertyId))} · ${escapeHtml(latestDocument.documentType)} · ${escapeHtml(latestDocument.fileName || "File")}</small>
       </div>
       <div class="detail-actions">
         ${documentActionButtons(latestDocument)}
@@ -1016,12 +1034,12 @@ function renderDocuments() {
         : fileSizeLabel(documentRecord.fileSize);
 
       row.innerHTML = `
-        <span>${documentRecord.label}<small>${documentRecord.documentType} · ${documentRecord.fileName || "File"} · ${fileSizeLabel(documentRecord.fileSize)}</small></span>
-        <span>${documentRecord.documentType}<small>${documentRecord.expiryDate ? `Expires ${formatDate(documentRecord.expiryDate)}` : "No expiry"}</small></span>
-        <strong>${paymentStatusLabel(documentRecord.paymentStatus)}<small>${fileSummary}</small></strong>
+        <span>${escapeHtml(documentRecord.label)}<small>${escapeHtml(documentRecord.documentType)} · ${escapeHtml(documentRecord.fileName || "File")} · ${escapeHtml(fileSizeLabel(documentRecord.fileSize))}</small></span>
+        <span>${escapeHtml(documentRecord.documentType)}<small>${documentRecord.expiryDate ? `Expires ${escapeHtml(formatDate(documentRecord.expiryDate))}` : "No expiry"}</small></span>
+        <strong>${escapeHtml(paymentStatusLabel(documentRecord.paymentStatus))}<small>${escapeHtml(fileSummary)}</small></strong>
         <div class="detail-actions">
           ${documentActionButtons(documentRecord)}
-          <button class="secondary-button small-button danger-button" type="button" data-delete-document="${documentRecord.id}">Delete</button>
+          <button class="secondary-button small-button danger-button" type="button" data-delete-document="${escapeHtml(documentRecord.id)}">Delete</button>
         </div>
       `;
       return row;
@@ -1213,13 +1231,13 @@ function renderPropertyExpenses(property) {
       row.className = "detail-row property-transaction-row";
       row.innerHTML = `
         <div><span>Date</span><strong>${formatDate(transaction.date)}</strong></div>
-        <div><span>Type</span><strong>${transaction.type}</strong></div>
-        <div><span>Category</span><strong>${transaction.category}</strong></div>
+        <div><span>Type</span><strong>${escapeHtml(transaction.type)}</strong></div>
+        <div><span>Category</span><strong>${escapeHtml(transaction.category)}</strong></div>
         <div><span>Amount</span><strong class="transaction-amount ${transaction.type === "expense" ? "expense" : "income"}">${transaction.type === "expense" ? "-" : "+"}${money.format(transaction.amount)}</strong></div>
-        <div><span>Status</span><strong>${transaction.status}</strong></div>
-        <div><span>Tax</span><strong>${transaction.taxTreatment}</strong></div>
-        <div><span>Source</span><strong>${transaction.source}</strong></div>
-        <div><span>Notes</span><strong>${transaction.notes || "-"}</strong></div>
+        <div><span>Status</span><strong>${escapeHtml(transaction.status)}</strong></div>
+        <div><span>Tax</span><strong>${escapeHtml(transaction.taxTreatment)}</strong></div>
+        <div><span>Source</span><strong>${escapeHtml(transaction.source)}</strong></div>
+        <div><span>Notes</span><strong>${escapeHtml(transaction.notes || "-")}</strong></div>
         <div class="detail-actions property-transaction-actions">
           ${transaction.status !== "approved" ? `<button class="tax-button small-button" type="button" data-approve-property-transaction="${transaction.id}">Approve</button>` : ""}
           <button class="secondary-button small-button" type="button" data-edit-property-transaction="${transaction.id}">Edit</button>
@@ -1293,14 +1311,14 @@ function renderPrintDocumentAppendix(targetProperties = []) {
       .map(
         ({ property, relatedDocuments }) => `
           <section class="print-document-property">
-            <h3>${property.name}</h3>
+            <h3>${escapeHtml(property.name)}</h3>
             <div class="print-document-list">
               ${relatedDocuments
         .map(
           (document) => `
             <div>
-              <strong>${document.label}</strong>
-              <span>${document.documentType} · ${document.fileName || "File"} · ${fileSizeLabel(document.fileSize)}</span>
+              <strong>${escapeHtml(document.label)}</strong>
+              <span>${escapeHtml(document.documentType)} · ${escapeHtml(document.fileName || "File")} · ${escapeHtml(fileSizeLabel(document.fileSize))}</span>
               <span>${document.expiryDate ? `Expires ${formatDate(document.expiryDate)}` : "No expiry date"}</span>
             </div>
           `,
@@ -1540,10 +1558,10 @@ function renderPremiumDashboard() {
       card.innerHTML = `
         <div class="property-card-head">
           <div>
-            <h3>${property.name}</h3>
-            <span class="field-hint">${property.region} · ${property.letType}</span>
+            <h3>${escapeHtml(property.name)}</h3>
+            <span class="field-hint">${escapeHtml(property.region)} · ${escapeHtml(property.letType)}</span>
           </div>
-          <span class="pill">${expiryDays <= 120 ? "Remortgage soon" : mortgageDeal.productType}</span>
+          <span class="pill">${escapeHtml(expiryDays <= 120 ? "Remortgage soon" : mortgageDeal.productType)}</span>
         </div>
         <div class="property-meta">
           <div><span>Purchase price</span><strong>${money.format(property.purchasePrice)}</strong></div>
@@ -1745,10 +1763,10 @@ function renderTenantDrafts() {
       row.className = "tenant-chip";
       row.innerHTML = `
         <div>
-          <strong>${tenant.name || "Tenant"}</strong>
-          <span>${[tenant.phone, tenant.email, tenant.previousAddress].filter(Boolean).join(" · ") || "No contact details"}</span>
+          <strong>${escapeHtml(tenant.name || "Tenant")}</strong>
+          <span>${escapeHtml([tenant.phone, tenant.email, tenant.previousAddress].filter(Boolean).join(" · ") || "No contact details")}</span>
         </div>
-        <button class="secondary-button small-button danger-button" type="button" data-remove-tenant-draft="${tenant.id}">Remove</button>
+        <button class="secondary-button small-button danger-button" type="button" data-remove-tenant-draft="${escapeHtml(tenant.id)}">Remove</button>
       `;
       return row;
     }),
@@ -1795,8 +1813,8 @@ function setButtonBusy(button, busy, busyText = "Saving...") {
 function switchPropertyDetailTab(tabName) {
   const availableTabs = [...premium.propertyDetailTabButtons].map((button) => button.dataset.propertyDetailTab);
   if (!availableTabs.includes(tabName)) tabName = "overview";
-  if (["expenses", "landlord-report"].includes(tabName) && !hasProAccess()) {
-    showProUpgrade("Expenses, accountant packs and landlord reports are included in PropertyPanel Pro.");
+  if (tabName === "landlord-report" && !hasProAccess()) {
+    showProUpgrade("Landlord monthly reports are included in PropertyPanel Pro.");
     return;
   }
 
@@ -1855,20 +1873,20 @@ function renderPropertyDetail() {
     </article>
   `;
   premium.propertyDetailSummary.innerHTML = `
-    <div><span>Address</span><strong>${propertyAddressLabel(property)}</strong></div>
-    <div><span>Ownership</span><strong>${property.ownershipModel || "Owned"}</strong></div>
-    <div><span>Landlord</span><strong>${property.landlordName || "-"}</strong></div>
-    <div><span>Region</span><strong>${property.region}</strong></div>
-    <div><span>Let type</span><strong>${property.letType}</strong></div>
+    <div><span>Address</span><strong>${escapeHtml(propertyAddressLabel(property))}</strong></div>
+    <div><span>Ownership</span><strong>${escapeHtml(property.ownershipModel || "Owned")}</strong></div>
+    <div><span>Landlord</span><strong>${escapeHtml(property.landlordName || "-")}</strong></div>
+    <div><span>Region</span><strong>${escapeHtml(property.region)}</strong></div>
+    <div><span>Let type</span><strong>${escapeHtml(property.letType)}</strong></div>
     <div><span>Purchase price</span><strong>${money.format(property.purchasePrice)}</strong></div>
     <div><span>Current value</span><strong>${money.format(property.currentValue)}</strong></div>
     <div><span>Mortgage balance</span><strong>${money.format(mortgageDeal.balance)}</strong></div>
-    <div><span>Mortgage product</span><strong>${mortgageDeal.productType || "Fixed"}</strong></div>
+    <div><span>Mortgage product</span><strong>${escapeHtml(mortgageDeal.productType || "Fixed")}</strong></div>
     <div><span>Rate</span><strong>${Number(mortgageDeal.rate || 0).toFixed(2)}%</strong></div>
     <div><span>Expiry</span><strong>${mortgageDeal.expiryDate || "-"}</strong></div>
     <div><span>Rent due</span><strong>${property.rentReminder === "On" ? `${property.rentDueDay}${ordinalSuffix(property.rentDueDay)} monthly` : "Off"}</strong></div>
     <div><span>Guaranteed rent</span><strong>${property.guaranteedRent ? money.format(property.guaranteedRent) : "-"}</strong></div>
-    <div><span>Maintenance</span><strong>${property.maintenanceFee ? `${property.maintenanceModel} (${money.format(property.maintenanceFee)})` : property.maintenanceModel || "-"}</strong></div>
+    <div><span>Maintenance</span><strong>${escapeHtml(property.maintenanceFee ? `${property.maintenanceModel} (${money.format(property.maintenanceFee)})` : property.maintenanceModel || "-")}</strong></div>
   `;
 
   premium.tenancyHistoryList.replaceChildren(
@@ -1896,7 +1914,7 @@ function renderPropertyDetail() {
                 (transaction) => `
                   <div class="tenancy-rent-row">
                     <strong>${formatDate(transaction.date)}</strong>
-                    <span>${money.format(transaction.amount)} · ${transaction.status}</span>
+                    <span>${money.format(transaction.amount)} · ${escapeHtml(transaction.status)}</span>
                     <div class="detail-actions">
                       ${transaction.status !== "approved" ? `<button class="tax-button small-button" type="button" data-approve-tenancy-rent="${transaction.id}">Mark paid</button>` : ""}
                       <button class="secondary-button small-button" type="button" data-edit-tenancy-rent="${transaction.id}">Edit</button>
@@ -1910,13 +1928,13 @@ function renderPropertyDetail() {
         `
         : `<div class="tenancy-rent-schedule"><span>Rent payment schedule</span><p class="field-hint">Save tenancy dates and monthly rent to create rent payment records.</p></div>`;
       row.innerHTML = `
-        <div><span>Tenant(s)</span><strong>${tenantSummary || "-"}</strong></div>
-        <div><span>Previous address</span><strong>${previousAddressSummary || "-"}</strong></div>
-        <div><span>Guarantor</span><strong>${guarantorSummary}</strong></div>
+        <div><span>Tenant(s)</span><strong>${escapeHtml(tenantSummary || "-")}</strong></div>
+        <div><span>Previous address</span><strong>${escapeHtml(previousAddressSummary || "-")}</strong></div>
+        <div><span>Guarantor</span><strong>${escapeHtml(guarantorSummary)}</strong></div>
         <div><span>Start</span><strong>${formatDate(tenancy.startDate)}</strong></div>
         <div><span>Move-out</span><strong>${formatDate(tenancy.endDate)}</strong></div>
         <div><span>Rent</span><strong>${money.format(Number(tenancy.rent || 0))}</strong></div>
-        <div><span>Contracts</span><strong>${(tenancy.documents || []).join(", ") || "-"}</strong></div>
+        <div><span>Contracts</span><strong>${escapeHtml((tenancy.documents || []).join(", ") || "-")}</strong></div>
         <div class="detail-actions">
           <button class="secondary-button small-button" type="button" data-edit-tenancy="${tenancy.id}">Edit</button>
           <button class="secondary-button small-button danger-button" type="button" data-delete-tenancy="${tenancy.id}">Delete</button>
@@ -1936,7 +1954,7 @@ function renderPropertyDetail() {
       const row = document.createElement("div");
       row.className = "detail-row";
       row.innerHTML = `
-        <div><span>Product</span><strong>${event.productType || "-"}</strong></div>
+        <div><span>Product</span><strong>${escapeHtml(event.productType || "-")}</strong></div>
         <div><span>Rate</span><strong>${Number(event.rate || 0).toFixed(2)}%</strong></div>
         <div><span>Balance</span><strong>${money.format(Number(event.balance || 0))}</strong></div>
         <div><span>New valuation</span><strong>${event.valuation ? money.format(Number(event.valuation || 0)) : "-"}</strong></div>
@@ -1944,7 +1962,7 @@ function renderPropertyDetail() {
         <div><span>Start</span><strong>${formatDate(event.startDate)}</strong></div>
         <div><span>End</span><strong>${formatDate(event.expiryDate)}</strong></div>
         <div><span>Equity release</span><strong>${money.format(Number(event.equityRelease || 0))}</strong></div>
-        <div><span>Notes</span><strong>${event.notes || "-"}</strong></div>
+        <div><span>Notes</span><strong>${escapeHtml(event.notes || "-")}</strong></div>
         <div class="detail-actions">
           <button class="secondary-button small-button" type="button" data-edit-remortgage="${event.id}">Edit</button>
           <button class="secondary-button small-button danger-button" type="button" data-delete-remortgage="${event.id}">Delete</button>
@@ -2278,7 +2296,7 @@ function isPremiumAtPropertyLimit() {
 }
 
 function premiumLimitMessage() {
-  return `Premium includes up to ${PREMIUM_PROPERTY_LIMIT} properties. Upgrade to Pro for unlimited properties, reminders and accountant/landlord reports.`;
+  return `Premium includes up to ${PREMIUM_PROPERTY_LIMIT} properties. Upgrade to Pro for unlimited properties, reminders, quarterly accountant packs and landlord reports.`;
 }
 
 function showProUpgrade(message = "This workflow is included in PropertyPanel Pro.") {
@@ -2320,10 +2338,10 @@ function renderInvoices(invoices = []) {
     ...invoices.map((invoice) => {
       const row = document.createElement("div");
       const label = invoice.invoice_number || invoice.stripe_invoice_id || "Stripe invoice";
-      const link = invoice.hosted_invoice_url || invoice.invoice_pdf_url;
+      const link = externalHttpUrl(invoice.hosted_invoice_url || invoice.invoice_pdf_url);
       row.innerHTML = link
-        ? `<span>${label}</span><a class="inline-link" href="${link}" target="_blank" rel="noreferrer">${moneyFromPence(invoice.amount_pence)}</a>`
-        : `<span>${label}</span><strong>${moneyFromPence(invoice.amount_pence)}</strong>`;
+        ? `<span>${escapeHtml(label)}</span><a class="inline-link" href="${escapeHtml(link)}" target="_blank" rel="noreferrer">${moneyFromPence(invoice.amount_pence)}</a>`
+        : `<span>${escapeHtml(label)}</span><strong>${moneyFromPence(invoice.amount_pence)}</strong>`;
       return row;
     }),
   );
@@ -2339,8 +2357,8 @@ function selectedPlanPrice() {
 
 function selectedPlanDescription() {
   return selectedPlan === "pro"
-    ? "Pro is selected at £9.99/month with unlimited properties, reminders, transactions and accountant/landlord reports."
-    : `Premium is selected at £4.99/month with up to ${PREMIUM_PROPERTY_LIMIT} properties, mortgage tracking, documents and basic PDF export.`;
+    ? "Pro is selected at £9.99/month with unlimited properties, reminders, quarterly accountant packs and landlord reports."
+    : `Premium is selected at £4.99/month with up to ${PREMIUM_PROPERTY_LIMIT} properties, rent payments, manual expenses, documents and CSV export.`;
 }
 
 function setSelectedPlan(plan) {
@@ -2629,7 +2647,7 @@ function renderAdminTable(target, rows, columns) {
       item.innerHTML = columns
         .map(
           ([label, key]) =>
-            `<div><span>${label}</span><strong>${row[key] ?? "-"}</strong></div>`,
+            `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(row[key] ?? "-")}</strong></div>`,
         )
         .join("");
       return item;
@@ -2650,11 +2668,11 @@ function renderAdminPromos(promos = []) {
       const row = document.createElement("div");
       row.className = "admin-row promo-admin-row";
       row.innerHTML = `
-        <div><span>Code</span><strong>${promo.code}</strong></div>
+        <div><span>Code</span><strong>${escapeHtml(promo.code)}</strong></div>
         <div><span>Used</span><strong>${promo.redeemed_count || 0}/${promo.max_redemptions || "unlimited"}</strong></div>
         <div><span>Access</span><strong>${promo.lifetime_access ? "Infinity" : `${promo.free_months || 0} months`}</strong></div>
         <div><span>Expires</span><strong>${promo.expires_at ? formatDate(promo.expires_at) : "No expiry"}</strong></div>
-        <button class="secondary-button small-button promo-delete-button" type="button" data-promo-delete="${promo.code}">Deactivate</button>
+        <button class="secondary-button small-button promo-delete-button" type="button" data-promo-delete="${escapeHtml(promo.code)}">Deactivate</button>
       `;
       return row;
     }),
@@ -3142,11 +3160,6 @@ async function savePropertyDocumentOrExpense(source = "documents") {
     return;
   }
 
-  if (payload.amount && !hasProAccess() && !payload.file) {
-    payload.message.textContent = "Manual expense tracking is included in PropertyPanel Pro.";
-    return;
-  }
-
   const submitButton = payload.form.querySelector("button[type='submit']");
   setButtonBusy(submitButton, true, "Saving...");
   payload.message.textContent = "Saving...";
@@ -3171,7 +3184,7 @@ async function savePropertyDocumentOrExpense(source = "documents") {
       if (!savedDocument) throw new Error("Could not save document.");
     }
 
-    if (payload.amount && hasProAccess()) {
+    if (payload.amount) {
       const transaction = normalizeTransactionRecord({
         propertyId: property.id,
         documentId: savedDocument?.id || "",
@@ -3195,9 +3208,7 @@ async function savePropertyDocumentOrExpense(source = "documents") {
     const successMessage = payload.file && savedExpense
       ? "Document and expense saved."
       : payload.file
-        ? payload.amount
-          ? "Document saved. Upgrade to Pro to track the expense."
-          : "Document saved."
+        ? "Document saved."
         : "Expense saved.";
     renderTransactions();
     renderDocuments();
@@ -3285,7 +3296,7 @@ async function saveTenancyToSupabase(property, tenancy) {
     .select("id")
     .single();
 
-  if (error) return null;
+  if (error) throw error;
   return data?.id || null;
 }
 
@@ -3690,10 +3701,6 @@ function switchSection(buttons, panels, activeKey, buttonAttr, panelAttr) {
 function switchDashboardTab(tabName) {
   const availableTabs = [...premium.dashboardTabButtons].map((button) => button.dataset.dashboardTab);
   if (!availableTabs.includes(tabName)) tabName = "overview";
-  if (tabName === "transactions" && !hasProAccess()) {
-    premium.subscriptionNote.textContent = "Transactions, quarterly packs and landlord reports are included in PropertyPanel Pro.";
-    tabName = "subscription";
-  }
 
   switchSection(
     premium.dashboardTabButtons,
@@ -4492,9 +4499,8 @@ premium.dashboardTabButtons.forEach((button) => {
 premium.transactionForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  if (!hasProAccess()) {
-    premium.subscriptionNote.textContent = "Manual transactions are part of PropertyPanel Pro.";
-    switchDashboardTab("subscription");
+  if (!hasPremiumAccess()) {
+    showSubscriptionRequired();
     return;
   }
 
