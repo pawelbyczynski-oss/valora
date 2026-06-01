@@ -375,6 +375,7 @@ let editingPropertyId = null;
 let editingTenancyId = null;
 let editingRemortgageId = null;
 let editingTransactionId = null;
+let transactionReturnPropertyId = null;
 let tenancyTenantDrafts = [];
 let currentSubscription = null;
 let currentUser = null;
@@ -1138,6 +1139,7 @@ function renderDocuments() {
 
 function resetTransactionForm() {
   editingTransactionId = null;
+  transactionReturnPropertyId = null;
   premium.transactionForm.reset();
   premium.transactionDate.value = new Date().toISOString().slice(0, 10);
   premium.transactionForm.querySelector("button[type='submit']").textContent = "Save transaction";
@@ -4155,7 +4157,7 @@ function setAuthMode(mode) {
 
   if (mode === "signup") {
     premium.emailAuthSubmit.textContent = "Create account";
-    premium.authMessage.textContent = "Use at least 8 characters, including a letter and a number.";
+    premium.authMessage.textContent = "Use at least 8 characters, including a letter and a number. If the confirmation email does not arrive, check your spam folder.";
   } else if (mode === "signin") {
     premium.emailAuthSubmit.textContent = "Sign in";
     premium.authMessage.textContent = "Sign in with your email and password.";
@@ -4203,7 +4205,7 @@ async function handleEmailAuth() {
       return;
     }
 
-    premium.authMessage.textContent = "Account created. Check your email to confirm it, then sign in.";
+    premium.authMessage.textContent = "Account created. Check your inbox and spam folder for the confirmation email, then sign in.";
     return;
   }
 
@@ -5250,9 +5252,19 @@ premium.transactionForm.addEventListener("submit", async (event) => {
     transactions = [transaction, ...transactions];
   }
 
+  const returnPropertyId = transactionReturnPropertyId;
   resetTransactionForm();
   renderTransactions();
-  if (activePropertyId) renderPropertyDetail();
+  if (returnPropertyId) {
+    activePropertyId = returnPropertyId;
+    renderPropertyDetail();
+    premium.dashboardPanel.hidden = true;
+    premium.propertyDetailPanel.hidden = false;
+    switchView("propertyDetailView");
+    switchPropertyDetailTab("expenses");
+  } else if (activePropertyId) {
+    renderPropertyDetail();
+  }
 });
 
 premium.transactionCsvForm?.addEventListener("submit", async (event) => {
@@ -5308,6 +5320,7 @@ premium.transactionList.addEventListener("click", async (event) => {
   if (editButton) {
     const transaction = transactions.find((item) => item.id === editButton.dataset.editTransaction);
     if (!transaction) return;
+    transactionReturnPropertyId = null;
     loadTransactionIntoForm(transaction);
     switchDashboardTab("transactions");
     premium.transactionForm.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -5594,6 +5607,7 @@ premium.propertyExpenseList.addEventListener("click", async (event) => {
   if (editButton) {
     const transaction = transactions.find((item) => item.id === editButton.dataset.editPropertyTransaction);
     if (!transaction) return;
+    transactionReturnPropertyId = property.id;
     loadTransactionIntoForm(transaction);
     premium.propertyDetailPanel.hidden = true;
     switchView("dashboardView");
@@ -6236,9 +6250,15 @@ premium.propertyForm.addEventListener("submit", async (event) => {
 
     properties = [property, ...properties];
     trackEvent("property_added", { property_name: property.name, region: property.region });
+    activePropertyId = property.id;
     premium.propertyModal.hidden = true;
     resetPropertyForm();
     renderPremiumDashboard();
+    premium.dashboardPanel.hidden = true;
+    premium.propertyDetailPanel.hidden = false;
+    switchView("propertyDetailView");
+    renderPropertyDetail();
+    switchPropertyDetailTab("overview");
   } catch (error) {
     premium.deletePropertyMessage.textContent = error?.message || "Could not save property.";
   } finally {
