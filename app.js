@@ -134,6 +134,7 @@ const premium = {
   propertyExpenseList: document.querySelector("#propertyExpenseList"),
   approvePropertyDrafts: document.querySelector("#approvePropertyDrafts"),
   exportPropertyTransactions: document.querySelector("#exportPropertyTransactions"),
+  exportAccountantPack: document.querySelector("#exportAccountantPack"),
   propertyReportFilters: document.querySelector("#propertyReportFilters"),
   propertyReportFrom: document.querySelector("#propertyReportFrom"),
   propertyReportTo: document.querySelector("#propertyReportTo"),
@@ -155,6 +156,7 @@ const premium = {
   portfolioValue: document.querySelector("#portfolioValue"),
   portfolioDebt: document.querySelector("#portfolioDebt"),
   portfolioCashflow: document.querySelector("#portfolioCashflow"),
+  portfolioHealth: document.querySelector("#portfolioHealth"),
   subscriptionStatus: document.querySelector("#subscriptionStatus"),
   subscriptionRenewal: document.querySelector("#subscriptionRenewal"),
   subscriptionPaid: document.querySelector("#subscriptionPaid"),
@@ -225,6 +227,22 @@ const premium = {
   expenseDocumentNotes: document.querySelector("#expenseDocumentNotes"),
   expenseDocumentFile: document.querySelector("#expenseDocumentFile"),
   expenseDocumentMessage: document.querySelector("#expenseDocumentMessage"),
+  operationsMetrics: document.querySelector("#operationsMetrics"),
+  recurringExpenseForm: document.querySelector("#recurringExpenseForm"),
+  recurringExpenseCategory: document.querySelector("#recurringExpenseCategory"),
+  recurringExpenseAmount: document.querySelector("#recurringExpenseAmount"),
+  recurringExpenseDueDay: document.querySelector("#recurringExpenseDueDay"),
+  recurringExpenseNotes: document.querySelector("#recurringExpenseNotes"),
+  recurringExpenseMessage: document.querySelector("#recurringExpenseMessage"),
+  recurringExpenseList: document.querySelector("#recurringExpenseList"),
+  arrearsList: document.querySelector("#arrearsList"),
+  complianceForm: document.querySelector("#complianceForm"),
+  complianceType: document.querySelector("#complianceType"),
+  complianceExpiry: document.querySelector("#complianceExpiry"),
+  complianceStatus: document.querySelector("#complianceStatus"),
+  complianceNotes: document.querySelector("#complianceNotes"),
+  complianceMessage: document.querySelector("#complianceMessage"),
+  complianceList: document.querySelector("#complianceList"),
   adminTabButtons: document.querySelectorAll("[data-admin-tab]"),
   adminPanels: document.querySelectorAll("[data-admin-panel]"),
 };
@@ -307,6 +325,9 @@ if (!localStorage.getItem(PROMO_STORAGE_KEY) && storedPromoAccess) {
 let properties = JSON.parse(storedProperties || "null") || [];
 let transactions = JSON.parse(localStorage.getItem(TRANSACTION_STORAGE_KEY) || "null") || [];
 let documents = JSON.parse(localStorage.getItem(DOCUMENT_STORAGE_KEY) || "null") || [];
+let recurringExpenses = [];
+let complianceItems = [];
+let arrearsCases = [];
 let promoAccess = false;
 let authMode = "signup";
 let authListenerAttached = false;
@@ -1297,6 +1318,125 @@ function exportPropertyTransactionsCsv(property) {
   downloadTransactionsCsv(rows, `${property.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-transactions.csv`);
 }
 
+function exportPropertyAccountantPack(property) {
+  const rows = filteredPropertyTransactions(property);
+  const relatedDocuments = documents.filter((document) => document.propertyId === property.id);
+  const slug = property.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  if (rows.length) downloadTransactionsCsv(rows, `${slug}-accountant-transactions.csv`);
+  const headers = ["label", "type", "file_name", "expiry_date", "payment_status"];
+  const csv = [
+    headers.join(","),
+    ...relatedDocuments.map((document) =>
+      [document.label, document.documentType, document.fileName, document.expiryDate, document.paymentStatus]
+        .map((value) => `"${String(value || "").replaceAll('"', '""')}"`).join(",")),
+  ].join("\n");
+  downloadText(csv, `${slug}-accountant-document-manifest.csv`, "text/csv;charset=utf-8");
+}
+
+function recurringExpenseMarker(expense, date) {
+  return `[recurring:${expense.id}:${date.slice(0, 7)}]`;
+}
+
+function monthlyRecurringDates(expense, months = 3) {
+  const today = new Date();
+  return Array.from({ length: months }, (_, offset) =>
+    dateInputValue(dateForMonth(today.getFullYear(), today.getMonth() + offset, expense.dueDay || 1)));
+}
+
+async function syncRecurringExpenseTransactions(property) {
+  if (!hasProAccess()) return;
+  const activeExpenses = recurringExpenses.filter((expense) => expense.propertyId === property.id && expense.active);
+  for (const expense of activeExpenses) {
+    for (const date of monthlyRecurringDates(expense)) {
+      const marker = recurringExpenseMarker(expense, date);
+      if (transactions.some((transaction) => transaction.notes.includes(marker))) continue;
+      const transaction = normalizeTransactionRecord({
+        propertyId: property.id,
+        date,
+        amount: expense.amount,
+        type: "expense",
+        category: expense.category,
+        taxTreatment: "revenue",
+        source: "manual",
+        status: "draft",
+        notes: `${expense.notes || "Recurring monthly expense"} ${marker}`.trim(),
+      });
+      const savedId = await saveTransactionToSupabase(transaction);
+      if (savedId) transaction.id = savedId;
+      transactions = [transaction, ...transactions];
+    }
+  }
+}
+
+function overdueRentTransactions(property) {
+  const today = new Date().toISOString().slice(0, 10);
+  return transactions.filter((transaction) =>
+    transaction.propertyId === property.id &&
+    transaction.type === "income" &&
+    transaction.date < today &&
+    transaction.status !== "approved" &&
+    transactionTenancyId(transaction));
+}
+
+function complianceEffectiveStatus(item) {
+  if (item.status !== "not_required" && item.expiryDate && item.expiryDate < new Date().toISOString().slice(0, 10)) {
+    return "expired";
+  }
+  return item.status;
+}
+
+function renderPropertyOperations(property) {
+  if (!premium.operationsMetrics) return;
+  const recurring = recurringExpenses.filter((expense) => expense.propertyId === property.id && expense.active);
+  const recurringTotal = recurring.reduce((sum, expense) => sum + expense.amount, 0);
+  const outstanding = overdueRentTransactions(property);
+  const outstandingTotal = outstanding.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const compliance = complianceItems.filter((item) => item.propertyId === property.id);
+  const complianceIssues = compliance.filter((item) => ["expired", "review"].includes(complianceEffectiveStatus(item))).length;
+  const monthlyIncome = Number(property.rent || 0);
+  const guaranteedRent = Number(property.guaranteedRent || 0);
+  const operatorProfit = monthlyIncome - guaranteedRent - recurringTotal;
+
+  premium.operationsMetrics.innerHTML = `
+    <article><span>Monthly recurring costs</span><strong>${money.format(recurringTotal)}</strong></article>
+    <article><span>Outstanding rent</span><strong>${money.format(outstandingTotal)}</strong></article>
+    <article><span>Compliance issues</span><strong>${complianceIssues}</strong></article>
+    <article><span>${property.ownershipModel === "Owned" ? "Rent after recurring costs" : "Rent-to-rent profit"}</span><strong>${money.format(operatorProfit)}</strong></article>
+  `;
+
+  premium.recurringExpenseList.innerHTML = recurring.length
+    ? recurring.map((expense) => `
+      <div class="detail-row operations-row">
+        <div><span>Category</span><strong>${escapeHtml(expense.category)}</strong></div>
+        <div><span>Amount</span><strong>${money.format(expense.amount)}</strong></div>
+        <div><span>Due</span><strong>${expense.dueDay}${ordinalSuffix(expense.dueDay)} monthly</strong></div>
+        <button class="secondary-button small-button danger-button" type="button" data-delete-recurring-expense="${expense.id}">Delete</button>
+      </div>`).join("")
+    : `<div class="detail-row muted-row">No recurring expenses yet</div>`;
+
+  premium.arrearsList.innerHTML = outstanding.length
+    ? outstanding.map((transaction) => {
+      const arrears = arrearsCases.find((item) => item.transactionId === transaction.id);
+      return `
+        <div class="detail-row operations-row">
+          <div><span>Due</span><strong>${formatDate(transaction.date)}</strong></div>
+          <div><span>Rent</span><strong>${money.format(transaction.amount)}</strong></div>
+          <label><span>Status</span><select data-arrears-transaction="${transaction.id}"><option value="open">Open</option><option value="contacted"${arrears?.status === "contacted" ? " selected" : ""}>Contacted</option><option value="payment_plan"${arrears?.status === "payment_plan" ? " selected" : ""}>Payment plan</option><option value="resolved"${arrears?.status === "resolved" ? " selected" : ""}>Resolved</option></select></label>
+        </div>`;
+    }).join("")
+    : `<div class="detail-row muted-row">No overdue rent payments</div>`;
+
+  premium.complianceList.innerHTML = compliance.length
+    ? compliance.map((item) => `
+      <div class="detail-row operations-row">
+        <div><span>Item</span><strong>${escapeHtml(item.itemType)}</strong></div>
+        <div><span>Expiry</span><strong>${item.expiryDate ? formatDate(item.expiryDate) : "-"}</strong></div>
+        <div><span>Status</span><strong>${escapeHtml(complianceEffectiveStatus(item))}</strong></div>
+        <button class="secondary-button small-button danger-button" type="button" data-delete-compliance-item="${item.id}">Delete</button>
+      </div>`).join("")
+    : `<div class="detail-row muted-row">No compliance items yet</div>`;
+}
+
 function loadTransactionIntoForm(transaction) {
   editingTransactionId = transaction.id;
   premium.transactionProperty.value = transaction.propertyId || "";
@@ -1408,6 +1548,10 @@ function renderLandlordReport(property) {
   const mortgageInterest = mortgageDeal.balance * (mortgageDeal.rate / 100 / 12);
   const landlordGrossRent = guaranteedRent || rentReceived || Number(property.rent || 0);
   const netPayable = landlordGrossRent - landlordRepairCharge - maintenanceFee;
+  const recurringTotal = recurringExpenses
+    .filter((expense) => expense.propertyId === property.id && expense.active)
+    .reduce((sum, expense) => sum + expense.amount, 0);
+  const operatorProfit = rentReceived - guaranteedRent - recurringTotal;
   const periodLabel = [startDate ? formatDate(startDate) : "", endDate ? formatDate(endDate) : ""].filter(Boolean).join(" to ") || currentMonthLabel();
   const reportIntro = document.createElement("div");
   reportIntro.className = "landlord-report-intro";
@@ -1443,6 +1587,12 @@ function renderLandlordReport(property) {
     );
   }
   metricItems.push(createReportMetric("Net payable to landlord", money.format(netPayable)));
+  if (property.ownershipModel !== "Owned") {
+    metricItems.push(
+      createReportMetric("Recurring operator costs", money.format(recurringTotal)),
+      createReportMetric("Operator profit", money.format(operatorProfit)),
+    );
+  }
   metrics.append(...metricItems);
 
   const note = document.createElement("p");
@@ -1628,6 +1778,7 @@ function renderPremiumDashboard() {
   }
 
   renderReminders();
+  renderPortfolioHealth();
   renderTransactions();
   renderDocuments();
 }
@@ -2046,6 +2197,7 @@ function renderPropertyDetail() {
   }
 
   renderPropertyExpenses(property);
+  renderPropertyOperations(property);
   renderDocuments();
   renderLandlordReport(property);
 }
@@ -2233,6 +2385,18 @@ function upcomingReminders() {
           dueDate: document.expiryDate,
         });
       });
+
+    complianceItems
+      .filter((item) => item.propertyId === property.id && item.expiryDate && item.status !== "not_required")
+      .forEach((item) => {
+        addReminderRecord(reminders, {
+          type: "Compliance",
+          property,
+          title: `${item.itemType} renewal`,
+          detail: `${duePhrase(daysUntil(item.expiryDate))}. Review the compliance record for ${property.name}.`,
+          dueDate: item.expiryDate,
+        });
+      });
   });
 
   reminders.sort((a, b) => a.rank - b.rank || a.days - b.days || a.propertyName.localeCompare(b.propertyName));
@@ -2272,6 +2436,29 @@ function renderReminders() {
     item.textContent = "No urgent reminders. Mortgage, rent, tenancy and certificate alerts will appear here when dates are close.";
     premium.reminderList.replaceChildren(item);
   }
+}
+
+function renderPortfolioHealth() {
+  if (!premium.portfolioHealth) return;
+  if (!hasProAccess()) {
+    premium.portfolioHealth.innerHTML = `<div><span>Pro workflow</span><strong>Upgrade for arrears, compliance and recurring cost control</strong></div>`;
+    return;
+  }
+
+  const overdueRent = properties.flatMap((property) => overdueRentTransactions(property));
+  const complianceDue = complianceItems.filter((item) => item.status !== "not_required" && complianceEffectiveStatus(item) !== "valid");
+  const mortgageDue = properties.filter((property) => {
+    const days = daysUntil(latestMortgageDeal(property).expiryDate);
+    return days >= 0 && days <= 90;
+  });
+  const recurringTotal = recurringExpenses.filter((expense) => expense.active !== false).reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+
+  premium.portfolioHealth.innerHTML = `
+    <div><span>Outstanding rent</span><strong>${money.format(overdueRent.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0))}</strong></div>
+    <div><span>Compliance to review</span><strong>${complianceDue.length}</strong></div>
+    <div><span>Mortgages due in 90 days</span><strong>${mortgageDue.length}</strong></div>
+    <div><span>Monthly recurring costs</span><strong>${money.format(recurringTotal)}</strong></div>
+  `;
 }
 
 function calendarDateValue(dateString) {
@@ -3084,6 +3271,64 @@ async function loadSupabaseDocuments(userId) {
   return true;
 }
 
+async function loadSupabaseOperations(userId) {
+  if (!supabaseClient || !hasProAccess()) {
+    recurringExpenses = [];
+    complianceItems = [];
+    arrearsCases = [];
+    return false;
+  }
+  const [{ data: recurring, error: recurringError }, { data: compliance, error: complianceError }, { data: arrears, error: arrearsError }] =
+    await Promise.all([
+      supabaseClient.from("recurring_expenses").select("*").eq("user_id", userId).order("created_at"),
+      supabaseClient.from("compliance_items").select("*").eq("user_id", userId).order("created_at"),
+      supabaseClient.from("arrears_cases").select("*").eq("user_id", userId).order("created_at"),
+    ]);
+  if (recurringError || complianceError || arrearsError) return false;
+  recurringExpenses = (recurring || []).map((expense) => ({
+    id: expense.id, propertyId: expense.property_id, category: expense.category, amount: Number(expense.amount),
+    dueDay: expense.due_day, notes: expense.notes || "", active: expense.active,
+  }));
+  complianceItems = (compliance || []).map((item) => ({
+    id: item.id, propertyId: item.property_id, itemType: item.item_type, expiryDate: item.expiry_date || "",
+    status: item.status, notes: item.notes || "",
+  }));
+  arrearsCases = (arrears || []).map((item) => ({
+    id: item.id, propertyId: item.property_id, transactionId: item.transaction_id, status: item.status, notes: item.notes || "",
+  }));
+  for (const property of properties) await syncRecurringExpenseTransactions(property);
+  return true;
+}
+
+async function saveRecurringExpenseToSupabase(property, expense) {
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  const { data, error } = await supabaseClient.from("recurring_expenses").insert({
+    user_id: user.id, property_id: property.id, category: expense.category, amount: expense.amount,
+    due_day: expense.dueDay, notes: expense.notes || null,
+  }).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+
+async function saveComplianceItemToSupabase(property, item) {
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  const { data, error } = await supabaseClient.from("compliance_items").insert({
+    user_id: user.id, property_id: property.id, item_type: item.itemType, expiry_date: item.expiryDate || null,
+    status: item.status, notes: item.notes || null,
+  }).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+
+async function saveArrearsCaseToSupabase(property, transactionId, status) {
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  const { data, error } = await supabaseClient.from("arrears_cases").upsert({
+    user_id: user.id, property_id: property.id, transaction_id: transactionId, status,
+  }, { onConflict: "transaction_id" }).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+
 async function savePropertyToSupabase(property) {
   if (!supabaseClient) return null;
 
@@ -3781,6 +4026,9 @@ function buildAccountExportPayload(userId = null) {
     },
     properties,
     transactions,
+    recurringExpenses,
+    complianceItems,
+    arrearsCases,
     documents: documents.map((documentRecord) => ({
       id: documentRecord.id,
       propertyId: documentRecord.propertyId,
@@ -3846,6 +4094,9 @@ async function deletePortfolioData() {
     properties = [];
     transactions = [];
     documents = [];
+    recurringExpenses = [];
+    complianceItems = [];
+    arrearsCases = [];
     activePropertyId = null;
     localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
     localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(transactions));
@@ -3981,6 +4232,7 @@ async function initAuth() {
             await loadSupabaseProperties(session.user.id);
             await loadSupabaseTransactions(session.user.id);
             await loadSupabaseDocuments(session.user.id);
+            await loadSupabaseOperations(session.user.id);
             restoreSavedLocation();
             switchDashboardTab("subscription");
           }
@@ -3996,6 +4248,7 @@ async function initAuth() {
     await loadSupabaseProperties(session.user.id);
     await loadSupabaseTransactions(session.user.id);
     await loadSupabaseDocuments(session.user.id);
+    await loadSupabaseOperations(session.user.id);
     restoreSavedLocation();
     if (checkoutStatus) {
       switchDashboardTab("subscription");
@@ -4982,6 +5235,13 @@ premium.exportPropertyTransactions.addEventListener("click", () => {
   if (property) exportPropertyTransactionsCsv(property);
 });
 
+premium.exportAccountantPack?.addEventListener("click", () => {
+  const property = activeProperty();
+  if (!property) return;
+  if (!hasProAccess()) return showProUpgrade("Accountant packs are included in PropertyPanel Pro.");
+  exportPropertyAccountantPack(property);
+});
+
 premium.propertyExpenseList.addEventListener("click", async (event) => {
   const property = activeProperty();
   if (!property) return;
@@ -5032,6 +5292,96 @@ premium.propertyReportFilters.addEventListener("input", () => {
 premium.propertyReportFilters.addEventListener("change", () => {
   const property = activeProperty();
   if (property) renderLandlordReport(property);
+});
+
+premium.recurringExpenseForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const property = activeProperty();
+  if (!property || !hasProAccess()) return showProUpgrade("Recurring expenses are included in PropertyPanel Pro.");
+  const expense = {
+    category: premium.recurringExpenseCategory.value.trim(),
+    amount: Number(premium.recurringExpenseAmount.value) || 0,
+    dueDay: Math.min(Math.max(Number(premium.recurringExpenseDueDay.value) || 1, 1), 31),
+    notes: premium.recurringExpenseNotes.value.trim(),
+    active: true,
+  };
+  if (!expense.category || !expense.amount) return;
+  premium.recurringExpenseMessage.textContent = "Saving recurring expense...";
+  try {
+    expense.id = await saveRecurringExpenseToSupabase(property, expense);
+    expense.propertyId = property.id;
+    recurringExpenses = [expense, ...recurringExpenses];
+    await syncRecurringExpenseTransactions(property);
+    renderTransactions();
+    renderPropertyDetail();
+    switchPropertyDetailTab("operations");
+    premium.recurringExpenseMessage.textContent = "Recurring expense saved. Monthly drafts were created.";
+    premium.recurringExpenseForm.reset();
+    premium.recurringExpenseDueDay.value = 1;
+  } catch (error) {
+    premium.recurringExpenseMessage.textContent = error?.message || "Could not save recurring expense.";
+  }
+});
+
+premium.recurringExpenseList?.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-delete-recurring-expense]");
+  if (!button) return;
+  const { error } = await supabaseClient.from("recurring_expenses").delete().eq("id", button.dataset.deleteRecurringExpense);
+  if (error) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const linkedDrafts = transactions.filter((transaction) =>
+    transaction.status !== "approved" &&
+    transaction.date >= today &&
+    transaction.notes.includes(`[recurring:${button.dataset.deleteRecurringExpense}:`));
+  for (const transaction of linkedDrafts) await deleteTransactionFromSupabase(transaction.id);
+  const linkedIds = new Set(linkedDrafts.map((transaction) => transaction.id));
+  transactions = transactions.filter((transaction) => !linkedIds.has(transaction.id));
+  recurringExpenses = recurringExpenses.filter((item) => item.id !== button.dataset.deleteRecurringExpense);
+  renderTransactions();
+  renderPropertyOperations(activeProperty());
+});
+
+premium.complianceForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const property = activeProperty();
+  if (!property || !hasProAccess()) return showProUpgrade("Compliance checklists are included in PropertyPanel Pro.");
+  const item = {
+    itemType: premium.complianceType.value,
+    expiryDate: premium.complianceExpiry.value,
+    status: premium.complianceStatus.value,
+    notes: premium.complianceNotes.value.trim(),
+  };
+  premium.complianceMessage.textContent = "Saving compliance item...";
+  try {
+    item.id = await saveComplianceItemToSupabase(property, item);
+    item.propertyId = property.id;
+    complianceItems = [item, ...complianceItems];
+    renderPropertyOperations(property);
+    premium.complianceForm.reset();
+    premium.complianceMessage.textContent = "Compliance item saved.";
+  } catch (error) {
+    premium.complianceMessage.textContent = error?.message || "Could not save compliance item.";
+  }
+});
+
+premium.complianceList?.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-delete-compliance-item]");
+  if (!button) return;
+  const { error } = await supabaseClient.from("compliance_items").delete().eq("id", button.dataset.deleteComplianceItem);
+  if (error) return;
+  complianceItems = complianceItems.filter((item) => item.id !== button.dataset.deleteComplianceItem);
+  renderPropertyOperations(activeProperty());
+});
+
+premium.arrearsList?.addEventListener("change", async (event) => {
+  const select = event.target.closest("[data-arrears-transaction]");
+  const property = activeProperty();
+  if (!select || !property) return;
+  const existing = arrearsCases.find((item) => item.transactionId === select.dataset.arrearsTransaction);
+  const id = await saveArrearsCaseToSupabase(property, select.dataset.arrearsTransaction, select.value);
+  if (existing) existing.status = select.value;
+  else arrearsCases = [{ id, propertyId: property.id, transactionId: select.dataset.arrearsTransaction, status: select.value }, ...arrearsCases];
+  renderPropertyOperations(property);
 });
 
 premium.addTenantToTenancy.addEventListener("click", () => {

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260601-reminders-2" />
+    <link rel="stylesheet" href="styles.css?v=20260601-operations" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -411,6 +411,8 @@
             <li>Email reminders and weekly action digest</li>
             <li>Mortgage, rent, tenancy and certificate alerts</li>
             <li>Add important dates to your calendar</li>
+            <li>Recurring expenses, arrears and compliance control</li>
+            <li>Rent-to-rent monthly profit panel</li>
             <li>Quarterly accountant-ready reports</li>
             <li>Landlord report workflow</li>
           </ul>
@@ -430,6 +432,7 @@
           <div><span>Tenancy and mortgage tracking</span><strong>Included</strong><strong>Included</strong></div>
           <div><span>Reminders</span><strong>-</strong><strong>Email alerts and weekly digest</strong></div>
           <div><span>Calendar export</span><strong>-</strong><strong>Important dates</strong></div>
+          <div><span>Operations control</span><strong>-</strong><strong>Recurring costs, arrears and compliance</strong></div>
           <div><span>Rent payments and manual expenses</span><strong>Included</strong><strong>Included</strong></div>
           <div><span>Quarterly reports</span><strong>-</strong><strong>Accountant-ready</strong></div>
           <div><span>Document vault</span><strong>Basic</strong><strong>With expiry tracking</strong></div>
@@ -671,6 +674,14 @@
             </div>
             <ul class="reminder-list" id="reminderList"></ul>
           </aside>
+
+          <section class="panel-card dashboard-panel" data-dashboard-panel="overview">
+            <div class="section-heading">
+              <p class="eyebrow">Operations</p>
+              <h2>Portfolio health</h2>
+            </div>
+            <div class="quarter-summary" id="portfolioHealth"></div>
+          </section>
 
           <section class="panel-card dashboard-panel" data-dashboard-panel="subscription">
             <div class="section-heading">
@@ -971,6 +982,7 @@
           <button class="section-tab" type="button" data-property-detail-tab="tenancies"><span class="tab-icon">▦</span>Long-term rents</button>
           <button class="section-tab" type="button" data-property-detail-tab="remortgages"><span class="tab-icon">↗</span>Remortgage history</button>
           <button class="section-tab" type="button" data-property-detail-tab="expenses"><span class="tab-icon">£</span>Expenses</button>
+          <button class="section-tab" type="button" data-property-detail-tab="operations"><span class="tab-icon">☑</span>Operations</button>
           <button class="section-tab" type="button" data-property-detail-tab="documents"><span class="tab-icon">◇</span>Documents</button>
           <button class="section-tab" type="button" data-property-detail-tab="landlord-report"><span class="tab-icon">☰</span>Landlord report</button>
         </div>
@@ -1213,6 +1225,7 @@
           <div class="detail-actions expense-bulk-actions">
             <button class="secondary-button small-button" id="approvePropertyDrafts" type="button">Approve visible drafts</button>
             <button class="secondary-button small-button" id="exportPropertyTransactions" type="button">Export visible CSV</button>
+            <button class="secondary-button small-button" id="exportAccountantPack" type="button">Export accountant pack</button>
           </div>
           <form class="transaction-form detail-filter-form" id="propertyExpenseFilters">
             <label>
@@ -1246,6 +1259,53 @@
             </label>
           </form>
           <div class="detail-list" id="propertyExpenseList"></div>
+        </section>
+
+        <section class="property-detail-panel" data-property-detail-panel="operations" hidden>
+          <div class="section-heading">
+            <p class="eyebrow">Property operations</p>
+            <h2>Monthly control centre</h2>
+          </div>
+          <div class="portfolio-metrics operations-metrics" id="operationsMetrics"></div>
+          <div class="operations-grid">
+            <section class="operations-section">
+              <div class="section-heading">
+                <p class="eyebrow">Recurring expenses</p>
+                <h3>Monthly draft costs</h3>
+              </div>
+              <form class="transaction-form operations-form" id="recurringExpenseForm">
+                <label><span>Category</span><input id="recurringExpenseCategory" list="expenseCategories" placeholder="Internet" required /></label>
+                <label><span>Amount</span><input id="recurringExpenseAmount" type="number" min="0.01" step="0.01" required /></label>
+                <label><span>Due day</span><input id="recurringExpenseDueDay" type="number" min="1" max="31" value="1" required /></label>
+                <label class="wide-field"><span>Notes</span><input id="recurringExpenseNotes" placeholder="Optional supplier or contract note" /></label>
+                <button class="tax-button" type="submit">Add recurring expense</button>
+              </form>
+              <p class="field-hint" id="recurringExpenseMessage">Pro creates monthly draft transactions for active recurring expenses.</p>
+              <div class="detail-list" id="recurringExpenseList"></div>
+            </section>
+            <section class="operations-section">
+              <div class="section-heading">
+                <p class="eyebrow">Arrears</p>
+                <h3>Overdue rent workflow</h3>
+              </div>
+              <div class="detail-list" id="arrearsList"></div>
+            </section>
+            <section class="operations-section">
+              <div class="section-heading">
+                <p class="eyebrow">Compliance</p>
+                <h3>Property checklist</h3>
+              </div>
+              <form class="transaction-form operations-form" id="complianceForm">
+                <label><span>Item</span><select id="complianceType"><option>Gas safety</option><option>EICR</option><option>EPC</option><option>Insurance</option><option>Deposit protection</option><option>Tenancy agreement</option><option>Other</option></select></label>
+                <label><span>Expiry date</span><input id="complianceExpiry" type="date" /></label>
+                <label><span>Status</span><select id="complianceStatus"><option value="valid">Valid</option><option value="review">Needs review</option><option value="expired">Expired</option><option value="not_required">Not required</option></select></label>
+                <label class="wide-field"><span>Notes</span><input id="complianceNotes" placeholder="Optional note" /></label>
+                <button class="tax-button" type="submit">Add compliance item</button>
+              </form>
+              <p class="field-hint" id="complianceMessage">Keep key documents and renewal dates visible in one checklist.</p>
+              <div class="detail-list" id="complianceList"></div>
+            </section>
+          </div>
         </section>
 
         <section class="property-detail-panel" data-property-detail-panel="documents" hidden>
@@ -1446,6 +1506,6 @@
     </datalist>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260601-reminders"></script>
+    <script src="app.js?v=20260601-operations"></script>
   </body>
 </html>

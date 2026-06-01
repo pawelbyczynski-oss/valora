@@ -1807,6 +1807,31 @@ select {
   margin-bottom: 12px;
 }
 
+.operations-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.operations-section {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.operations-section h3 {
+  margin: 0;
+}
+
+.operations-form {
+  margin-bottom: 8px;
+}
+
+.operations-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+}
+
 .detail-actions {
   display: flex;
   gap: 8px;
@@ -2500,6 +2525,10 @@ li {
   }
 
   .tenancy-rent-change-form {
+    grid-template-columns: 1fr;
+  }
+
+  .operations-row {
     grid-template-columns: 1fr;
   }
 
