@@ -4201,6 +4201,7 @@ async function handleEmailAuth() {
 
     if (data.session) {
       premium.authMessage.textContent = "Account created. Opening your dashboard...";
+      saveUiState({ viewId: "dashboardView", dashboardTab: "overview", activePropertyId: null, propertyDetailTab: "overview" });
       await initAuth();
       return;
     }
@@ -4220,6 +4221,7 @@ async function handleEmailAuth() {
     }
 
     premium.authMessage.textContent = "Signed in. Opening your dashboard...";
+    saveUiState({ viewId: "dashboardView", dashboardTab: "overview", activePropertyId: null, propertyDetailTab: "overview" });
     await initAuth();
     return;
   }
