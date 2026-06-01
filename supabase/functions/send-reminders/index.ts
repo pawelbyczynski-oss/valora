@@ -16,6 +16,7 @@ type Profile = {
   email: string;
   mobile_phone?: string | null;
   sms_reminders_enabled?: boolean;
+  weekly_digest_sent_for_week?: string | null;
 };
 
 type ReminderCandidate = {
@@ -105,6 +106,35 @@ function smsText(reminder: Record<string, unknown>) {
   return `PropertyPanel Reminder: ${String(reminder.title)} is due ${leadLabel(Number(reminder.lead_days || 0))} (${String(reminder.event_date)}).`;
 }
 
+function digestEmailHtml(reminders: Record<string, unknown>[]) {
+  const rows = reminders.map((reminder) => `
+    <li style="margin:0 0 14px">
+      <strong>${escapeHtml(reminder.title)}</strong><br />
+      <span style="color:#64748b;font-size:14px">${escapeHtml(reminder.event_date)}</span>
+    </li>
+  `).join("");
+  return `
+    <!doctype html>
+    <html>
+      <body style="margin:0;background:#f7f8fa;color:#1f2933;font-family:Arial,sans-serif">
+        <div style="max-width:620px;margin:0 auto;padding:32px 20px">
+          <div style="background:#ffffff;border:1px solid #d8dee6;border-radius:8px;padding:24px">
+            <div style="color:#0f766e;font-size:14px;font-weight:700">PropertyPanel Weekly Digest</div>
+            <h1 style="margin:16px 0 8px;font-size:24px;line-height:1.25">Your upcoming property actions</h1>
+            <p style="margin:0 0 18px;color:#475569;line-height:1.6">
+              Review the dates below and update your portfolio records when anything changes.
+            </p>
+            <ul style="margin:0 0 20px;padding-left:20px">${rows}</ul>
+            <a href="${escapeHtml(APP_BASE_URL)}" style="display:inline-block;padding:12px 16px;border-radius:6px;background:#0f766e;color:#ffffff;text-decoration:none;font-weight:700">
+              Open PropertyPanel
+            </a>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
 function candidate(
   profile: Profile,
   source: {
@@ -149,7 +179,7 @@ async function syncGeneratedReminders() {
   if (!proUserIds.length) return { proUsers: 0, generated: 0 };
 
   const [{ data: profiles, error: profileError }, { data: properties, error: propertyError }] = await Promise.all([
-    supabase.from("profiles").select("id,email,mobile_phone,sms_reminders_enabled").in("id", proUserIds),
+    supabase.from("profiles").select("id,email,mobile_phone,sms_reminders_enabled,weekly_digest_sent_for_week").in("id", proUserIds),
     supabase
       .from("properties")
       .select("id,user_id,name,mortgage_expiry_date,rent_due_day,rent_reminder_enabled")
@@ -271,6 +301,59 @@ async function sendEmail(reminder: Record<string, unknown>, email: string) {
   if (!response.ok) throw new Error(`Resend ${response.status}: ${await response.text()}`);
 }
 
+async function sendDigestEmail(reminders: Record<string, unknown>[], email: string) {
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendKey) throw new Error("RESEND_API_KEY is not configured.");
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: REMINDER_FROM_EMAIL,
+      to: email,
+      subject: "PropertyPanel Weekly Digest: upcoming actions",
+      html: digestEmailHtml(reminders),
+    }),
+  });
+  if (!response.ok) throw new Error(`Resend ${response.status}: ${await response.text()}`);
+}
+
+async function sendWeeklyDigests(today: string) {
+  if (new Date(`${today}T12:00:00Z`).getUTCDay() !== 1) return 0;
+  const digestEnd = addDays(today, 90);
+  const { data: reminders, error } = await supabase
+    .from("reminders")
+    .select("user_id,title,event_date,profiles(email,weekly_digest_sent_for_week)")
+    .eq("source_kind", "generated")
+    .gte("event_date", today)
+    .lte("event_date", digestEnd);
+  if (error) throw error;
+
+  const remindersByUser = new Map<string, Record<string, unknown>[]>();
+  for (const reminder of reminders ?? []) {
+    const profile = reminder.profiles as { email?: string; weekly_digest_sent_for_week?: string | null } | null;
+    if (!profile?.email || profile.weekly_digest_sent_for_week === today) continue;
+    const current = remindersByUser.get(reminder.user_id) ?? [];
+    if (!current.some((item) => item.title === reminder.title && item.event_date === reminder.event_date)) {
+      current.push(reminder);
+    }
+    remindersByUser.set(reminder.user_id, current);
+  }
+
+  let sent = 0;
+  for (const [userId, userReminders] of remindersByUser.entries()) {
+    const profile = userReminders[0]?.profiles as { email?: string } | null;
+    if (!profile?.email || !userReminders.length) continue;
+    await sendDigestEmail(userReminders, profile.email);
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ weekly_digest_sent_for_week: today })
+      .eq("id", userId);
+    if (updateError) throw updateError;
+    sent += 1;
+  }
+  return sent;
+}
+
 async function sendSms(reminder: Record<string, unknown>, mobilePhone: string) {
   const accountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
   const authToken = Deno.env.get("TWILIO_AUTH_TOKEN");
@@ -355,7 +438,8 @@ Deno.serve(async (request) => {
         }
       }
     }
-    return Response.json({ ok: true, ...sync, due: reminders?.length ?? 0, emailsSent, smsSent, failed });
+    const digestsSent = await sendWeeklyDigests(today);
+    return Response.json({ ok: true, ...sync, due: reminders?.length ?? 0, emailsSent, digestsSent, smsSent, failed });
   } catch (error) {
     console.error(error);
     return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });

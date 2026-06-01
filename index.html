@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260528-property-search" />
+    <link rel="stylesheet" href="styles.css?v=20260601-reminders-2" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -20,11 +20,25 @@
         <button class="nav-button active" type="button" data-view="homeView">Calculator</button>
         <button class="nav-button" type="button" data-view="premiumView">Premium</button>
         <button class="nav-button" id="navPortfolioButton" type="button" data-nav-action="portfolio">Portfolio</button>
+        <button class="nav-button notification-button" id="notificationButton" type="button" aria-expanded="false" aria-controls="notificationPanel" title="Reminders">
+          <span aria-hidden="true">🔔</span>
+          <span class="notification-count" id="notificationCount" hidden>0</span>
+        </button>
         <button class="nav-button" id="navAuthButton" type="button" data-view="loginView">Sign in</button>
         <button class="nav-button theme-toggle" id="themeToggle" type="button" aria-pressed="false">Dark</button>
         <button class="nav-button admin-nav" type="button" data-view="adminView" hidden>Admin</button>
       </div>
     </nav>
+    <aside class="notification-panel" id="notificationPanel" hidden>
+      <div class="section-heading split-heading">
+        <div>
+          <p class="eyebrow">Pro reminders</p>
+          <h2>Upcoming actions</h2>
+        </div>
+        <button class="icon-button" id="closeNotificationPanel" type="button" aria-label="Close reminders">×</button>
+      </div>
+      <ul class="reminder-list" id="notificationList"></ul>
+    </aside>
 
     <main class="app-shell product-dashboard app-view active" id="homeView">
       <aside class="product-sidebar" aria-label="PropertyPanel sections" hidden>
@@ -394,7 +408,9 @@
             <li>Everything in Premium</li>
             <li>Unlimited properties</li>
             <li>Rent-to-rent / managed property mode</li>
-            <li>Mortgage, rent, tenancy and certificate reminders</li>
+            <li>Email reminders and weekly action digest</li>
+            <li>Mortgage, rent, tenancy and certificate alerts</li>
+            <li>Add important dates to your calendar</li>
             <li>Quarterly accountant-ready reports</li>
             <li>Landlord report workflow</li>
           </ul>
@@ -412,7 +428,8 @@
           <div><span>Property portfolio</span><strong>Up to 5</strong><strong>Unlimited</strong></div>
           <div><span>Rent-to-rent / managed property</span><strong>-</strong><strong>Included</strong></div>
           <div><span>Tenancy and mortgage tracking</span><strong>Included</strong><strong>Included</strong></div>
-          <div><span>Reminders</span><strong>-</strong><strong>Mortgage, rent, tenancy and certificates</strong></div>
+          <div><span>Reminders</span><strong>-</strong><strong>Email alerts and weekly digest</strong></div>
+          <div><span>Calendar export</span><strong>-</strong><strong>Important dates</strong></div>
           <div><span>Rent payments and manual expenses</span><strong>Included</strong><strong>Included</strong></div>
           <div><span>Quarterly reports</span><strong>-</strong><strong>Accountant-ready</strong></div>
           <div><span>Document vault</span><strong>Basic</strong><strong>With expiry tracking</strong></div>
@@ -576,7 +593,7 @@
               </label>
               <label>
                 <span>Category</span>
-                <input id="transactionCategory" placeholder="Rent, repair, insurance..." required />
+                <input id="transactionCategory" list="expenseCategories" placeholder="Rent, repair, internet..." required />
               </label>
               <label>
                 <span>Tax treatment</span>
@@ -1180,7 +1197,7 @@
             </label>
             <label>
               <span>Category</span>
-              <input id="expenseDocumentCategory" placeholder="Repair, insurance, service charge..." />
+              <input id="expenseDocumentCategory" list="expenseCategories" placeholder="Repair, internet, service charge..." />
             </label>
             <label class="wide-field">
               <span>Notes</span>
@@ -1282,7 +1299,7 @@
             </label>
             <label>
               <span>Category</span>
-              <input id="documentExpenseCategory" placeholder="Repair, insurance, service charge..." />
+              <input id="documentExpenseCategory" list="expenseCategories" placeholder="Repair, internet, service charge..." />
             </label>
             <label class="wide-field">
               <span>Notes</span>
@@ -1416,7 +1433,19 @@
       <a href="terms.html">Terms of Service</a>
     </footer>
 
+    <datalist id="expenseCategories">
+      <option value="Rent"></option>
+      <option value="Repairs"></option>
+      <option value="Internet"></option>
+      <option value="Utilities"></option>
+      <option value="Insurance"></option>
+      <option value="Service charge"></option>
+      <option value="Council tax"></option>
+      <option value="Cleaning"></option>
+      <option value="Maintenance"></option>
+    </datalist>
+
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260528-property-search"></script>
+    <script src="app.js?v=20260601-reminders"></script>
   </body>
 </html>

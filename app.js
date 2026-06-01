@@ -145,6 +145,11 @@ const premium = {
   landlordReport: document.querySelector("#landlordReport"),
   printLandlordReport: document.querySelector("#printLandlordReport"),
   reminderList: document.querySelector("#reminderList"),
+  notificationButton: document.querySelector("#notificationButton"),
+  notificationCount: document.querySelector("#notificationCount"),
+  notificationPanel: document.querySelector("#notificationPanel"),
+  closeNotificationPanel: document.querySelector("#closeNotificationPanel"),
+  notificationList: document.querySelector("#notificationList"),
   exportPortfolio: document.querySelector("#exportPortfolio"),
   portfolioCount: document.querySelector("#portfolioCount"),
   portfolioValue: document.querySelector("#portfolioValue"),
@@ -648,6 +653,16 @@ function downloadJson(payload, fileName) {
   URL.revokeObjectURL(url);
 }
 
+function downloadText(contents, fileName, type = "text/plain;charset=utf-8") {
+  const blob = new Blob([contents], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function quarterTransactions() {
   const range = currentQuarterRange();
   return transactions
@@ -915,6 +930,12 @@ function normalizeTenancyRecord(tenancy = {}) {
       phone: guarantor.phone || "",
       email: guarantor.email || "",
     },
+    rentChanges: (tenancy.rentChanges || []).map((change) => ({
+      ...change,
+      id: change.id || createId("rent-change"),
+      effectiveDate: change.effectiveDate || "",
+      rent: Number(change.rent || 0),
+    })).sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate)),
     documents: parsedDocuments.documents,
   };
 }
@@ -1066,7 +1087,17 @@ function transactionTenancyId(transaction) {
 function tenancyRentTransactions(tenancyId) {
   return transactions
     .filter((transaction) => transactionTenancyId(transaction) === tenancyId)
-    .sort((a, b) => dateValue(a.date) - dateValue(b.date));
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
+function tenancyRentForDate(tenancy, dueDate) {
+  return (tenancy.rentChanges || [])
+    .filter((change) => change.effectiveDate && change.effectiveDate <= dueDate)
+    .reduce((amount, change) => Number(change.rent || amount), Number(tenancy.rent || 0));
+}
+
+function currentTenancyRent(tenancy) {
+  return tenancyRentForDate(tenancy, new Date().toISOString().slice(0, 10));
 }
 
 function tenancyRentDueDates(property, tenancy) {
@@ -1100,7 +1131,7 @@ function buildTenancyRentTransaction(property, tenancy, dueDate, existingTransac
     propertyId: property.id,
     tenancyId: tenancy.id,
     date: dueDate,
-    amount: Number(tenancy.rent || property.rent || 0),
+    amount: Number(tenancyRentForDate(tenancy, dueDate) || property.rent || 0),
     type: "income",
     category: tenancy.tenantName ? `Rent - ${tenancy.tenantName}` : "Rent due",
     taxTreatment: "revenue",
@@ -1127,17 +1158,24 @@ async function syncTenancyRentSchedule(property, tenancy) {
   for (const dueDate of dueDates) {
     const existingTransaction = existingByDate.get(dueDate);
     const scheduledTransaction = buildTenancyRentTransaction(property, tenancy, dueDate, existingTransaction);
-    if (existingTransaction) {
+    const canRefreshExisting =
+      existingTransaction &&
+      existingTransaction.status !== "approved" &&
+      existingTransaction.date >= new Date().toISOString().slice(0, 10);
+    if (canRefreshExisting) {
       Object.assign(existingTransaction, scheduledTransaction);
       await updateTransactionInSupabase(existingTransaction);
-    } else {
+    } else if (!existingTransaction) {
       const savedId = await saveTransactionToSupabase(scheduledTransaction);
       if (savedId) scheduledTransaction.id = savedId;
       transactions = [scheduledTransaction, ...transactions];
     }
   }
 
-  const transactionsToDelete = existingTransactions.filter((transaction) => !dueDateSet.has(transaction.date));
+  const today = new Date().toISOString().slice(0, 10);
+  const transactionsToDelete = existingTransactions.filter(
+    (transaction) => !dueDateSet.has(transaction.date) && transaction.status !== "approved" && transaction.date >= today,
+  );
   for (const transaction of transactionsToDelete) {
     await deleteTransactionFromSupabase(transaction.id);
   }
@@ -1148,7 +1186,10 @@ async function syncTenancyRentSchedule(property, tenancy) {
 }
 
 async function deleteTenancyRentSchedule(tenancyId) {
-  const linkedTransactions = tenancyRentTransactions(tenancyId);
+  const today = new Date().toISOString().slice(0, 10);
+  const linkedTransactions = tenancyRentTransactions(tenancyId).filter(
+    (transaction) => transaction.status !== "approved" && transaction.date >= today,
+  );
   for (const transaction of linkedTransactions) {
     await deleteTransactionFromSupabase(transaction.id);
   }
@@ -1834,7 +1875,8 @@ function renderPropertyDetail() {
   ensurePropertyDetailFilterDefaults();
 
   const mortgageDeal = latestMortgageDeal(property);
-  const currentRent = Number((property.tenancies || [])[0]?.rent || property.rent || 0);
+  const latestTenancy = (property.tenancies || [])[0];
+  const currentRent = Number(latestTenancy ? currentTenancyRent(latestTenancy) : property.rent || 0);
   premium.propertyDetailTitle.textContent = property.name;
   document.querySelector("#detailTenancyRent").value = property.rent || "";
   document.querySelector("#detailMortgageProduct").value = mortgageDeal.productType || "Fixed";
@@ -1905,6 +1947,17 @@ function renderPropertyDetail() {
         ? `${tenancy.guarantor.name}${contactFromTenant(tenancy.guarantor) ? ` (${contactFromTenant(tenancy.guarantor)})` : ""}`
         : "-";
       const rentTransactions = tenancyRentTransactions(tenancy.id);
+      const rentChangeHistory = (tenancy.rentChanges || []).length
+        ? tenancy.rentChanges
+          .map((change) => `
+            <div class="rent-change-row">
+              <span>From ${escapeHtml(formatDate(change.effectiveDate))}</span>
+              <strong>${money.format(Number(change.rent || 0))}</strong>
+              <button class="secondary-button small-button danger-button" type="button" data-delete-rent-change="${escapeHtml(change.id)}" data-tenancy-id="${escapeHtml(tenancy.id)}">Delete</button>
+            </div>
+          `)
+          .join("")
+        : `<p class="field-hint">No mid-tenancy rent changes recorded.</p>`;
       const rentSchedule = rentTransactions.length
         ? `
           <div class="tenancy-rent-schedule">
@@ -1939,6 +1992,22 @@ function renderPropertyDetail() {
           <button class="secondary-button small-button" type="button" data-edit-tenancy="${tenancy.id}">Edit</button>
           <button class="secondary-button small-button danger-button" type="button" data-delete-tenancy="${tenancy.id}">Delete</button>
         </div>
+        <form class="tenancy-rent-change-form" data-rent-change-form="${escapeHtml(tenancy.id)}">
+          <div>
+            <span>Change rent during tenancy</span>
+            <p class="field-hint">New draft rent payments from this date will use the updated amount.</p>
+          </div>
+          <label>
+            <span>Effective from</span>
+            <input name="effectiveDate" type="date" min="${escapeHtml(tenancy.startDate || "")}" max="${escapeHtml(tenancy.endDate || "")}" required />
+          </label>
+          <label>
+            <span>Monthly rent</span>
+            <input name="monthlyRent" type="number" min="0" step="0.01" required />
+          </label>
+          <button class="secondary-button small-button" type="submit">Save rent change</button>
+          <div class="rent-change-history">${rentChangeHistory}</div>
+        </form>
         ${rentSchedule}
       `;
       return row;
@@ -2095,7 +2164,12 @@ function renderReminderItem(reminder) {
   title.textContent = reminder.title;
   const detail = document.createElement("small");
   detail.textContent = reminder.detail;
-  copy.append(title, detail);
+  const calendarButton = document.createElement("button");
+  calendarButton.className = "inline-link reminder-calendar";
+  calendarButton.type = "button";
+  calendarButton.dataset.calendarReminder = reminder.id;
+  calendarButton.textContent = "Add to calendar";
+  copy.append(title, detail, calendarButton);
 
   const due = document.createElement("time");
   due.dateTime = reminder.dueDate;
@@ -2108,14 +2182,7 @@ function renderReminderItem(reminder) {
   return item;
 }
 
-function renderReminders() {
-  if (!hasProAccess()) {
-    const item = document.createElement("li");
-    item.textContent = "Upgrade to Pro for mortgage expiry, rent due, tenancy and certificate reminders.";
-    premium.reminderList.replaceChildren(item);
-    return;
-  }
-
+function upcomingReminders() {
   const reminders = [];
 
   properties.forEach((property) => {
@@ -2169,14 +2236,77 @@ function renderReminders() {
   });
 
   reminders.sort((a, b) => a.rank - b.rank || a.days - b.days || a.propertyName.localeCompare(b.propertyName));
+  return reminders.map((reminder, index) => ({ ...reminder, id: `${reminder.type}-${reminder.dueDate}-${index}` }));
+}
+
+function updateNotificationPanel(reminders) {
+  if (!premium.notificationList || !premium.notificationCount) return;
+  premium.notificationCount.textContent = String(reminders.length);
+  premium.notificationCount.hidden = !reminders.length;
+  premium.notificationList.replaceChildren(...reminders.slice(0, 12).map(renderReminderItem));
+  if (!reminders.length) {
+    const item = document.createElement("li");
+    item.textContent = hasProAccess()
+      ? "No urgent reminders."
+      : "Upgrade to Pro to enable reminders.";
+    premium.notificationList.replaceChildren(item);
+  }
+}
+
+function renderReminders() {
+  if (!hasProAccess()) {
+    const item = document.createElement("li");
+    item.textContent = "Upgrade to Pro for mortgage expiry, rent due, tenancy and certificate reminders.";
+    premium.reminderList.replaceChildren(item);
+    updateNotificationPanel([]);
+    return;
+  }
+
+  const reminders = upcomingReminders();
 
   premium.reminderList.replaceChildren(...reminders.slice(0, 10).map(renderReminderItem));
+  updateNotificationPanel(reminders);
 
   if (!reminders.length) {
     const item = document.createElement("li");
     item.textContent = "No urgent reminders. Mortgage, rent, tenancy and certificate alerts will appear here when dates are close.";
     premium.reminderList.replaceChildren(item);
   }
+}
+
+function calendarDateValue(dateString) {
+  return String(dateString || "").replaceAll("-", "");
+}
+
+function addCalendarDays(dateString, amount) {
+  const date = dateFromInput(dateString);
+  if (!date) return dateString;
+  date.setDate(date.getDate() + amount);
+  return dateInputValue(date);
+}
+
+function calendarText(value) {
+  return String(value || "").replaceAll("\\", "\\\\").replaceAll("\n", "\\n").replaceAll(",", "\\,").replaceAll(";", "\\;");
+}
+
+function downloadReminderCalendar(reminder) {
+  const eventDate = calendarDateValue(reminder.dueDate);
+  if (!eventDate) return;
+  const contents = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//PropertyPanel//Reminder//EN",
+    "BEGIN:VEVENT",
+    `UID:${calendarText(`${reminder.id}@propertypanel.co.uk`)}`,
+    `DTSTAMP:${new Date().toISOString().replaceAll(/[-:]/g, "").replace(".000", "")}`,
+    `DTSTART;VALUE=DATE:${eventDate}`,
+    `DTEND;VALUE=DATE:${calendarDateValue(addCalendarDays(reminder.dueDate, 1))}`,
+    `SUMMARY:${calendarText(`PropertyPanel: ${reminder.title}`)}`,
+    `DESCRIPTION:${calendarText(reminder.detail)}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  downloadText(contents, `propertypanel-${reminder.dueDate}-${reminder.type.toLowerCase()}.ics`, "text/calendar;charset=utf-8");
 }
 
 function switchView(viewId) {
@@ -2800,6 +2930,14 @@ async function loadSupabaseProperties(userId) {
         .in("property_id", propertyIds)
         .order("start_date", { ascending: false })
     : { data: [] };
+  const tenancyIds = (tenancies || []).map((tenancy) => tenancy.id);
+  const { data: rentChanges } = tenancyIds.length
+    ? await supabaseClient
+        .from("tenancy_rent_changes")
+        .select("*")
+        .in("tenancy_id", tenancyIds)
+        .order("effective_date", { ascending: true })
+    : { data: [] };
 
   if (!data?.length) {
     properties = [];
@@ -2849,6 +2987,13 @@ async function loadSupabaseProperties(userId) {
             startDate: tenancy.tenancy_start_date,
             endDate: tenancy.tenancy_end_date,
             rent: Number(tenancy.monthly_rent),
+            rentChanges: (rentChanges || [])
+              .filter((change) => change.tenancy_id === tenancy.id)
+              .map((change) => ({
+                id: change.id,
+                effectiveDate: change.effective_date,
+                rent: Number(change.monthly_rent),
+              })),
             documents: tenancy.document_names || [],
           }),
         ),
@@ -3320,6 +3465,39 @@ async function updateTenancyInSupabase(property, tenancy) {
 async function deleteTenancyFromSupabase(property, tenancyId) {
   if (!supabaseClient || !isPersistedProperty(property) || !isPersistedProperty({ id: tenancyId })) return;
   const { error } = await supabaseClient.from("tenancy_periods").delete().eq("id", tenancyId);
+  if (error) throw error;
+}
+
+async function saveTenancyRentChangeToSupabase(property, tenancy, rentChange) {
+  if (!supabaseClient || !isPersistedProperty(property) || !isPersistedProperty(tenancy)) return null;
+
+  const {
+    data: { user },
+  } = await supabaseClient.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabaseClient
+    .from("tenancy_rent_changes")
+    .upsert({
+      user_id: user.id,
+      property_id: property.id,
+      tenancy_id: tenancy.id,
+      effective_date: rentChange.effectiveDate,
+      monthly_rent: rentChange.rent,
+    }, { onConflict: "tenancy_id,effective_date" })
+    .select("id,effective_date,monthly_rent")
+    .single();
+  if (error) throw error;
+  return {
+    id: data.id,
+    effectiveDate: data.effective_date,
+    rent: Number(data.monthly_rent),
+  };
+}
+
+async function deleteTenancyRentChangeFromSupabase(rentChangeId) {
+  if (!supabaseClient || !isPersistedProperty({ id: rentChangeId })) return;
+  const { error } = await supabaseClient.from("tenancy_rent_changes").delete().eq("id", rentChangeId);
   if (error) throw error;
 }
 
@@ -4880,6 +5058,30 @@ premium.tenancyHistoryList.addEventListener("click", async (event) => {
   const property = activeProperty();
   if (!property) return;
 
+  const deleteRentChangeButton = event.target.closest("[data-delete-rent-change]");
+  if (deleteRentChangeButton) {
+    const tenancy = (property.tenancies || []).find((item) => item.id === deleteRentChangeButton.dataset.tenancyId);
+    if (!tenancy) return;
+    const confirmed = window.confirm("Delete this rent change and refresh future draft payments?");
+    if (!confirmed) return;
+    setButtonBusy(deleteRentChangeButton, true, "Deleting...");
+    try {
+      await deleteTenancyRentChangeFromSupabase(deleteRentChangeButton.dataset.deleteRentChange);
+      tenancy.rentChanges = (tenancy.rentChanges || []).filter(
+        (change) => change.id !== deleteRentChangeButton.dataset.deleteRentChange,
+      );
+      await syncTenancyRentSchedule(property, tenancy);
+      renderTransactions();
+      renderPropertyDetail();
+      switchPropertyDetailTab("tenancies");
+      premium.tenancyMessage.textContent = "Rent change deleted. Future draft payments were refreshed.";
+    } catch (error) {
+      premium.tenancyMessage.textContent = error?.message || "Could not delete the rent change.";
+      setButtonBusy(deleteRentChangeButton, false);
+    }
+    return;
+  }
+
   const editButton = event.target.closest("[data-edit-tenancy]");
   if (editButton) {
     const tenancy = (property.tenancies || []).find((item) => item.id === editButton.dataset.editTenancy);
@@ -4973,6 +5175,48 @@ premium.tenancyHistoryList.addEventListener("click", async (event) => {
   } catch (error) {
     premium.tenancyMessage.textContent = error?.message || "Could not delete rent payment.";
     setButtonBusy(deleteRentButton, false);
+  }
+});
+
+premium.tenancyHistoryList.addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-rent-change-form]");
+  if (!form) return;
+  event.preventDefault();
+  const property = activeProperty();
+  const tenancy = (property?.tenancies || []).find((item) => item.id === form.dataset.rentChangeForm);
+  if (!property || !tenancy) return;
+
+  const effectiveDate = form.elements.effectiveDate.value;
+  const rent = Number(form.elements.monthlyRent.value) || 0;
+  if (!effectiveDate || !rent) {
+    premium.tenancyMessage.textContent = "Choose the effective date and enter the new monthly rent.";
+    return;
+  }
+
+  const submitButton = form.querySelector("button[type='submit']");
+  setButtonBusy(submitButton, true, "Saving...");
+  premium.tenancyMessage.textContent = "Saving rent change and refreshing future draft payments...";
+  try {
+    const savedChange = await saveTenancyRentChangeToSupabase(property, tenancy, { effectiveDate, rent }) || {
+      id: createId("rent-change"),
+      effectiveDate,
+      rent,
+    };
+    tenancy.rentChanges = [
+      ...(tenancy.rentChanges || []).filter((change) => change.effectiveDate !== effectiveDate),
+      savedChange,
+    ].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+    await syncTenancyRentSchedule(property, tenancy);
+    property.rent = currentTenancyRent(tenancy);
+    await updateSupabasePropertySnapshot(property);
+    renderTransactions();
+    renderPremiumDashboard();
+    renderPropertyDetail();
+    switchPropertyDetailTab("tenancies");
+    premium.tenancyMessage.textContent = "Rent change saved. Future draft payments use the new amount.";
+  } catch (error) {
+    premium.tenancyMessage.textContent = error?.message || "Could not save the rent change.";
+    setButtonBusy(submitButton, false);
   }
 });
 
@@ -5081,6 +5325,7 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
       const index = (property.tenancies || []).findIndex((item) => item.id === editingTenancyId);
       if (index >= 0) {
         tenancy.documents = files.length ? files : property.tenancies[index].documents || [];
+        tenancy.rentChanges = property.tenancies[index].rentChanges || [];
         tenancy = normalizeTenancyRecord(tenancy);
         property.tenancies[index] = tenancy;
         await updateTenancyInSupabase(property, tenancy);
@@ -5090,7 +5335,7 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
       if (savedId) tenancy.id = savedId;
       property.tenancies = [tenancy, ...(property.tenancies || [])];
     }
-    if (tenancy.rent) property.rent = tenancy.rent;
+    if (tenancy.rent) property.rent = currentTenancyRent(tenancy);
     renderPremiumDashboard();
     renderPropertyDetail();
     switchPropertyDetailTab("tenancies");
@@ -5251,6 +5496,25 @@ premium.exportPortfolio.addEventListener("click", () => {
   renderPrintDocumentAppendix(includeDocuments ? properties : []);
   trackEvent("pdf_exported", { property_count: properties.length });
   window.print();
+});
+
+premium.notificationButton?.addEventListener("click", () => {
+  const nextHidden = !premium.notificationPanel.hidden;
+  if (!nextHidden) updateNotificationPanel(hasProAccess() ? upcomingReminders() : []);
+  premium.notificationPanel.hidden = nextHidden;
+  premium.notificationButton.setAttribute("aria-expanded", String(!nextHidden));
+});
+
+premium.closeNotificationPanel?.addEventListener("click", () => {
+  premium.notificationPanel.hidden = true;
+  premium.notificationButton.setAttribute("aria-expanded", "false");
+});
+
+document.addEventListener("click", (event) => {
+  const calendarButton = event.target.closest("[data-calendar-reminder]");
+  if (!calendarButton) return;
+  const reminder = upcomingReminders().find((item) => item.id === calendarButton.dataset.calendarReminder);
+  if (reminder) downloadReminderCalendar(reminder);
 });
 
 renderTaxBands("higher");

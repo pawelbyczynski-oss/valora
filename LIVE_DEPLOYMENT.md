@@ -37,8 +37,9 @@ This prototype is currently a static product demo. These files add the productio
 
 1. Deploy `supabase/functions/send-reminders`.
 2. Apply `supabase/migrations/021_pro_reminder_delivery.sql` to schedule it daily at `07:00 UTC`.
-3. Add `RESEND_API_KEY`, `REMINDER_FROM_EMAIL` and `REMINDER_CRON_SECRET` as Edge Function secrets.
-4. Copy the generated Vault value named `propertypanel_reminder_cron_secret` into `REMINDER_CRON_SECRET`.
+3. Apply `supabase/migrations/022_tenancy_rent_changes_and_weekly_digest.sql` and `023_index_tenancy_rent_changes_user.sql`.
+4. Add `RESEND_API_KEY`, `REMINDER_FROM_EMAIL` and `REMINDER_CRON_SECRET` as Edge Function secrets.
+5. Copy the generated Vault value named `propertypanel_reminder_cron_secret` into `REMINDER_CRON_SECRET`.
 
 To read the generated cron secret once in the Supabase SQL editor:
 
@@ -61,6 +62,8 @@ Reminder types supported by the schema:
 
 Pro expiry reminders are generated 3 months, 1 month and 1 week before the saved date.
 Rent reminders are generated 1 week, 1 day and on the due date.
+Every Monday the worker sends Pro users one weekly digest for upcoming actions in the next 90 days.
+The frontend also shows reminders in the notification panel and exports individual dates as `.ics` calendar files.
 
 Optional Twilio SMS delivery is prepared but disabled by default. To launch it later:
 
@@ -68,17 +71,17 @@ Optional Twilio SMS delivery is prepared but disabled by default. To launch it l
 2. Add either `TWILIO_MESSAGING_SERVICE_SID` or `TWILIO_FROM_NUMBER`.
 3. Add an explicit user opt-in UI for `profiles.sms_reminders_enabled` and save an E.164 phone number in `profiles.mobile_phone`.
 
-## 5. Frontend work still needed
+## 5. Frontend launch checks
 
-The UI is ready as a prototype, and `app.js` now persists demo properties in `localStorage`. To go live, replace that local persistence with Supabase:
+The frontend is connected to Supabase Auth, portfolio records, Storage, Stripe checkout and subscription gates.
+Before launch, run an end-to-end check with Premium and Pro test accounts:
 
-- sign in with Supabase Auth
-- load properties where `user_id = auth.uid()`
-- insert/update/delete `properties`
-- upload documents to Supabase Storage and insert `documents`
-- create reminders in the `reminders` table
-- call `create-checkout-session` when the user starts premium
-- gate premium dashboard access by subscription status
+- create, edit and delete a property
+- extend and shorten a tenancy rent schedule
+- save a mid-tenancy rent change
+- upload and open a document
+- verify Stripe checkout and billing portal return paths
+- verify reminder email delivery and `.ics` calendar download
 
 ## 6. Legal and product notes
 
