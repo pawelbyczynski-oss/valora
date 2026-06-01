@@ -2135,6 +2135,10 @@ function setButtonBusy(button, busy, busyText = "Saving...") {
 function switchPropertyDetailTab(tabName) {
   const availableTabs = [...premium.propertyDetailTabButtons].map((button) => button.dataset.propertyDetailTab);
   if (!availableTabs.includes(tabName)) tabName = "overview";
+  if (tabName === "operations" && !hasProAccess()) {
+    showProUpgrade("Operations control, forecasts and rent-to-rent workflows are included in PropertyPanel Pro.");
+    return;
+  }
   if (tabName === "landlord-report" && !hasProAccess()) {
     showProUpgrade("Landlord monthly reports are included in PropertyPanel Pro.");
     return;
@@ -2899,8 +2903,8 @@ function selectedPlanPrice() {
 
 function selectedPlanDescription() {
   return selectedPlan === "pro"
-    ? "Pro is selected at £9.99/month with unlimited properties, reminders, quarterly accountant packs and landlord reports."
-    : `Premium is selected at £4.99/month with up to ${PREMIUM_PROPERTY_LIMIT} properties, rent payments, manual expenses, documents and CSV export.`;
+    ? "Pro is selected at £9.99/month with unlimited properties, reminders, quarterly accountant packs, landlord reports and the complete operations workflow."
+    : `Premium is selected at £4.99/month with up to ${PREMIUM_PROPERTY_LIMIT} properties, rent tracking, document checklist, bank CSV drafts and lender exports.`;
 }
 
 function setSelectedPlan(plan) {
