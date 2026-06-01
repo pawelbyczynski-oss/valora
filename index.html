@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260601-operations" />
+    <link rel="stylesheet" href="styles.css?v=20260601-workflows" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -391,7 +391,9 @@
             <li>Track rent, mortgage history and key dates</li>
             <li>Record rent payments and manual expenses</li>
             <li>Attach documents to each property</li>
-            <li>Export portfolio PDF and transaction CSV</li>
+            <li>Document checklist and rent tracker calendar</li>
+            <li>Import bank CSV drafts</li>
+            <li>Export lender PDF, portfolio PDF and transaction CSV</li>
           </ul>
           <button class="tax-button plan-cta" type="button" data-plan="premium">Start Premium</button>
         </article>
@@ -413,6 +415,9 @@
             <li>Add important dates to your calendar</li>
             <li>Recurring expenses, arrears and compliance control</li>
             <li>Rent-to-rent monthly profit panel</li>
+            <li>Tenant statement PDF and 12-month forecast</li>
+            <li>Maintenance log, contractor list and void tracker</li>
+            <li>Rent review planner</li>
             <li>Quarterly accountant-ready reports</li>
             <li>Landlord report workflow</li>
           </ul>
@@ -433,10 +438,14 @@
           <div><span>Reminders</span><strong>-</strong><strong>Email alerts and weekly digest</strong></div>
           <div><span>Calendar export</span><strong>-</strong><strong>Important dates</strong></div>
           <div><span>Operations control</span><strong>-</strong><strong>Recurring costs, arrears and compliance</strong></div>
+          <div><span>Rent tracker and document checklist</span><strong>Included</strong><strong>Included</strong></div>
+          <div><span>Bank CSV import</span><strong>Draft review</strong><strong>Draft review</strong></div>
           <div><span>Rent payments and manual expenses</span><strong>Included</strong><strong>Included</strong></div>
           <div><span>Quarterly reports</span><strong>-</strong><strong>Accountant-ready</strong></div>
           <div><span>Document vault</span><strong>Basic</strong><strong>With expiry tracking</strong></div>
           <div><span>Landlord reports</span><strong>-</strong><strong>Included</strong></div>
+          <div><span>Tenant statements and forecast</span><strong>-</strong><strong>Included</strong></div>
+          <div><span>Maintenance, contractors and voids</span><strong>-</strong><strong>Included</strong></div>
           <div><span>Best for</span><strong>Everyday landlord records</strong><strong>Monthly landlord ops</strong></div>
         </div>
       </section>
@@ -620,6 +629,14 @@
               </label>
               <button class="tax-button" type="submit">Save transaction</button>
             </form>
+            <form class="transaction-form csv-import-form" id="transactionCsvForm">
+              <label class="wide-field">
+                <span>Import bank CSV</span>
+                <input id="transactionCsvFile" type="file" accept=".csv,text/csv" />
+              </label>
+              <button class="secondary-button" type="submit">Import CSV drafts</button>
+              <p class="field-hint wide-field" id="transactionCsvMessage">Use columns: date, property, type, amount, category and notes. Imported rows stay as drafts until you approve them.</p>
+            </form>
           </section>
 
           <section class="panel-card dashboard-panel" data-dashboard-panel="transactions">
@@ -674,6 +691,17 @@
             </div>
             <ul class="reminder-list" id="reminderList"></ul>
           </aside>
+
+          <section class="panel-card dashboard-panel" data-dashboard-panel="overview">
+            <div class="section-heading split-heading">
+              <div>
+                <p class="eyebrow">Rent tracker</p>
+                <h2>Monthly calendar</h2>
+              </div>
+              <button class="secondary-button small-button" id="exportAllCalendar" type="button">Export calendar</button>
+            </div>
+            <div class="rent-calendar" id="rentCalendar"></div>
+          </section>
 
           <section class="panel-card dashboard-panel" data-dashboard-panel="overview">
             <div class="section-heading">
@@ -992,6 +1020,7 @@
           <div class="property-detail-summary" id="propertyDetailSummary"></div>
           <div class="detail-actions property-overview-actions">
             <button class="secondary-button" id="editPropertyButton" type="button">Edit property</button>
+            <button class="secondary-button" id="printLenderPack" type="button">Print lender pack</button>
             <button class="secondary-button danger-button" id="deletePropertyButton" type="button">Delete property</button>
           </div>
           <p class="field-hint" id="deletePropertyMessage">Deleting a property removes it from your portfolio and lender export.</p>
@@ -1305,6 +1334,71 @@
               <p class="field-hint" id="complianceMessage">Keep key documents and renewal dates visible in one checklist.</p>
               <div class="detail-list" id="complianceList"></div>
             </section>
+            <section class="operations-section">
+              <div class="section-heading">
+                <p class="eyebrow">Maintenance</p>
+                <h3>Repairs and jobs</h3>
+              </div>
+              <form class="transaction-form operations-form" id="maintenanceForm">
+                <label><span>Job</span><input id="maintenanceTitle" placeholder="Boiler repair" required /></label>
+                <label><span>Status</span><select id="maintenanceStatus"><option value="open">Open</option><option value="booked">Booked</option><option value="completed">Completed</option></select></label>
+                <label><span>Responsibility</span><select id="maintenanceResponsibility"><option value="operator">Operator</option><option value="landlord">Landlord</option><option value="tenant">Tenant</option></select></label>
+                <label><span>Cost</span><input id="maintenanceCost" type="number" min="0" step="0.01" /></label>
+                <label><span>Contractor</span><input id="maintenanceContractor" placeholder="Optional contractor" /></label>
+                <label class="wide-field"><span>Notes</span><input id="maintenanceNotes" placeholder="Optional notes" /></label>
+                <button class="tax-button" type="submit">Add maintenance job</button>
+              </form>
+              <div class="detail-list" id="maintenanceList"></div>
+            </section>
+            <section class="operations-section">
+              <div class="section-heading">
+                <p class="eyebrow">Contractors</p>
+                <h3>Trusted contacts</h3>
+              </div>
+              <form class="transaction-form operations-form" id="contractorForm">
+                <label><span>Name</span><input id="contractorName" required /></label>
+                <label><span>Trade</span><input id="contractorTrade" placeholder="Plumber" /></label>
+                <label><span>Phone</span><input id="contractorPhone" /></label>
+                <label><span>Email</span><input id="contractorEmail" type="email" /></label>
+                <button class="tax-button" type="submit">Add contractor</button>
+              </form>
+              <div class="detail-list" id="contractorList"></div>
+            </section>
+            <section class="operations-section">
+              <div class="section-heading">
+                <p class="eyebrow">Rent review planner</p>
+                <h3>Planned rent changes</h3>
+              </div>
+              <form class="transaction-form operations-form" id="rentReviewForm">
+                <label><span>Review date</span><input id="rentReviewDate" type="date" required /></label>
+                <label><span>Current rent</span><input id="rentReviewCurrent" type="number" min="0" step="0.01" /></label>
+                <label><span>Proposed rent</span><input id="rentReviewProposed" type="number" min="0" step="0.01" /></label>
+                <label><span>Status</span><select id="rentReviewStatus"><option value="planned">Planned</option><option value="agreed">Agreed</option><option value="completed">Completed</option></select></label>
+                <button class="tax-button" type="submit">Add rent review</button>
+              </form>
+              <div class="detail-list" id="rentReviewList"></div>
+            </section>
+            <section class="operations-section">
+              <div class="section-heading">
+                <p class="eyebrow">Void tracker</p>
+                <h3>Empty property periods</h3>
+              </div>
+              <form class="transaction-form operations-form" id="voidPeriodForm">
+                <label><span>From</span><input id="voidStart" type="date" required /></label>
+                <label><span>To</span><input id="voidEnd" type="date" /></label>
+                <label><span>Expected monthly rent</span><input id="voidRent" type="number" min="0" step="0.01" /></label>
+                <label class="wide-field"><span>Notes</span><input id="voidNotes" placeholder="Optional notes" /></label>
+                <button class="tax-button" type="submit">Add void period</button>
+              </form>
+              <div class="detail-list" id="voidPeriodList"></div>
+            </section>
+            <section class="operations-section">
+              <div class="section-heading">
+                <p class="eyebrow">Forecast</p>
+                <h3>Next 12 months</h3>
+              </div>
+              <div class="quarter-summary" id="propertyForecast"></div>
+            </section>
           </div>
         </section>
 
@@ -1317,6 +1411,7 @@
             <span class="pill" id="documentCount">0 files</span>
           </div>
           <div class="document-action-bar" id="documentActionBar"></div>
+          <div class="document-checklist" id="documentChecklist"></div>
           <div class="document-list" id="documentList"></div>
           <form class="transaction-form document-form property-document-form" id="documentForm">
             <label>
@@ -1506,6 +1601,6 @@
     </datalist>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260601-operations"></script>
+    <script src="app.js?v=20260601-workflows"></script>
   </body>
 </html>

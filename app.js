@@ -95,6 +95,7 @@ const premium = {
   propertyDetailTabButtons: document.querySelectorAll("[data-property-detail-tab]"),
   propertyDetailPanels: document.querySelectorAll("[data-property-detail-panel]"),
   editPropertyButton: document.querySelector("#editPropertyButton"),
+  printLenderPack: document.querySelector("#printLenderPack"),
   deletePropertyButton: document.querySelector("#deletePropertyButton"),
   deletePropertyMessage: document.querySelector("#deletePropertyMessage"),
   propertyOwnershipModel: document.querySelector("#propertyOwnershipModel"),
@@ -200,6 +201,9 @@ const premium = {
   transactionFilterStatus: document.querySelector("#transactionFilterStatus"),
   resetTransactionFilters: document.querySelector("#resetTransactionFilters"),
   transactionList: document.querySelector("#transactionList"),
+  transactionCsvForm: document.querySelector("#transactionCsvForm"),
+  transactionCsvFile: document.querySelector("#transactionCsvFile"),
+  transactionCsvMessage: document.querySelector("#transactionCsvMessage"),
   quarterSummary: document.querySelector("#quarterSummary"),
   exportQuarterPack: document.querySelector("#exportQuarterPack"),
   documentForm: document.querySelector("#documentForm"),
@@ -216,6 +220,7 @@ const premium = {
   documentMessage: document.querySelector("#documentMessage"),
   documentCount: document.querySelector("#documentCount"),
   documentActionBar: document.querySelector("#documentActionBar"),
+  documentChecklist: document.querySelector("#documentChecklist"),
   documentList: document.querySelector("#documentList"),
   expenseDocumentForm: document.querySelector("#expenseDocumentForm"),
   expenseDocumentLabel: document.querySelector("#expenseDocumentLabel"),
@@ -243,6 +248,35 @@ const premium = {
   complianceNotes: document.querySelector("#complianceNotes"),
   complianceMessage: document.querySelector("#complianceMessage"),
   complianceList: document.querySelector("#complianceList"),
+  maintenanceForm: document.querySelector("#maintenanceForm"),
+  maintenanceTitle: document.querySelector("#maintenanceTitle"),
+  maintenanceStatus: document.querySelector("#maintenanceStatus"),
+  maintenanceResponsibility: document.querySelector("#maintenanceResponsibility"),
+  maintenanceCost: document.querySelector("#maintenanceCost"),
+  maintenanceContractor: document.querySelector("#maintenanceContractor"),
+  maintenanceNotes: document.querySelector("#maintenanceNotes"),
+  maintenanceList: document.querySelector("#maintenanceList"),
+  contractorForm: document.querySelector("#contractorForm"),
+  contractorName: document.querySelector("#contractorName"),
+  contractorTrade: document.querySelector("#contractorTrade"),
+  contractorPhone: document.querySelector("#contractorPhone"),
+  contractorEmail: document.querySelector("#contractorEmail"),
+  contractorList: document.querySelector("#contractorList"),
+  rentReviewForm: document.querySelector("#rentReviewForm"),
+  rentReviewDate: document.querySelector("#rentReviewDate"),
+  rentReviewCurrent: document.querySelector("#rentReviewCurrent"),
+  rentReviewProposed: document.querySelector("#rentReviewProposed"),
+  rentReviewStatus: document.querySelector("#rentReviewStatus"),
+  rentReviewList: document.querySelector("#rentReviewList"),
+  voidPeriodForm: document.querySelector("#voidPeriodForm"),
+  voidStart: document.querySelector("#voidStart"),
+  voidEnd: document.querySelector("#voidEnd"),
+  voidRent: document.querySelector("#voidRent"),
+  voidNotes: document.querySelector("#voidNotes"),
+  voidPeriodList: document.querySelector("#voidPeriodList"),
+  propertyForecast: document.querySelector("#propertyForecast"),
+  rentCalendar: document.querySelector("#rentCalendar"),
+  exportAllCalendar: document.querySelector("#exportAllCalendar"),
   adminTabButtons: document.querySelectorAll("[data-admin-tab]"),
   adminPanels: document.querySelectorAll("[data-admin-panel]"),
 };
@@ -328,6 +362,10 @@ let documents = JSON.parse(localStorage.getItem(DOCUMENT_STORAGE_KEY) || "null")
 let recurringExpenses = [];
 let complianceItems = [];
 let arrearsCases = [];
+let maintenanceLogs = [];
+let contractors = [];
+let rentReviews = [];
+let voidPeriods = [];
 let promoAccess = false;
 let authMode = "signup";
 let authListenerAttached = false;
@@ -1019,6 +1057,15 @@ function renderDocuments() {
   if (premium.documentCount) {
     premium.documentCount.textContent = `${visibleDocuments.length} ${visibleDocuments.length === 1 ? "file" : "files"}`;
   }
+  if (premium.documentChecklist && property) {
+    const checklist = ["Tenancy agreement", "Gas safety", "EICR", "EPC", "Insurance"];
+    premium.documentChecklist.innerHTML = checklist
+      .map((type) => {
+        const saved = visibleDocuments.some((documentRecord) => documentRecord.documentType.toLowerCase() === type.toLowerCase());
+        return `<span class="checklist-item ${saved ? "complete" : ""}">${saved ? "✓" : "○"} ${escapeHtml(type)}</span>`;
+      })
+      .join("");
+  }
 
   if (!properties.length) {
     premium.documentList.innerHTML = '<p class="field-hint">Add a property before uploading documents.</p>';
@@ -1435,6 +1482,69 @@ function renderPropertyOperations(property) {
         <button class="secondary-button small-button danger-button" type="button" data-delete-compliance-item="${item.id}">Delete</button>
       </div>`).join("")
     : `<div class="detail-row muted-row">No compliance items yet</div>`;
+
+  const maintenance = maintenanceLogs.filter((item) => item.propertyId === property.id);
+  premium.maintenanceList.innerHTML = maintenance.length
+    ? maintenance.map((item) => `
+      <div class="detail-row operations-row">
+        <div><span>Job</span><strong>${escapeHtml(item.title)}</strong></div>
+        <div><span>Status</span><strong>${escapeHtml(item.status)}</strong></div>
+        <div><span>Responsibility</span><strong>${escapeHtml(item.responsibility)}</strong></div>
+        <div><span>Cost</span><strong>${money.format(item.cost)}</strong></div>
+        <button class="secondary-button small-button danger-button" type="button" data-delete-maintenance="${item.id}">Delete</button>
+      </div>`).join("")
+    : `<div class="detail-row muted-row">No maintenance jobs yet</div>`;
+
+  const propertyContractors = contractors.filter((item) => !item.propertyId || item.propertyId === property.id);
+  premium.contractorList.innerHTML = propertyContractors.length
+    ? propertyContractors.map((item) => `
+      <div class="detail-row operations-row">
+        <div><span>Name</span><strong>${escapeHtml(item.name)}</strong></div>
+        <div><span>Trade</span><strong>${escapeHtml(item.trade || "-")}</strong></div>
+        <div><span>Contact</span><strong>${escapeHtml([item.phone, item.email].filter(Boolean).join(" · ") || "-")}</strong></div>
+        <button class="secondary-button small-button danger-button" type="button" data-delete-contractor="${item.id}">Delete</button>
+      </div>`).join("")
+    : `<div class="detail-row muted-row">No contractors saved yet</div>`;
+
+  const reviews = rentReviews.filter((item) => item.propertyId === property.id);
+  premium.rentReviewList.innerHTML = reviews.length
+    ? reviews.map((item) => `
+      <div class="detail-row operations-row">
+        <div><span>Review date</span><strong>${formatDate(item.reviewDate)}</strong></div>
+        <div><span>Current rent</span><strong>${money.format(item.currentRent)}</strong></div>
+        <div><span>Proposed rent</span><strong>${money.format(item.proposedRent)}</strong></div>
+        <div><span>Status</span><strong>${escapeHtml(item.status)}</strong></div>
+        <button class="secondary-button small-button danger-button" type="button" data-delete-rent-review="${item.id}">Delete</button>
+      </div>`).join("")
+    : `<div class="detail-row muted-row">No rent reviews planned yet</div>`;
+
+  const voids = voidPeriods.filter((item) => item.propertyId === property.id);
+  premium.voidPeriodList.innerHTML = voids.length
+    ? voids.map((item) => {
+      const start = dateFromInput(item.startDate);
+      const end = dateFromInput(item.endDate || dateInputValue(new Date()));
+      const days = start && end ? Math.max(Math.round((end - start) / 86400000), 0) : 0;
+      const lostRent = item.estimatedMonthlyRent * days / 30;
+      return `
+        <div class="detail-row operations-row">
+          <div><span>Period</span><strong>${formatDate(item.startDate)} - ${item.endDate ? formatDate(item.endDate) : "Open"}</strong></div>
+          <div><span>Days</span><strong>${days}</strong></div>
+          <div><span>Estimated lost rent</span><strong>${money.format(lostRent)}</strong></div>
+          <button class="secondary-button small-button danger-button" type="button" data-delete-void-period="${item.id}">Delete</button>
+        </div>`;
+    }).join("")
+    : `<div class="detail-row muted-row">No void periods recorded</div>`;
+
+  const mortgageDeal = latestMortgageDeal(property);
+  const annualRent = monthlyIncome * 12;
+  const annualRecurring = recurringTotal * 12;
+  const annualMortgageInterest = Number(mortgageDeal.balance || 0) * (Number(mortgageDeal.rate || 0) / 100);
+  premium.propertyForecast.innerHTML = `
+    <div><span>Rent forecast</span><strong>${money.format(annualRent)}</strong></div>
+    <div><span>Recurring costs</span><strong>${money.format(annualRecurring)}</strong></div>
+    <div><span>Mortgage interest</span><strong>${money.format(annualMortgageInterest)}</strong></div>
+    <div><span>Forecast cashflow</span><strong>${money.format(annualRent - annualRecurring - annualMortgageInterest)}</strong></div>
+  `;
 }
 
 function loadTransactionIntoForm(transaction) {
@@ -1779,8 +1889,28 @@ function renderPremiumDashboard() {
 
   renderReminders();
   renderPortfolioHealth();
+  renderRentCalendar();
   renderTransactions();
   renderDocuments();
+}
+
+function renderRentCalendar() {
+  if (!premium.rentCalendar) return;
+  const now = new Date();
+  const monthStart = dateInputValue(new Date(now.getFullYear(), now.getMonth(), 1, 12));
+  const monthEnd = dateInputValue(new Date(now.getFullYear(), now.getMonth() + 1, 0, 12));
+  const rows = transactions
+    .filter((transaction) => transactionTenancyId(transaction) && transaction.date >= monthStart && transaction.date <= monthEnd)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  premium.rentCalendar.innerHTML = rows.length
+    ? rows.map((transaction) => `
+      <div class="calendar-row">
+        <span>${escapeHtml(formatDate(transaction.date))}</span>
+        <strong>${escapeHtml(transactionPropertyName(transaction.propertyId))}</strong>
+        <span>${money.format(transaction.amount)}</span>
+        <span class="pill">${transaction.status === "approved" ? "Paid" : "Due"}</span>
+      </div>`).join("")
+    : `<p class="field-hint">No rent payments scheduled for this month.</p>`;
 }
 
 function activeProperty() {
@@ -2140,6 +2270,7 @@ function renderPropertyDetail() {
         <div><span>Rent</span><strong>${money.format(Number(tenancy.rent || 0))}</strong></div>
         <div><span>Contracts</span><strong>${escapeHtml((tenancy.documents || []).join(", ") || "-")}</strong></div>
         <div class="detail-actions">
+          <button class="secondary-button small-button" type="button" data-print-tenant-statement="${tenancy.id}">Tenant statement</button>
           <button class="secondary-button small-button" type="button" data-edit-tenancy="${tenancy.id}">Edit</button>
           <button class="secondary-button small-button danger-button" type="button" data-delete-tenancy="${tenancy.id}">Delete</button>
         </div>
@@ -2397,6 +2528,18 @@ function upcomingReminders() {
           dueDate: item.expiryDate,
         });
       });
+
+    rentReviews
+      .filter((item) => item.propertyId === property.id && item.status !== "completed")
+      .forEach((item) => {
+        addReminderRecord(reminders, {
+          type: "Rent review",
+          property,
+          title: `${property.name} rent review`,
+          detail: `${duePhrase(daysUntil(item.reviewDate))}. Review proposed rent of ${money.format(item.proposedRent)}.`,
+          dueDate: item.reviewDate,
+        });
+      });
   });
 
   reminders.sort((a, b) => a.rank - b.rank || a.days - b.days || a.propertyName.localeCompare(b.propertyName));
@@ -2494,6 +2637,88 @@ function downloadReminderCalendar(reminder) {
     "END:VCALENDAR",
   ].join("\r\n");
   downloadText(contents, `propertypanel-${reminder.dueDate}-${reminder.type.toLowerCase()}.ics`, "text/calendar;charset=utf-8");
+}
+
+function downloadAllRemindersCalendar() {
+  const reminders = upcomingReminders().filter((reminder) => reminder.dueDate);
+  if (!reminders.length) return;
+  const events = reminders.flatMap((reminder) => [
+    "BEGIN:VEVENT",
+    `UID:${calendarText(`${reminder.id}@propertypanel.co.uk`)}`,
+    `DTSTAMP:${new Date().toISOString().replaceAll(/[-:]/g, "").replace(".000", "")}`,
+    `DTSTART;VALUE=DATE:${calendarDateValue(reminder.dueDate)}`,
+    `DTEND;VALUE=DATE:${calendarDateValue(addCalendarDays(reminder.dueDate, 1))}`,
+    `SUMMARY:${calendarText(`PropertyPanel: ${reminder.title}`)}`,
+    `DESCRIPTION:${calendarText(reminder.detail)}`,
+    "END:VEVENT",
+  ]);
+  downloadText(["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//PropertyPanel//Portfolio//EN", ...events, "END:VCALENDAR"].join("\r\n"),
+    "propertypanel-portfolio-calendar.ics", "text/calendar;charset=utf-8");
+}
+
+function renderPrintableStatement(title, rows) {
+  document.querySelector("#printStatement")?.remove();
+  const statement = document.createElement("section");
+  statement.id = "printStatement";
+  statement.className = "print-statement";
+  statement.innerHTML = `
+    <h1>${escapeHtml(title)}</h1>
+    <p>Generated ${escapeHtml(formatDate(new Date().toISOString().slice(0, 10)))}</p>
+    <div class="print-statement-lines">
+      ${rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`).join("")}
+    </div>`;
+  document.body.append(statement);
+  document.body.classList.add("print-statement-report");
+  window.print();
+}
+
+function printPropertyLenderPack(property) {
+  const mortgage = latestMortgageDeal(property);
+  renderPrintableStatement(`PropertyPanel Lender Pack: ${property.name}`, [
+    ["Address", propertyAddressLabel(property)],
+    ["Current value", money.format(property.currentValue)],
+    ["Mortgage balance", money.format(mortgage.balance)],
+    ["Mortgage product", mortgage.productType || "-"],
+    ["Mortgage rate", `${Number(mortgage.rate || 0).toFixed(2)}%`],
+    ["Mortgage expiry", mortgage.expiryDate || "-"],
+    ["Current rent", money.format(property.rent)],
+    ["Monthly cashflow", money.format(propertyCashflow(property))],
+  ]);
+}
+
+function printTenantStatement(property, tenancy) {
+  const rentRows = tenancyRentTransactions(tenancy.id).map((transaction) => [
+    `${formatDate(transaction.date)} · Rent`,
+    `${money.format(transaction.amount)} · ${transaction.status === "approved" ? "Paid" : "Due"}`,
+  ]);
+  renderPrintableStatement(`PropertyPanel Tenant Statement: ${tenancy.tenantName || property.name}`, [
+    ["Property", `${property.name} · ${propertyAddressLabel(property)}`],
+    ["Tenant", tenancy.tenantName || "-"],
+    ["Tenancy", `${formatDate(tenancy.startDate)} - ${formatDate(tenancy.endDate)}`],
+    ["Monthly rent", money.format(currentTenancyRent(tenancy))],
+    ...rentRows,
+  ]);
+}
+
+function parseCsvRows(text) {
+  return String(text || "").trim().split(/\r?\n/).map((line) => {
+    const values = [];
+    let value = "";
+    let quoted = false;
+    for (let index = 0; index < line.length; index += 1) {
+      const character = line[index];
+      if (character === '"' && line[index + 1] === '"' && quoted) {
+        value += '"';
+        index += 1;
+      } else if (character === '"') quoted = !quoted;
+      else if (character === "," && !quoted) {
+        values.push(value.trim());
+        value = "";
+      } else value += character;
+    }
+    values.push(value.trim());
+    return values;
+  });
 }
 
 function switchView(viewId) {
@@ -3276,15 +3501,31 @@ async function loadSupabaseOperations(userId) {
     recurringExpenses = [];
     complianceItems = [];
     arrearsCases = [];
+    maintenanceLogs = [];
+    contractors = [];
+    rentReviews = [];
+    voidPeriods = [];
     return false;
   }
-  const [{ data: recurring, error: recurringError }, { data: compliance, error: complianceError }, { data: arrears, error: arrearsError }] =
+  const [
+    { data: recurring, error: recurringError },
+    { data: compliance, error: complianceError },
+    { data: arrears, error: arrearsError },
+    { data: maintenance, error: maintenanceError },
+    { data: contractorRows, error: contractorError },
+    { data: reviewRows, error: reviewError },
+    { data: voidRows, error: voidError },
+  ] =
     await Promise.all([
       supabaseClient.from("recurring_expenses").select("*").eq("user_id", userId).order("created_at"),
       supabaseClient.from("compliance_items").select("*").eq("user_id", userId).order("created_at"),
       supabaseClient.from("arrears_cases").select("*").eq("user_id", userId).order("created_at"),
+      supabaseClient.from("maintenance_logs").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+      supabaseClient.from("contractors").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+      supabaseClient.from("rent_reviews").select("*").eq("user_id", userId).order("review_date"),
+      supabaseClient.from("void_periods").select("*").eq("user_id", userId).order("start_date", { ascending: false }),
     ]);
-  if (recurringError || complianceError || arrearsError) return false;
+  if (recurringError || complianceError || arrearsError || maintenanceError || contractorError || reviewError || voidError) return false;
   recurringExpenses = (recurring || []).map((expense) => ({
     id: expense.id, propertyId: expense.property_id, category: expense.category, amount: Number(expense.amount),
     dueDay: expense.due_day, notes: expense.notes || "", active: expense.active,
@@ -3295,6 +3536,22 @@ async function loadSupabaseOperations(userId) {
   }));
   arrearsCases = (arrears || []).map((item) => ({
     id: item.id, propertyId: item.property_id, transactionId: item.transaction_id, status: item.status, notes: item.notes || "",
+  }));
+  maintenanceLogs = (maintenance || []).map((item) => ({
+    id: item.id, propertyId: item.property_id, title: item.title, status: item.status,
+    responsibility: item.responsibility, contractorName: item.contractor_name || "", cost: Number(item.cost), notes: item.notes || "",
+  }));
+  contractors = (contractorRows || []).map((item) => ({
+    id: item.id, propertyId: item.property_id || "", name: item.name, trade: item.trade || "",
+    phone: item.phone || "", email: item.email || "", notes: item.notes || "",
+  }));
+  rentReviews = (reviewRows || []).map((item) => ({
+    id: item.id, propertyId: item.property_id, reviewDate: item.review_date, currentRent: Number(item.current_rent),
+    proposedRent: Number(item.proposed_rent), status: item.status, notes: item.notes || "",
+  }));
+  voidPeriods = (voidRows || []).map((item) => ({
+    id: item.id, propertyId: item.property_id, startDate: item.start_date, endDate: item.end_date || "",
+    estimatedMonthlyRent: Number(item.estimated_monthly_rent), notes: item.notes || "",
   }));
   for (const property of properties) await syncRecurringExpenseTransactions(property);
   return true;
@@ -3327,6 +3584,22 @@ async function saveArrearsCaseToSupabase(property, transactionId, status) {
   }, { onConflict: "transaction_id" }).select("id").single();
   if (error) throw error;
   return data.id;
+}
+
+async function saveProOperation(table, property, payload) {
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  const { data, error } = await supabaseClient.from(table).insert({
+    user_id: user.id,
+    property_id: property?.id || null,
+    ...payload,
+  }).select("id").single();
+  if (error) throw error;
+  return data.id;
+}
+
+async function deleteProOperation(table, id) {
+  const { error } = await supabaseClient.from(table).delete().eq("id", id);
+  if (error) throw error;
 }
 
 async function savePropertyToSupabase(property) {
@@ -4029,6 +4302,10 @@ function buildAccountExportPayload(userId = null) {
     recurringExpenses,
     complianceItems,
     arrearsCases,
+    maintenanceLogs,
+    contractors,
+    rentReviews,
+    voidPeriods,
     documents: documents.map((documentRecord) => ({
       id: documentRecord.id,
       propertyId: documentRecord.propertyId,
@@ -4097,6 +4374,10 @@ async function deletePortfolioData() {
     recurringExpenses = [];
     complianceItems = [];
     arrearsCases = [];
+    maintenanceLogs = [];
+    contractors = [];
+    rentReviews = [];
+    voidPeriods = [];
     activePropertyId = null;
     localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
     localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(transactions));
@@ -4970,6 +5251,43 @@ premium.transactionForm.addEventListener("submit", async (event) => {
   if (activePropertyId) renderPropertyDetail();
 });
 
+premium.transactionCsvForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const file = premium.transactionCsvFile.files?.[0];
+  if (!file) return;
+  const [headers, ...rows] = parseCsvRows(await file.text());
+  const positions = Object.fromEntries(headers.map((header, index) => [header.toLowerCase().replaceAll(" ", "_"), index]));
+  const required = ["date", "amount", "category"];
+  if (required.some((header) => positions[header] === undefined)) {
+    premium.transactionCsvMessage.textContent = "CSV must include date, amount and category columns.";
+    return;
+  }
+  let imported = 0;
+  for (const row of rows) {
+    const propertyName = row[positions.property] || "";
+    const property = properties.find((item) => item.name.toLowerCase() === propertyName.toLowerCase()) || properties[0];
+    if (!property || !row[positions.date] || !Number(row[positions.amount])) continue;
+    const transaction = normalizeTransactionRecord({
+      propertyId: property.id,
+      date: row[positions.date],
+      type: String(row[positions.type] || "").toLowerCase() === "income" ? "income" : "expense",
+      amount: Math.abs(Number(row[positions.amount])),
+      category: row[positions.category],
+      notes: positions.notes === undefined ? "" : row[positions.notes],
+      source: "manual",
+      status: "draft",
+      taxTreatment: "review",
+    });
+    const savedId = await saveTransactionToSupabase(transaction);
+    if (savedId) transaction.id = savedId;
+    transactions = [transaction, ...transactions];
+    imported += 1;
+  }
+  premium.transactionCsvForm.reset();
+  premium.transactionCsvMessage.textContent = `${imported} CSV transaction draft${imported === 1 ? "" : "s"} imported. Review and approve them below.`;
+  renderTransactions();
+});
+
 premium.transactionList.addEventListener("click", async (event) => {
   const approveButton = event.target.closest("[data-approve-transaction]");
   if (approveButton) {
@@ -5242,6 +5560,16 @@ premium.exportAccountantPack?.addEventListener("click", () => {
   exportPropertyAccountantPack(property);
 });
 
+premium.printLenderPack?.addEventListener("click", () => {
+  const property = activeProperty();
+  if (property) printPropertyLenderPack(property);
+});
+
+premium.exportAllCalendar?.addEventListener("click", () => {
+  if (!hasProAccess()) return showProUpgrade("Portfolio calendar export is included in PropertyPanel Pro.");
+  downloadAllRemindersCalendar();
+});
+
 premium.propertyExpenseList.addEventListener("click", async (event) => {
   const property = activeProperty();
   if (!property) return;
@@ -5384,6 +5712,69 @@ premium.arrearsList?.addEventListener("change", async (event) => {
   renderPropertyOperations(property);
 });
 
+function bindProOperationForm(form, buildRecord, table, collectionName, payloadForRecord) {
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const property = activeProperty();
+    if (!property || !hasProAccess()) return showProUpgrade("Property operations are included in PropertyPanel Pro.");
+    const record = buildRecord(property);
+    try {
+      record.id = await saveProOperation(table, property, payloadForRecord(record));
+      if (collectionName === "maintenance") maintenanceLogs = [record, ...maintenanceLogs];
+      if (collectionName === "contractors") contractors = [record, ...contractors];
+      if (collectionName === "reviews") rentReviews = [record, ...rentReviews];
+      if (collectionName === "voids") voidPeriods = [record, ...voidPeriods];
+      form.reset();
+      renderPropertyOperations(property);
+    } catch (error) {
+      window.alert(error?.message || "Could not save the record.");
+    }
+  });
+}
+
+bindProOperationForm(premium.maintenanceForm, (property) => ({
+  propertyId: property.id, title: premium.maintenanceTitle.value.trim(), status: premium.maintenanceStatus.value,
+  responsibility: premium.maintenanceResponsibility.value, contractorName: premium.maintenanceContractor.value.trim(),
+  cost: Number(premium.maintenanceCost.value) || 0, notes: premium.maintenanceNotes.value.trim(),
+}), "maintenance_logs", "maintenance", (item) => ({
+  title: item.title, status: item.status, responsibility: item.responsibility, contractor_name: item.contractorName || null,
+  cost: item.cost, notes: item.notes || null,
+}));
+bindProOperationForm(premium.contractorForm, (property) => ({
+  propertyId: property.id, name: premium.contractorName.value.trim(), trade: premium.contractorTrade.value.trim(),
+  phone: premium.contractorPhone.value.trim(), email: premium.contractorEmail.value.trim(), notes: "",
+}), "contractors", "contractors", (item) => ({
+  name: item.name, trade: item.trade || null, phone: item.phone || null, email: item.email || null,
+}));
+bindProOperationForm(premium.rentReviewForm, (property) => ({
+  propertyId: property.id, reviewDate: premium.rentReviewDate.value, currentRent: Number(premium.rentReviewCurrent.value) || property.rent || 0,
+  proposedRent: Number(premium.rentReviewProposed.value) || 0, status: premium.rentReviewStatus.value, notes: "",
+}), "rent_reviews", "reviews", (item) => ({
+  review_date: item.reviewDate, current_rent: item.currentRent, proposed_rent: item.proposedRent, status: item.status,
+}));
+bindProOperationForm(premium.voidPeriodForm, (property) => ({
+  propertyId: property.id, startDate: premium.voidStart.value, endDate: premium.voidEnd.value,
+  estimatedMonthlyRent: Number(premium.voidRent.value) || property.rent || 0, notes: premium.voidNotes.value.trim(),
+}), "void_periods", "voids", (item) => ({
+  start_date: item.startDate, end_date: item.endDate || null, estimated_monthly_rent: item.estimatedMonthlyRent, notes: item.notes || null,
+}));
+
+[
+  [premium.maintenanceList, "data-delete-maintenance", "maintenance_logs", () => maintenanceLogs, (value) => { maintenanceLogs = value; }],
+  [premium.contractorList, "data-delete-contractor", "contractors", () => contractors, (value) => { contractors = value; }],
+  [premium.rentReviewList, "data-delete-rent-review", "rent_reviews", () => rentReviews, (value) => { rentReviews = value; }],
+  [premium.voidPeriodList, "data-delete-void-period", "void_periods", () => voidPeriods, (value) => { voidPeriods = value; }],
+].forEach(([list, attribute, table, getCollection, setCollection]) => {
+  list?.addEventListener("click", async (event) => {
+    const button = event.target.closest(`[${attribute}]`);
+    if (!button) return;
+    const id = button.getAttribute(attribute);
+    await deleteProOperation(table, id);
+    setCollection(getCollection().filter((item) => item.id !== id));
+    renderPropertyOperations(activeProperty());
+  });
+});
+
 premium.addTenantToTenancy.addEventListener("click", () => {
   const tenant = tenantFromFormFields();
   if (!tenant.name && !tenant.phone && !tenant.email && !tenant.previousAddress) {
@@ -5407,6 +5798,14 @@ premium.detailTenantList.addEventListener("click", (event) => {
 premium.tenancyHistoryList.addEventListener("click", async (event) => {
   const property = activeProperty();
   if (!property) return;
+
+  const tenantStatementButton = event.target.closest("[data-print-tenant-statement]");
+  if (tenantStatementButton) {
+    if (!hasProAccess()) return showProUpgrade("Tenant statement PDFs are included in PropertyPanel Pro.");
+    const tenancy = (property.tenancies || []).find((item) => item.id === tenantStatementButton.dataset.printTenantStatement);
+    if (tenancy) printTenantStatement(property, tenancy);
+    return;
+  }
 
   const deleteRentChangeButton = event.target.closest("[data-delete-rent-change]");
   if (deleteRentChangeButton) {
@@ -5627,8 +6026,10 @@ premium.printLandlordReport.addEventListener("click", () => {
 
 window.addEventListener("afterprint", () => {
   document.body.classList.remove("print-landlord-report");
+  document.body.classList.remove("print-statement-report");
   delete document.body.dataset.printPropertyName;
   document.querySelector("#printDocumentAppendix")?.remove();
+  document.querySelector("#printStatement")?.remove();
 });
 
 premium.deletePropertyButton.addEventListener("click", () => {

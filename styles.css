@@ -1827,6 +1827,52 @@ select {
   margin-bottom: 8px;
 }
 
+.csv-import-form {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.document-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+
+.checklist-item {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.checklist-item.complete {
+  border-color: var(--teal);
+  color: var(--teal);
+}
+
+.rent-calendar {
+  display: grid;
+  gap: 7px;
+}
+
+.calendar-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.print-statement {
+  display: none;
+}
+
 .operations-row {
   grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
   align-items: end;
@@ -2451,6 +2497,10 @@ li {
 }
 
 @media (max-width: 640px) {
+  .calendar-row {
+    grid-template-columns: 1fr auto;
+  }
+
   .section-tabs {
     top: 96px;
   }
@@ -2558,6 +2608,29 @@ li {
 }
 
 @media print {
+  body.print-statement-report > *:not(#printStatement) {
+    display: none !important;
+  }
+
+  body.print-statement-report #printStatement {
+    display: block !important;
+    color: #111111;
+    background: #ffffff;
+  }
+
+  .print-statement-lines {
+    margin-top: 16px;
+    border-top: 1px solid #222222;
+  }
+
+  .print-statement-lines div {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 9px 0;
+    border-bottom: 1px solid #222222;
+  }
+
   :root {
     color-scheme: light;
   }
