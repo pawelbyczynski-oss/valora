@@ -4,10 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260601-plan-audit" />
+    <link rel="stylesheet" href="styles.css?v=20260602-visual-polish" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
+    <div class="app-loading-screen" id="appLoadingScreen" role="status" aria-live="polite">
+      <div class="loading-brand">
+        <img src="property-panel-logo.svg" alt="" />
+        <div>
+          <strong>PropertyPanel</strong>
+          <span>Your property, organised.</span>
+        </div>
+      </div>
+      <div class="loading-line"><span></span></div>
+      <p>Loading your workspace...</p>
+    </div>
     <nav class="app-nav" aria-label="PropertyPanel navigation">
       <div class="brand-lockup compact-brand">
         <img src="property-panel-logo.svg" alt="PropertyPanel logo" />
@@ -504,7 +515,7 @@
 
     <section class="premium-shell app-view" id="dashboardView" aria-label="PropertyPanel dashboard">
       <section class="dashboard-shell" id="dashboardPanel" hidden>
-        <div class="dashboard-head">
+        <div class="dashboard-head dashboard-welcome">
           <div>
             <p class="eyebrow">Portfolio dashboard</p>
             <h2>Welcome back, Pawel</h2>
@@ -1601,6 +1612,6 @@
     </datalist>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260601-auth-return"></script>
+    <script src="app.js?v=20260602-visual-polish"></script>
   </body>
 </html>

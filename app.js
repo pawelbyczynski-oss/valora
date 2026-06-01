@@ -46,6 +46,7 @@ const outputs = {
 
 const premium = {
   views: document.querySelectorAll(".app-view"),
+  appLoadingScreen: document.querySelector("#appLoadingScreen"),
   navButtons: document.querySelectorAll(".nav-button"),
   sidebarItems: document.querySelectorAll("[data-sidebar-target]"),
   navAuthButton: document.querySelector("#navAuthButton"),
@@ -387,6 +388,11 @@ function applyTheme(theme) {
   document.documentElement.dataset.theme = resolvedTheme;
   premium.themeToggle.textContent = resolvedTheme === "dark" ? "Light" : "Dark";
   premium.themeToggle.setAttribute("aria-pressed", resolvedTheme === "dark" ? "true" : "false");
+}
+
+function setAppLoading(isLoading) {
+  if (!premium.appLoadingScreen) return;
+  premium.appLoadingScreen.hidden = !isLoading;
 }
 
 function initTheme() {
@@ -1830,6 +1836,22 @@ function propertyMatchesSearch(property, search) {
     .includes(search);
 }
 
+function currentPropertyTenancy(property) {
+  const today = new Date().toISOString().slice(0, 10);
+  return (property.tenancies || []).find(
+    (tenancy) =>
+      (!tenancy.startDate || tenancy.startDate <= today) &&
+      (!tenancy.endDate || tenancy.endDate >= today),
+  );
+}
+
+function propertyOccupancyStatus(property) {
+  if (property.ownershipModel !== "Owned") return { label: property.ownershipModel, className: "status-managed" };
+  return currentPropertyTenancy(property)
+    ? { label: "Tenanted", className: "status-active" }
+    : { label: "Available", className: "status-empty" };
+}
+
 function renderPremiumDashboard() {
   localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
   const totalValue = properties.reduce((sum, property) => sum + Number(property.currentValue || 0), 0);
@@ -1857,14 +1879,22 @@ function renderPremiumDashboard() {
       const mortgageInterest = mortgageDeal.balance * (mortgageDeal.rate / 100 / 12);
       const cashflow = propertyCashflow(property);
       const expiryDays = daysUntil(mortgageDeal.expiryDate);
+      const occupancy = propertyOccupancyStatus(property);
+      const grossYield = Number(property.currentValue || 0)
+        ? (Number(property.rent || 0) * 12 / Number(property.currentValue)) * 100
+        : 0;
 
       card.innerHTML = `
         <div class="property-card-head">
           <div>
             <h3>${escapeHtml(property.name)}</h3>
+            <span class="property-address">${escapeHtml(propertyAddressLabel(property))}</span>
             <span class="field-hint">${escapeHtml(property.region)} · ${escapeHtml(property.letType)}</span>
           </div>
-          <span class="pill">${escapeHtml(expiryDays <= 120 ? "Remortgage soon" : mortgageDeal.productType)}</span>
+          <div class="property-card-status">
+            <span class="pill ${occupancy.className}">${escapeHtml(occupancy.label)}</span>
+            <span class="pill ${expiryDays <= 120 ? "status-warning" : ""}">${escapeHtml(expiryDays <= 120 ? "Remortgage soon" : mortgageDeal.productType)}</span>
+          </div>
         </div>
         <div class="property-meta">
           <div><span>Purchase price</span><strong>${money.format(property.purchasePrice)}</strong></div>
@@ -1877,7 +1907,11 @@ function renderPremiumDashboard() {
           <div><span>Mortgage interest</span><strong>${money.format(mortgageInterest)}</strong></div>
         </div>
         <div class="property-expiry"><span>Expiry</span><strong>${mortgageDeal.expiryDate || "-"}</strong></div>
-        <p class="field-hint">Open property record for tenancy and remortgage history.</p>
+        <div class="property-performance">
+          <span>Monthly cashflow <strong class="${cashflow >= 0 ? "positive-value" : "negative-value"}">${money.format(cashflow)}</strong></span>
+          <span>Gross yield <strong>${grossYield.toFixed(1)}%</strong></span>
+          <span class="open-record">Open record <strong>→</strong></span>
+        </div>
       `;
       return card;
     }),
@@ -4456,6 +4490,8 @@ async function logoutUser() {
 }
 
 async function initAuth() {
+  setAppLoading(true);
+  try {
   if (!supabaseClient) {
     premium.authMessage.textContent = "Supabase key is not configured in app.js yet.";
     return;
@@ -4563,6 +4599,9 @@ async function initAuth() {
     switchView("premiumView");
     document.querySelector("#purchasePanel").scrollIntoView({ behavior: "smooth", block: "center" });
     cleanCheckoutUrl();
+  }
+  } finally {
+    setAppLoading(false);
   }
 }
 
