@@ -277,6 +277,11 @@ const premium = {
   voidPeriodList: document.querySelector("#voidPeriodList"),
   propertyForecast: document.querySelector("#propertyForecast"),
   rentCalendar: document.querySelector("#rentCalendar"),
+  calendarMonthLabel: document.querySelector("#calendarMonthLabel"),
+  calendarPreviousMonth: document.querySelector("#calendarPreviousMonth"),
+  calendarNextMonth: document.querySelector("#calendarNextMonth"),
+  calendarPropertyFilter: document.querySelector("#calendarPropertyFilter"),
+  calendarDayEvents: document.querySelector("#calendarDayEvents"),
   exportAllCalendar: document.querySelector("#exportAllCalendar"),
   adminTabButtons: document.querySelectorAll("[data-admin-tab]"),
   adminPanels: document.querySelectorAll("[data-admin-panel]"),
@@ -382,6 +387,8 @@ let currentSubscription = null;
 let currentUser = null;
 let subscriptionSyncAttempted = false;
 let selectedPlan = localStorage.getItem(SELECTED_PLAN_STORAGE_KEY) === "pro" ? "pro" : "premium";
+let calendarVisibleMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1, 12);
+let selectedCalendarDate = new Date().toISOString().slice(0, 10);
 
 function applyTheme(theme) {
   const resolvedTheme = theme === "dark" ? "dark" : "light";
@@ -1930,23 +1937,200 @@ function renderPremiumDashboard() {
   renderDocuments();
 }
 
+function calendarEventStatus(event) {
+  if (event.kind === "rent") {
+    if (event.transaction.status === "approved") return "Paid";
+    return event.date < new Date().toISOString().slice(0, 10) ? "Overdue" : "Due";
+  }
+  if (event.kind === "review") return event.review.status === "completed" ? "Completed" : "Planned";
+  return event.date < new Date().toISOString().slice(0, 10) ? "Overdue" : "Upcoming";
+}
+
+function portfolioCalendarEvents() {
+  const events = transactions
+    .filter((transaction) => transactionTenancyId(transaction))
+    .map((transaction) => ({
+      id: `rent-${transaction.id}`,
+      kind: "rent",
+      date: transaction.date,
+      propertyId: transaction.propertyId,
+      title: "Rent due",
+      detail: `${money.format(transaction.amount)} · ${transaction.category}`,
+      transaction,
+    }));
+
+  if (!hasProAccess()) return events;
+
+  properties.forEach((property) => {
+    const mortgage = latestMortgageDeal(property);
+    if (mortgage.expiryDate) {
+      events.push({
+        id: `mortgage-${property.id}-${mortgage.expiryDate}`,
+        kind: "mortgage",
+        date: mortgage.expiryDate,
+        propertyId: property.id,
+        title: "Mortgage expiry",
+        detail: `${mortgage.productType || "Mortgage"} · ${mortgage.rate.toFixed(2)}%`,
+      });
+    }
+
+    (property.tenancies || []).forEach((tenancy) => {
+      if (!tenancy.endDate) return;
+      events.push({
+        id: `tenancy-${tenancy.id}`,
+        kind: "tenancy",
+        date: tenancy.endDate,
+        propertyId: property.id,
+        title: "Tenancy ending",
+        detail: tenancy.tenantName || "Review renewal or move-out steps",
+      });
+    });
+  });
+
+  documents
+    .filter((document) => document.reminderEnabled && document.expiryDate)
+    .forEach((document) => {
+      events.push({
+        id: `certificate-document-${document.id}`,
+        kind: "certificate",
+        date: document.expiryDate,
+        propertyId: document.propertyId,
+        title: "Certificate / document expiry",
+        detail: document.label || document.documentType,
+      });
+    });
+
+  complianceItems
+    .filter((item) => item.expiryDate && item.status !== "not_required")
+    .forEach((item) => {
+      events.push({
+        id: `certificate-compliance-${item.id}`,
+        kind: "certificate",
+        date: item.expiryDate,
+        propertyId: item.propertyId,
+        title: "Certificate / compliance review",
+        detail: item.itemType,
+      });
+    });
+
+  rentReviews.forEach((review) => {
+    if (!review.reviewDate) return;
+    events.push({
+      id: `review-${review.id}`,
+      kind: "review",
+      date: review.reviewDate,
+      propertyId: review.propertyId,
+      title: "Rent review",
+      detail: `${money.format(review.currentRent)} → ${money.format(review.proposedRent)}`,
+      review,
+    });
+  });
+
+  return events;
+}
+
+function calendarEventAction(event) {
+  if (event.kind === "rent" && event.transaction.status !== "approved") {
+    return `<button class="tax-button small-button" type="button" data-calendar-mark-paid="${event.transaction.id}">Mark as paid</button>`;
+  }
+  if (event.kind === "review" && event.review.status !== "completed") {
+    return `<button class="tax-button small-button" type="button" data-calendar-complete-review="${event.review.id}">Mark completed</button>`;
+  }
+  const tab = event.kind === "mortgage"
+    ? "remortgages"
+    : event.kind === "tenancy"
+      ? "tenancies"
+      : event.kind === "certificate"
+        ? "documents"
+        : "overview";
+  return `<button class="secondary-button small-button" type="button" data-calendar-open-property="${event.propertyId}" data-calendar-property-tab="${tab}">Open ${tab === "remortgages" ? "remortgage" : tab}</button>`;
+}
+
+function renderCalendarDayEvents(events) {
+  if (!premium.calendarDayEvents) return;
+  const selectedEvents = events
+    .filter((event) => event.date === selectedCalendarDate)
+    .sort((a, b) => a.kind.localeCompare(b.kind));
+  premium.calendarDayEvents.innerHTML = `
+    <div class="section-heading">
+      <p class="eyebrow">Selected date</p>
+      <h3>${escapeHtml(formatDate(selectedCalendarDate))}</h3>
+    </div>
+    ${selectedEvents.length
+      ? selectedEvents.map((event) => `
+        <article class="calendar-event-row">
+          <i class="calendar-dot dot-${event.kind}"></i>
+          <div>
+            <strong>${escapeHtml(event.title)}</strong>
+            <span>${escapeHtml(transactionPropertyName(event.propertyId))} · ${escapeHtml(event.detail)}</span>
+          </div>
+          <span class="calendar-event-status status-${calendarEventStatus(event).toLowerCase()}">${escapeHtml(calendarEventStatus(event))}</span>
+          ${calendarEventAction(event)}
+        </article>`).join("")
+      : `<p class="field-hint">No events scheduled for this date.</p>`}
+  `;
+}
+
 function renderRentCalendar() {
   if (!premium.rentCalendar) return;
-  const now = new Date();
-  const monthStart = dateInputValue(new Date(now.getFullYear(), now.getMonth(), 1, 12));
-  const monthEnd = dateInputValue(new Date(now.getFullYear(), now.getMonth() + 1, 0, 12));
-  const rows = transactions
-    .filter((transaction) => transactionTenancyId(transaction) && transaction.date >= monthStart && transaction.date <= monthEnd)
-    .sort((a, b) => a.date.localeCompare(b.date));
-  premium.rentCalendar.innerHTML = rows.length
-    ? rows.map((transaction) => `
-      <div class="calendar-row">
-        <span>${escapeHtml(formatDate(transaction.date))}</span>
-        <strong>${escapeHtml(transactionPropertyName(transaction.propertyId))}</strong>
-        <span>${money.format(transaction.amount)}</span>
-        <span class="pill">${transaction.status === "approved" ? "Paid" : "Due"}</span>
-      </div>`).join("")
-    : `<p class="field-hint">No rent payments scheduled for this month.</p>`;
+  const monthStart = new Date(calendarVisibleMonth.getFullYear(), calendarVisibleMonth.getMonth(), 1, 12);
+  const monthEnd = new Date(calendarVisibleMonth.getFullYear(), calendarVisibleMonth.getMonth() + 1, 0, 12);
+  const monthKey = dateInputValue(monthStart).slice(0, 7);
+  const propertyFilter = premium.calendarPropertyFilter?.value || "all";
+  const allEvents = portfolioCalendarEvents();
+  const events = allEvents.filter((event) => propertyFilter === "all" || event.propertyId === propertyFilter);
+
+  premium.calendarMonthLabel.textContent = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" }).format(monthStart);
+  const selectedOption = premium.calendarPropertyFilter.value;
+  premium.calendarPropertyFilter.innerHTML = [
+    `<option value="all">All properties</option>`,
+    ...properties.map((property) => `<option value="${property.id}">${escapeHtml(property.name)}</option>`),
+  ].join("");
+  premium.calendarPropertyFilter.value = properties.some((property) => property.id === selectedOption) ? selectedOption : "all";
+
+  if (!selectedCalendarDate.startsWith(monthKey)) {
+    const firstEvent = events.find((event) => event.date.startsWith(monthKey));
+    selectedCalendarDate = firstEvent?.date || dateInputValue(monthStart);
+  }
+
+  const eventsByDate = new Map();
+  events.forEach((event) => {
+    const values = eventsByDate.get(event.date) || [];
+    values.push(event);
+    eventsByDate.set(event.date, values);
+  });
+
+  const weekdayHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    .map((day) => `<span class="calendar-weekday">${day}</span>`)
+    .join("");
+  const leadingBlanks = (monthStart.getDay() + 6) % 7;
+  const dayCells = [];
+  for (let index = 0; index < leadingBlanks; index += 1) dayCells.push('<span class="calendar-day calendar-day-empty"></span>');
+  for (let day = 1; day <= monthEnd.getDate(); day += 1) {
+    const date = dateInputValue(new Date(monthStart.getFullYear(), monthStart.getMonth(), day, 12));
+    const dayEvents = eventsByDate.get(date) || [];
+    const activeEvents = dayEvents.filter((event) =>
+      (event.kind !== "rent" || event.transaction.status !== "approved") &&
+      (event.kind !== "review" || event.review.status !== "completed"));
+    const dots = [...new Set(activeEvents.map((event) => event.kind))]
+      .slice(0, 4)
+      .map((kind) => `<i class="calendar-dot dot-${kind}"></i>`)
+      .join("");
+    const count = activeEvents.length > 4 ? `<small>+${activeEvents.length - 4}</small>` : "";
+    const classes = [
+      "calendar-day",
+      date === selectedCalendarDate ? "selected" : "",
+      date === new Date().toISOString().slice(0, 10) ? "today" : "",
+    ].filter(Boolean).join(" ");
+    dayCells.push(`
+      <button class="${classes}" type="button" data-calendar-date="${date}" aria-label="${formatDate(date)}${dayEvents.length ? `, ${dayEvents.length} events` : ""}">
+        <strong>${day}</strong>
+        <span>${dots}${count}</span>
+      </button>`);
+  }
+
+  premium.rentCalendar.innerHTML = `<div class="calendar-grid">${weekdayHeaders}${dayCells.join("")}</div>`;
+  renderCalendarDayEvents(events);
 }
 
 function activeProperty() {
@@ -5626,6 +5810,66 @@ premium.printLenderPack?.addEventListener("click", () => {
 premium.exportAllCalendar?.addEventListener("click", () => {
   if (!hasProAccess()) return showProUpgrade("Portfolio calendar export is included in PropertyPanel Pro.");
   downloadAllRemindersCalendar();
+});
+
+premium.calendarPreviousMonth?.addEventListener("click", () => {
+  calendarVisibleMonth = new Date(calendarVisibleMonth.getFullYear(), calendarVisibleMonth.getMonth() - 1, 1, 12);
+  renderRentCalendar();
+});
+
+premium.calendarNextMonth?.addEventListener("click", () => {
+  calendarVisibleMonth = new Date(calendarVisibleMonth.getFullYear(), calendarVisibleMonth.getMonth() + 1, 1, 12);
+  renderRentCalendar();
+});
+
+premium.calendarPropertyFilter?.addEventListener("change", () => {
+  renderRentCalendar();
+});
+
+premium.rentCalendar?.addEventListener("click", (event) => {
+  const dayButton = event.target.closest("[data-calendar-date]");
+  if (!dayButton) return;
+  selectedCalendarDate = dayButton.dataset.calendarDate;
+  renderRentCalendar();
+});
+
+premium.calendarDayEvents?.addEventListener("click", async (event) => {
+  const markPaidButton = event.target.closest("[data-calendar-mark-paid]");
+  if (markPaidButton) {
+    const transaction = transactions.find((item) => item.id === markPaidButton.dataset.calendarMarkPaid);
+    if (!transaction) return;
+    setButtonBusy(markPaidButton, true, "Saving...");
+    try {
+      transaction.status = "approved";
+      await updateTransactionInSupabase(transaction);
+      renderPremiumDashboard();
+    } catch (error) {
+      window.alert(error?.message || "Could not update the rent payment.");
+      setButtonBusy(markPaidButton, false);
+    }
+    return;
+  }
+
+  const completeReviewButton = event.target.closest("[data-calendar-complete-review]");
+  if (completeReviewButton) {
+    const review = rentReviews.find((item) => item.id === completeReviewButton.dataset.calendarCompleteReview);
+    if (!review || !supabaseClient) return;
+    setButtonBusy(completeReviewButton, true, "Saving...");
+    const { error } = await supabaseClient.from("rent_reviews").update({ status: "completed" }).eq("id", review.id);
+    if (error) {
+      window.alert(error.message);
+      setButtonBusy(completeReviewButton, false);
+      return;
+    }
+    review.status = "completed";
+    renderPremiumDashboard();
+    return;
+  }
+
+  const openPropertyButton = event.target.closest("[data-calendar-open-property]");
+  if (!openPropertyButton) return;
+  openPropertyDetail(openPropertyButton.dataset.calendarOpenProperty);
+  switchPropertyDetailTab(openPropertyButton.dataset.calendarPropertyTab || "overview");
 });
 
 premium.propertyExpenseList.addEventListener("click", async (event) => {

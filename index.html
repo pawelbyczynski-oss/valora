@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260602-visual-polish" />
+    <link rel="stylesheet" href="styles.css?v=20260602-portfolio-calendar" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -703,15 +703,40 @@
             <ul class="reminder-list" id="reminderList"></ul>
           </aside>
 
-          <section class="panel-card dashboard-panel" data-dashboard-panel="overview">
+          <section class="panel-card dashboard-panel calendar-panel" data-dashboard-panel="overview">
             <div class="section-heading split-heading">
               <div>
                 <p class="eyebrow">Rent tracker</p>
-                <h2>Monthly calendar</h2>
+                <h2>Portfolio calendar</h2>
               </div>
               <button class="secondary-button small-button" id="exportAllCalendar" type="button">Export calendar</button>
             </div>
-            <div class="rent-calendar" id="rentCalendar"></div>
+            <div class="calendar-toolbar">
+              <div class="calendar-navigation">
+                <button class="icon-button" id="calendarPreviousMonth" type="button" aria-label="Previous month">‹</button>
+                <strong id="calendarMonthLabel">Month</strong>
+                <button class="icon-button" id="calendarNextMonth" type="button" aria-label="Next month">›</button>
+              </div>
+              <label>
+                <span>Property</span>
+                <select id="calendarPropertyFilter">
+                  <option value="all">All properties</option>
+                </select>
+              </label>
+            </div>
+            <div class="calendar-layout">
+              <div class="rent-calendar" id="rentCalendar"></div>
+              <aside class="calendar-legend" aria-label="Calendar legend">
+                <strong>Legend</strong>
+                <span><i class="calendar-dot dot-rent"></i>Rent due</span>
+                <span><i class="calendar-dot dot-mortgage"></i>Mortgage expiry</span>
+                <span><i class="calendar-dot dot-certificate"></i>Certificate / document</span>
+                <span><i class="calendar-dot dot-tenancy"></i>Tenancy ending</span>
+                <span><i class="calendar-dot dot-review"></i>Rent review</span>
+                <small>Paid rent stays in the daily list but no longer shows a dot.</small>
+              </aside>
+            </div>
+            <div class="calendar-day-events" id="calendarDayEvents"></div>
           </section>
 
           <section class="panel-card dashboard-panel" data-dashboard-panel="overview">
@@ -1612,6 +1637,6 @@
     </datalist>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260602-visual-polish"></script>
+    <script src="app.js?v=20260602-portfolio-calendar"></script>
   </body>
 </html>
