@@ -277,7 +277,8 @@ const premium = {
   voidPeriodList: document.querySelector("#voidPeriodList"),
   propertyForecast: document.querySelector("#propertyForecast"),
   rentCalendar: document.querySelector("#rentCalendar"),
-  calendarMonthLabel: document.querySelector("#calendarMonthLabel"),
+  calendarMonthSelect: document.querySelector("#calendarMonthSelect"),
+  calendarYearSelect: document.querySelector("#calendarYearSelect"),
   calendarPreviousMonth: document.querySelector("#calendarPreviousMonth"),
   calendarNextMonth: document.querySelector("#calendarNextMonth"),
   calendarPropertyFilter: document.querySelector("#calendarPropertyFilter"),
@@ -2080,7 +2081,18 @@ function renderRentCalendar() {
   const allEvents = portfolioCalendarEvents();
   const events = allEvents.filter((event) => propertyFilter === "all" || event.propertyId === propertyFilter);
 
-  premium.calendarMonthLabel.textContent = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" }).format(monthStart);
+  premium.calendarMonthSelect.innerHTML = Array.from({ length: 12 }, (_, month) => `
+    <option value="${month}">${new Intl.DateTimeFormat("en-GB", { month: "long" }).format(new Date(2026, month, 1, 12))}</option>
+  `).join("");
+  premium.calendarMonthSelect.value = String(monthStart.getMonth());
+  const currentYear = new Date().getFullYear();
+  const firstCalendarYear = Math.min(currentYear - 3, monthStart.getFullYear());
+  const lastCalendarYear = Math.max(currentYear + 10, monthStart.getFullYear());
+  premium.calendarYearSelect.innerHTML = Array.from(
+    { length: lastCalendarYear - firstCalendarYear + 1 },
+    (_, index) => `<option value="${firstCalendarYear + index}">${firstCalendarYear + index}</option>`,
+  ).join("");
+  premium.calendarYearSelect.value = String(monthStart.getFullYear());
   const selectedOption = premium.calendarPropertyFilter.value;
   premium.calendarPropertyFilter.innerHTML = [
     `<option value="all">All properties</option>`,
@@ -5821,6 +5833,19 @@ premium.calendarNextMonth?.addEventListener("click", () => {
   calendarVisibleMonth = new Date(calendarVisibleMonth.getFullYear(), calendarVisibleMonth.getMonth() + 1, 1, 12);
   renderRentCalendar();
 });
+
+function jumpToSelectedCalendarPeriod() {
+  calendarVisibleMonth = new Date(
+    Number(premium.calendarYearSelect.value),
+    Number(premium.calendarMonthSelect.value),
+    1,
+    12,
+  );
+  renderRentCalendar();
+}
+
+premium.calendarMonthSelect?.addEventListener("change", jumpToSelectedCalendarPeriod);
+premium.calendarYearSelect?.addEventListener("change", jumpToSelectedCalendarPeriod);
 
 premium.calendarPropertyFilter?.addEventListener("change", () => {
   renderRentCalendar();

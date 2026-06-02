@@ -2068,13 +2068,36 @@ select {
 }
 
 .calendar-navigation {
-  min-width: 230px;
+  display: flex;
+  align-items: end;
+  gap: 6px;
 }
 
 .calendar-navigation .icon-button {
   min-width: 36px;
   min-height: 36px;
   font-size: 1.45rem;
+}
+
+.calendar-navigation .calendar-period-field {
+  display: grid;
+  gap: 4px;
+  min-width: 124px;
+}
+
+.calendar-navigation .calendar-year-field {
+  min-width: 86px;
+}
+
+.calendar-navigation .calendar-period-field span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.calendar-navigation select {
+  min-height: 36px;
+  padding: 6px 24px 6px 8px;
 }
 
 .calendar-toolbar label {
@@ -2868,6 +2891,9 @@ li {
   .dashboard-shell > .section-tabs,
   .property-detail-shell > .section-tabs {
     grid-row: auto;
+    position: static;
+    display: flex;
+    overflow-x: auto;
   }
 
   .section-tabs {
@@ -2909,6 +2935,17 @@ li {
   }
 
   .calendar-toolbar label {
+    min-width: 0;
+  }
+
+  .calendar-navigation {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) 78px 36px;
+    align-items: end;
+  }
+
+  .calendar-navigation .calendar-period-field,
+  .calendar-navigation .calendar-year-field {
     min-width: 0;
   }
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260602-portfolio-calendar" />
+    <link rel="stylesheet" href="styles.css?v=20260602-calendar-period-picker" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
   <body>
@@ -714,7 +714,14 @@
             <div class="calendar-toolbar">
               <div class="calendar-navigation">
                 <button class="icon-button" id="calendarPreviousMonth" type="button" aria-label="Previous month">‹</button>
-                <strong id="calendarMonthLabel">Month</strong>
+                <label class="calendar-period-field">
+                  <span>Month</span>
+                  <select id="calendarMonthSelect" aria-label="Calendar month"></select>
+                </label>
+                <label class="calendar-period-field calendar-year-field">
+                  <span>Year</span>
+                  <select id="calendarYearSelect" aria-label="Calendar year"></select>
+                </label>
                 <button class="icon-button" id="calendarNextMonth" type="button" aria-label="Next month">›</button>
               </div>
               <label>
@@ -1637,6 +1644,6 @@
     </datalist>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260602-portfolio-calendar"></script>
+    <script src="app.js?v=20260602-calendar-period-picker"></script>
   </body>
 </html>
