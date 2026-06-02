@@ -2257,6 +2257,57 @@ select {
   font-size: 1rem;
 }
 
+.calendar-subscription-panel {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(15, 118, 110, 0.28);
+  border-radius: 8px;
+  background: rgba(15, 118, 110, 0.06);
+}
+
+.calendar-subscription-layout {
+  display: grid;
+  grid-template-columns: 164px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.calendar-subscription-layout img {
+  display: block;
+  width: 164px;
+  height: 164px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.calendar-subscription-details {
+  display: grid;
+  gap: 10px;
+}
+
+.calendar-subscription-details p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.calendar-subscription-details label {
+  display: grid;
+  gap: 4px;
+}
+
+.calendar-subscription-details label span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.calendar-subscription-details input {
+  min-width: 0;
+}
+
 .calendar-event-row {
   display: grid;
   grid-template-columns: 8px minmax(0, 1fr) auto auto;
@@ -2962,6 +3013,14 @@ li {
   .calendar-event-row .small-button {
     grid-column: 2;
     justify-self: start;
+  }
+
+  .calendar-subscription-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .calendar-subscription-layout img {
+    justify-self: center;
   }
 
   .property-performance {

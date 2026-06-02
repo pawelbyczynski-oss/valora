@@ -283,6 +283,14 @@ const premium = {
   calendarNextMonth: document.querySelector("#calendarNextMonth"),
   calendarPropertyFilter: document.querySelector("#calendarPropertyFilter"),
   calendarDayEvents: document.querySelector("#calendarDayEvents"),
+  calendarSubscriptionPanel: document.querySelector("#calendarSubscriptionPanel"),
+  calendarSubscriptionQr: document.querySelector("#calendarSubscriptionQr"),
+  calendarSubscriptionUrl: document.querySelector("#calendarSubscriptionUrl"),
+  calendarSubscriptionStatus: document.querySelector("#calendarSubscriptionStatus"),
+  closeCalendarSubscription: document.querySelector("#closeCalendarSubscription"),
+  copyCalendarSubscription: document.querySelector("#copyCalendarSubscription"),
+  downloadCalendarFile: document.querySelector("#downloadCalendarFile"),
+  regenerateCalendarSubscription: document.querySelector("#regenerateCalendarSubscription"),
   exportAllCalendar: document.querySelector("#exportAllCalendar"),
   adminTabButtons: document.querySelectorAll("[data-admin-tab]"),
   adminPanels: document.querySelectorAll("[data-admin-panel]"),
@@ -390,6 +398,7 @@ let subscriptionSyncAttempted = false;
 let selectedPlan = localStorage.getItem(SELECTED_PLAN_STORAGE_KEY) === "pro" ? "pro" : "premium";
 let calendarVisibleMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1, 12);
 let selectedCalendarDate = new Date().toISOString().slice(0, 10);
+let calendarFeedToken = "";
 
 function applyTheme(theme) {
   const resolvedTheme = theme === "dark" ? "dark" : "light";
@@ -2875,21 +2884,100 @@ function downloadReminderCalendar(reminder) {
   downloadText(contents, `propertypanel-${reminder.dueDate}-${reminder.type.toLowerCase()}.ics`, "text/calendar;charset=utf-8");
 }
 
-function downloadAllRemindersCalendar() {
-  const reminders = upcomingReminders().filter((reminder) => reminder.dueDate);
-  if (!reminders.length) return;
-  const events = reminders.flatMap((reminder) => [
+function downloadablePortfolioCalendarEvents() {
+  const today = new Date().toISOString().slice(0, 10);
+  return portfolioCalendarEvents().filter((event) => {
+    if (!event.date || event.date < today) return false;
+    if (event.kind === "rent" && event.transaction.status === "approved") return false;
+    if (event.kind === "review" && event.review.status === "completed") return false;
+    return true;
+  });
+}
+
+function downloadAllPortfolioCalendar() {
+  const events = downloadablePortfolioCalendarEvents().flatMap((event) => [
     "BEGIN:VEVENT",
-    `UID:${calendarText(`${reminder.id}@propertypanel.co.uk`)}`,
+    `UID:${calendarText(`${event.id}@propertypanel.co.uk`)}`,
     `DTSTAMP:${new Date().toISOString().replaceAll(/[-:]/g, "").replace(".000", "")}`,
-    `DTSTART;VALUE=DATE:${calendarDateValue(reminder.dueDate)}`,
-    `DTEND;VALUE=DATE:${calendarDateValue(addCalendarDays(reminder.dueDate, 1))}`,
-    `SUMMARY:${calendarText(`PropertyPanel: ${reminder.title}`)}`,
-    `DESCRIPTION:${calendarText(reminder.detail)}`,
+    `DTSTART;VALUE=DATE:${calendarDateValue(event.date)}`,
+    `DTEND;VALUE=DATE:${calendarDateValue(addCalendarDays(event.date, 1))}`,
+    `SUMMARY:${calendarText(`PropertyPanel: ${transactionPropertyName(event.propertyId)} · ${event.title}`)}`,
+    `DESCRIPTION:${calendarText(event.detail)}`,
     "END:VEVENT",
   ]);
-  downloadText(["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//PropertyPanel//Portfolio//EN", ...events, "END:VCALENDAR"].join("\r\n"),
+  downloadText(["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//PropertyPanel//Portfolio//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", ...events, "END:VCALENDAR", ""].join("\r\n"),
     "propertypanel-portfolio-calendar.ics", "text/calendar;charset=utf-8");
+}
+
+function calendarFeedHttpsUrl(token) {
+  return `${SUPABASE_URL}/functions/v1/calendar-feed?token=${encodeURIComponent(token)}`;
+}
+
+function calendarFeedWebcalUrl(token) {
+  return calendarFeedHttpsUrl(token).replace(/^https:/, "webcal:");
+}
+
+async function ensureCalendarFeedToken(regenerate = false) {
+  if (!supabaseClient || !currentUser) throw new Error("Sign in to create a private calendar link.");
+
+  if (!regenerate) {
+    const { data, error } = await supabaseClient
+      .from("calendar_feed_tokens")
+      .select("token")
+      .eq("user_id", currentUser.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.token) return data.token;
+  }
+
+  const token = crypto.randomUUID();
+  const { data, error } = await supabaseClient
+    .from("calendar_feed_tokens")
+    .upsert({ user_id: currentUser.id, token }, { onConflict: "user_id" })
+    .select("token")
+    .single();
+  if (error) throw error;
+  return data.token;
+}
+
+async function renderCalendarSubscription(regenerate = false) {
+  if (!hasProAccess()) return showProUpgrade("Private calendar subscriptions are included in PropertyPanel Pro.");
+  premium.calendarSubscriptionPanel.hidden = false;
+  premium.calendarSubscriptionStatus.textContent = regenerate
+    ? "Generating a new private link..."
+    : "Preparing your private link...";
+  premium.calendarSubscriptionUrl.value = "";
+
+  try {
+    calendarFeedToken = await ensureCalendarFeedToken(regenerate);
+    const link = calendarFeedWebcalUrl(calendarFeedToken);
+    premium.calendarSubscriptionUrl.value = link;
+    premium.calendarSubscriptionStatus.textContent =
+      "This is a private read-only calendar link. Regenerating it disconnects the previous subscription.";
+    if (window.qrcode) {
+      const qrCode = window.qrcode(0, "M");
+      qrCode.addData(link);
+      qrCode.make();
+      premium.calendarSubscriptionQr.src = qrCode.createDataURL(5, 8);
+    }
+  } catch (error) {
+    premium.calendarSubscriptionStatus.textContent =
+      error?.message || "Could not prepare the private calendar link.";
+  }
+}
+
+async function copyCalendarSubscriptionLink() {
+  const link = premium.calendarSubscriptionUrl.value;
+  if (!link) return;
+  try {
+    await navigator.clipboard.writeText(link);
+    premium.calendarSubscriptionStatus.textContent = "Private calendar link copied.";
+  } catch {
+    premium.calendarSubscriptionUrl.focus();
+    premium.calendarSubscriptionUrl.select();
+    document.execCommand("copy");
+    premium.calendarSubscriptionStatus.textContent = "Private calendar link copied.";
+  }
 }
 
 function renderPrintableStatement(title, rows) {
@@ -4668,6 +4756,8 @@ async function logoutUser() {
   promoAccess = false;
   isAdminUser = false;
   currentUser = null;
+  calendarFeedToken = "";
+  premium.calendarSubscriptionPanel.hidden = true;
   localStorage.removeItem(PROMO_STORAGE_KEY);
   localStorage.removeItem(UI_STATE_STORAGE_KEY);
 
@@ -5820,8 +5910,26 @@ premium.printLenderPack?.addEventListener("click", () => {
 });
 
 premium.exportAllCalendar?.addEventListener("click", () => {
+  renderCalendarSubscription();
+});
+
+premium.closeCalendarSubscription?.addEventListener("click", () => {
+  premium.calendarSubscriptionPanel.hidden = true;
+});
+
+premium.copyCalendarSubscription?.addEventListener("click", copyCalendarSubscriptionLink);
+
+premium.downloadCalendarFile?.addEventListener("click", () => {
   if (!hasProAccess()) return showProUpgrade("Portfolio calendar export is included in PropertyPanel Pro.");
-  downloadAllRemindersCalendar();
+  downloadAllPortfolioCalendar();
+  premium.calendarSubscriptionStatus.textContent = downloadablePortfolioCalendarEvents().length
+    ? "Calendar file downloaded."
+    : "Calendar file downloaded. No upcoming dates are currently saved in your portfolio.";
+});
+
+premium.regenerateCalendarSubscription?.addEventListener("click", () => {
+  if (!window.confirm("Generate a new private calendar link? The previous subscription link will stop working.")) return;
+  renderCalendarSubscription(true);
 });
 
 premium.calendarPreviousMonth?.addEventListener("click", () => {

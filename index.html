@@ -4,8 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260602-calendar-period-picker" />
+    <link rel="stylesheet" href="styles.css?v=20260602-calendar-subscription" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   </head>
   <body>
     <div class="app-loading-screen" id="appLoadingScreen" role="status" aria-live="polite">
@@ -709,7 +710,7 @@
                 <p class="eyebrow">Rent tracker</p>
                 <h2>Portfolio calendar</h2>
               </div>
-              <button class="secondary-button small-button" id="exportAllCalendar" type="button">Export calendar</button>
+              <button class="secondary-button small-button" id="exportAllCalendar" type="button">Calendar sync</button>
             </div>
             <div class="calendar-toolbar">
               <div class="calendar-navigation">
@@ -744,6 +745,31 @@
               </aside>
             </div>
             <div class="calendar-day-events" id="calendarDayEvents"></div>
+            <section class="calendar-subscription-panel" id="calendarSubscriptionPanel" hidden>
+              <div class="section-heading split-heading">
+                <div>
+                  <p class="eyebrow">Private calendar link</p>
+                  <h3>Subscribe on your phone</h3>
+                </div>
+                <button class="icon-button" id="closeCalendarSubscription" type="button" aria-label="Close calendar subscription">×</button>
+              </div>
+              <div class="calendar-subscription-layout">
+                <img id="calendarSubscriptionQr" width="164" height="164" alt="QR code for PropertyPanel calendar subscription" />
+                <div class="calendar-subscription-details">
+                  <p>Scan the QR code or copy the private link to subscribe in Apple Calendar or another calendar app. Keep this link private.</p>
+                  <label>
+                    <span>Private subscription link</span>
+                    <input id="calendarSubscriptionUrl" type="text" readonly />
+                  </label>
+                  <div class="detail-actions">
+                    <button class="tax-button small-button" id="copyCalendarSubscription" type="button">Copy link</button>
+                    <button class="secondary-button small-button" id="downloadCalendarFile" type="button">Download .ics</button>
+                    <button class="secondary-button small-button" id="regenerateCalendarSubscription" type="button">Regenerate link</button>
+                  </div>
+                  <p class="field-hint" id="calendarSubscriptionStatus">Preparing your private link...</p>
+                </div>
+              </div>
+            </section>
           </section>
 
           <section class="panel-card dashboard-panel" data-dashboard-panel="overview">
@@ -1644,6 +1670,6 @@
     </datalist>
 
     <script src="config.js?v=20260522"></script>
-    <script src="app.js?v=20260602-calendar-period-picker"></script>
+    <script src="app.js?v=20260602-calendar-subscription"></script>
   </body>
 </html>
