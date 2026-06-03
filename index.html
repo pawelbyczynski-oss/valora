@@ -309,9 +309,36 @@
             <span>Number of dwellings</span>
             <input id="dwellingCount" type="number" inputmode="numeric" min="2" step="1" value="6" />
           </label>
+          <label class="mixed-field">
+            <span>Commercial part value</span>
+            <input id="mixedCommercialValue" type="number" inputmode="decimal" min="0" step="1000" value="0" />
+            <small class="field-hint">Shops, offices, land, commercial units or other non-residential value.</small>
+          </label>
+          <label class="mixed-field">
+            <span>Residential part value</span>
+            <input id="mixedResidentialValue" type="number" inputmode="decimal" min="0" step="1000" value="0" />
+            <small class="field-hint">Use a just and reasonable apportionment for the flats/dwellings within the same transaction.</small>
+          </label>
+          <label class="mixed-field">
+            <span>Residential dwellings in mixed deal</span>
+            <input id="mixedDwellingCount" type="number" inputmode="numeric" min="1" step="1" value="1" />
+            <small class="field-hint">For example: commercial building with 5 flats plus 1 extra flat = 6.</small>
+          </label>
+          <label class="mixed-field">
+            <span>Scottish ADS on residential part</span>
+            <select id="mixedAdsApplies">
+              <option value="yes">Apply if due</option>
+              <option value="no">Do not apply</option>
+            </select>
+            <small class="field-hint">For Scotland only. If 6+ dwellings relief is available, ADS is not included.</small>
+          </label>
           <div class="field-control bulk-field">
             <span>Bulk purchase note</span>
             <p class="field-hint">Use when buying multiple dwellings in one transaction or linked transactions from the same seller.</p>
+          </div>
+          <div class="field-control mixed-field">
+            <span>Mixed-use note</span>
+            <p class="field-hint">Use for one transaction containing both commercial/non-residential property and residential dwellings.</p>
           </div>
         </form>
 

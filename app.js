@@ -12,6 +12,10 @@ const inputs = {
   refurbCost: document.querySelector("#refurbCost"),
   fees: document.querySelector("#fees"),
   dwellingCount: document.querySelector("#dwellingCount"),
+  mixedCommercialValue: document.querySelector("#mixedCommercialValue"),
+  mixedResidentialValue: document.querySelector("#mixedResidentialValue"),
+  mixedDwellingCount: document.querySelector("#mixedDwellingCount"),
+  mixedAdsApplies: document.querySelector("#mixedAdsApplies"),
 };
 
 const outputs = {
@@ -5020,21 +5024,37 @@ function calculateCommercialTax(price) {
   };
 }
 
-function calculateMixedUseTax(price) {
+function calculateMixedUseTax(price, details = {}) {
+  const commercialValue = Math.max(details.commercialValue || 0, 0);
+  const residentialValue = Math.max(details.residentialValue || 0, 0);
+  const dwellingCount = Math.max(details.dwellingCount || 0, 0);
+  const apportionedTotal = commercialValue + residentialValue;
+  const effectivePrice = apportionedTotal > 0 ? apportionedTotal : price;
   const tax = region === "scotland"
-    ? calculateScotlandNonResidentialTax(price)
-    : calculateEnglandNonResidentialTax(price);
+    ? calculateScotlandNonResidentialTax(effectivePrice)
+    : calculateEnglandNonResidentialTax(effectivePrice);
 
   if (region === "scotland") {
+    const sixPlusRelief = dwellingCount >= 6;
+    const ads = !sixPlusRelief && details.adsApplies && residentialValue >= 40000
+      ? residentialValue * 0.08
+      : 0;
+    const splitNote = apportionedTotal > 0
+      ? ` Split entered: ${money.format(commercialValue)} commercial/non-residential and ${money.format(residentialValue)} residential across ${dwellingCount || "unspecified"} dwellings.`
+      : " Enter commercial and residential values for a more useful mixed-use split.";
     return {
       baseTax: tax,
-      supplement: 0,
-      total: tax,
+      supplement: ads,
+      total: tax + ads,
       label: "Mixed-use LBTT",
       basis:
-        "Scotland mixed-use property is calculated using non-residential LBTT bands: 0% up to £150k, 1% from £150,001 to £250k, then 5% above £250k. If there is a residential element or linked residential acquisition, confirm ADS treatment with a solicitor before relying on the figure.",
+        `Scotland mixed commercial/residential transactions use non-residential LBTT bands on the chargeable consideration. ${sixPlusRelief ? "Because 6+ dwellings are entered, this estimate does not add ADS where 6+ dwellings relief is available." : `ADS is ${ads ? "estimated on the residential part only" : "not included in this estimate"}; confirm ADS treatment with a solicitor for linked or unusual transactions.`}${splitNote}`,
     };
   }
+
+  const splitNote = apportionedTotal > 0
+    ? ` Split entered: ${money.format(commercialValue)} commercial/non-residential and ${money.format(residentialValue)} residential across ${dwellingCount || "unspecified"} dwellings.`
+    : " Enter commercial and residential values for a more useful mixed-use split.";
 
   return {
     baseTax: tax,
@@ -5042,7 +5062,7 @@ function calculateMixedUseTax(price) {
     total: tax,
     label: "Mixed-use SDLT",
     basis:
-      "England and Northern Ireland mixed-use property is calculated using non-residential SDLT bands: 0% up to £150k, 2% from £150,001 to £250k, then 5% above £250k. The residential higher-rate surcharge is not modelled for mixed-use mode.",
+      `England and Northern Ireland mixed commercial/residential transactions are calculated using non-residential SDLT bands. Higher-rate residential surcharge is not separately modelled in mixed-use mode.${splitNote}`,
   };
 }
 
@@ -5091,7 +5111,12 @@ function calculatePurchaseTax(price, dwellings = 1, mode = propertyType) {
   }
 
   if (mode === "mixed") {
-    return calculateMixedUseTax(price);
+    return calculateMixedUseTax(price, {
+      commercialValue: valueOf(inputs.mixedCommercialValue),
+      residentialValue: valueOf(inputs.mixedResidentialValue),
+      dwellingCount: Math.round(valueOf(inputs.mixedDwellingCount)),
+      adsApplies: inputs.mixedAdsApplies.value === "yes",
+    });
   }
 
   if (mode === "bulk") {
@@ -5201,10 +5226,13 @@ function buildInsights(metrics) {
   }
 
   if (propertyType === "mixed") {
+    const commercialValue = valueOf(inputs.mixedCommercialValue);
+    const residentialValue = valueOf(inputs.mixedResidentialValue);
+    const mixedDwellingCount = Math.round(valueOf(inputs.mixedDwellingCount));
     insights.push(
       region === "scotland"
-        ? "Mixed-use mode: Scotland uses non-residential LBTT bands for mixed-use property, but ADS treatment can depend on the residential element and facts of the transaction."
-        : "Mixed-use mode: England/Northern Ireland uses non-residential SDLT bands where the transaction includes both residential and non-residential property.",
+        ? `Mixed-use mode: Scotland treats the commercial/residential transaction under non-residential LBTT bands, with ADS reviewed against the residential part (${money.format(residentialValue)}) and ${mixedDwellingCount || "unspecified"} dwellings.`
+        : `Mixed-use mode: England/Northern Ireland uses non-residential SDLT bands where the transaction includes both commercial/non-residential value (${money.format(commercialValue)}) and residential value (${money.format(residentialValue)}).`,
     );
   }
 
@@ -5299,7 +5327,29 @@ function updateTaxModal(metrics) {
   outputs.taxNote.textContent = tax.note;
 }
 
+function syncMixedUseValues(changedInput = null) {
+  if (propertyType !== "mixed") return;
+
+  const purchasePrice = valueOf(inputs.purchasePrice);
+  const commercialValue = valueOf(inputs.mixedCommercialValue);
+  const residentialValue = valueOf(inputs.mixedResidentialValue);
+
+  if (!changedInput && commercialValue === 0 && residentialValue === 0 && purchasePrice > 0) {
+    inputs.mixedCommercialValue.value = purchasePrice;
+    return;
+  }
+
+  if (changedInput === inputs.mixedCommercialValue || changedInput === inputs.mixedResidentialValue) {
+    inputs.purchasePrice.value = commercialValue + residentialValue;
+    if (depositEditedBy === "amount") {
+      const newPurchasePrice = valueOf(inputs.purchasePrice);
+      inputs.depositPercent.value = newPurchasePrice ? ((valueOf(inputs.deposit) * 100) / newPurchasePrice).toFixed(1) : 0;
+    }
+  }
+}
+
 function update() {
+  syncMixedUseValues();
   const purchasePrice = valueOf(inputs.purchasePrice);
   if (depositEditedBy === "percent") {
     inputs.deposit.value = Math.round((purchasePrice * valueOf(inputs.depositPercent)) / 100);
@@ -5410,6 +5460,7 @@ document.querySelectorAll(".toggle-button").forEach((button) => {
     if (button.dataset.propertyType) {
       propertyType = button.dataset.propertyType;
       document.body.classList.toggle("bulk-mode", propertyType === "bulk");
+      document.body.classList.toggle("mixed-mode", propertyType === "mixed");
       document.querySelectorAll("[data-property-type]").forEach((item) => {
         item.classList.toggle("active", item === button);
         item.setAttribute("aria-pressed", item === button ? "true" : "false");
@@ -5442,7 +5493,14 @@ inputs.depositPercent.addEventListener("input", () => {
 
 Object.values(inputs).forEach((input) => {
   if (input === inputs.deposit || input === inputs.depositPercent || input === inputs.interestOnlyCost) return;
-  input.addEventListener("input", update);
+  input.addEventListener("input", () => {
+    syncMixedUseValues(input);
+    update();
+  });
+  input.addEventListener("change", () => {
+    syncMixedUseValues(input);
+    update();
+  });
 });
 
 outputs.openTaxModal.addEventListener("click", () => {

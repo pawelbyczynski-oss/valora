@@ -2482,12 +2482,16 @@ h2 {
 }
 
 .bulk-field,
-.field-control.bulk-field {
+.mixed-field,
+.field-control.bulk-field,
+.field-control.mixed-field {
   display: none;
 }
 
 .bulk-mode .bulk-field,
-.bulk-mode .field-control.bulk-field {
+.bulk-mode .field-control.bulk-field,
+.mixed-mode .mixed-field,
+.mixed-mode .field-control.mixed-field {
   display: grid;
 }
 
