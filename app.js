@@ -4995,24 +4995,54 @@ function calculateScotlandNonResidentialTax(price) {
 }
 
 function calculateCommercialTax(price) {
+  const tax = region === "scotland"
+    ? calculateScotlandNonResidentialTax(price)
+    : calculateEnglandNonResidentialTax(price);
+
   if (region === "scotland") {
     return {
-      baseTax: calculateScotlandNonResidentialTax(price),
+      baseTax: tax,
       supplement: 0,
-      total: calculateScotlandNonResidentialTax(price),
+      total: tax,
       label: "Commercial LBTT",
       basis:
-        "Scotland non-residential LBTT: 0% up to £150k, 1% from £150,001 to £250k, then 5% above £250k. This applies to commercial, mixed-use and certain non-residential property.",
+        "Scotland non-residential LBTT: 0% up to £150k, 1% from £150,001 to £250k, then 5% above £250k. Use this for wholly commercial property. Mixed residential/commercial purchases should use Mixed-use mode.",
     };
   }
 
   return {
-    baseTax: calculateEnglandNonResidentialTax(price),
+    baseTax: tax,
     supplement: 0,
-    total: calculateEnglandNonResidentialTax(price),
+    total: tax,
     label: "Commercial SDLT",
     basis:
-      "England non-residential/mixed SDLT: 0% up to £150k, 2% from £150,001 to £250k, then 5% above £250k. Non-residential includes commercial property and 6 or more residential properties bought in one transaction.",
+      "England non-residential SDLT: 0% up to £150k, 2% from £150,001 to £250k, then 5% above £250k. Use this for wholly commercial property. Mixed residential/commercial purchases should use Mixed-use mode.",
+  };
+}
+
+function calculateMixedUseTax(price) {
+  const tax = region === "scotland"
+    ? calculateScotlandNonResidentialTax(price)
+    : calculateEnglandNonResidentialTax(price);
+
+  if (region === "scotland") {
+    return {
+      baseTax: tax,
+      supplement: 0,
+      total: tax,
+      label: "Mixed-use LBTT",
+      basis:
+        "Scotland mixed-use property is calculated using non-residential LBTT bands: 0% up to £150k, 1% from £150,001 to £250k, then 5% above £250k. If there is a residential element or linked residential acquisition, confirm ADS treatment with a solicitor before relying on the figure.",
+    };
+  }
+
+  return {
+    baseTax: tax,
+    supplement: 0,
+    total: tax,
+    label: "Mixed-use SDLT",
+    basis:
+      "England and Northern Ireland mixed-use property is calculated using non-residential SDLT bands: 0% up to £150k, 2% from £150,001 to £250k, then 5% above £250k. The residential higher-rate surcharge is not modelled for mixed-use mode.",
   };
 }
 
@@ -5058,6 +5088,10 @@ function calculateBulkTax(price, dwellings) {
 function calculatePurchaseTax(price, dwellings = 1, mode = propertyType) {
   if (mode === "commercial") {
     return calculateCommercialTax(price);
+  }
+
+  if (mode === "mixed") {
+    return calculateMixedUseTax(price);
   }
 
   if (mode === "bulk") {
@@ -5163,7 +5197,15 @@ function buildInsights(metrics) {
   }
 
   if (propertyType === "commercial") {
-    insights.push("Commercial mode uses non-residential/mixed SDLT or LBTT rates. Leasehold premium and rent/NPV rules are not modelled yet.");
+    insights.push("Commercial mode uses non-residential SDLT or LBTT rates. Leasehold premium and rent/NPV rules are not modelled yet.");
+  }
+
+  if (propertyType === "mixed") {
+    insights.push(
+      region === "scotland"
+        ? "Mixed-use mode: Scotland uses non-residential LBTT bands for mixed-use property, but ADS treatment can depend on the residential element and facts of the transaction."
+        : "Mixed-use mode: England/Northern Ireland uses non-residential SDLT bands where the transaction includes both residential and non-residential property.",
+    );
   }
 
   if (propertyType === "bulk") {
