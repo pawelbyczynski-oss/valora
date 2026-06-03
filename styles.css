@@ -1468,7 +1468,10 @@ select {
 }
 
 [data-admin-panel="partners"],
-[data-admin-panel="sponsors"] {
+[data-admin-panel="sponsors"],
+[data-admin-panel="email-templates"],
+[data-admin-panel="send-email"],
+[data-admin-panel="pricing"] {
   grid-column: 1 / -1;
 }
 
@@ -1508,6 +1511,47 @@ select {
 .marketing-admin-form textarea {
   min-height: 78px;
   resize: vertical;
+}
+
+.email-template-form textarea,
+#adminSendEmailBody {
+  min-height: 220px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.email-template-preview {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbfa;
+  padding: 12px;
+}
+
+.email-template-preview > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.email-template-preview > div {
+  min-height: 90px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.admin-form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .checkbox-group {

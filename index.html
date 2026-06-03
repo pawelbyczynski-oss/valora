@@ -889,6 +889,9 @@
         <button class="section-tab" type="button" data-admin-tab="promos">Promo codes</button>
         <button class="section-tab" type="button" data-admin-tab="partners">Partners</button>
         <button class="section-tab" type="button" data-admin-tab="sponsors">Sponsors</button>
+        <button class="section-tab" type="button" data-admin-tab="email-templates">Email templates</button>
+        <button class="section-tab" type="button" data-admin-tab="send-email">Send email</button>
+        <button class="section-tab" type="button" data-admin-tab="pricing">Plans & pricing</button>
         <button class="section-tab" type="button" data-admin-tab="users">Users</button>
         <button class="section-tab" type="button" data-admin-tab="activity">Activity</button>
         <button class="section-tab" type="button" data-admin-tab="stripe">Stripe</button>
@@ -1187,6 +1190,153 @@
             <p class="field-hint" id="adminSponsorMessage">Sponsors stay invisible until active, in date and allowed by billing status.</p>
           </form>
           <div class="admin-table marketing-table" id="adminSponsorList"></div>
+        </section>
+
+        <section class="panel-card admin-panel" data-admin-panel="email-templates">
+          <div class="section-heading">
+            <p class="eyebrow">Emails</p>
+            <h2>Email templates</h2>
+          </div>
+          <form class="admin-form email-template-form" id="adminEmailTemplateForm">
+            <input id="adminEmailTemplateId" type="hidden" />
+            <label>
+              <span>Template</span>
+              <select id="adminEmailTemplateSelect"></select>
+              <small class="field-hint" id="adminEmailTemplateDescription">Choose a template to edit.</small>
+            </label>
+            <label>
+              <span>Template key</span>
+              <input id="adminEmailTemplateKey" placeholder="welcome_email" />
+              <small class="field-hint">Use lowercase letters, numbers and underscores for new templates.</small>
+            </label>
+            <label>
+              <span>From</span>
+              <input id="adminEmailTemplateFrom" placeholder="PropertyPanel <noreply@propertypanel.co.uk>" />
+            </label>
+            <label>
+              <span>Subject</span>
+              <input id="adminEmailTemplateSubject" required />
+            </label>
+            <label>
+              <span>Active</span>
+              <select id="adminEmailTemplateActive">
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </label>
+            <label class="wide-field">
+              <span>HTML body</span>
+              <textarea id="adminEmailTemplateBody" rows="10" required></textarea>
+              <small class="field-hint" id="adminEmailTemplateVariables">Variables appear here.</small>
+            </label>
+            <div class="email-template-preview wide-field">
+              <span>Preview</span>
+              <div id="adminEmailTemplatePreview"></div>
+            </div>
+            <label>
+              <span>Send test to</span>
+              <input id="adminEmailTemplateTestTo" type="email" placeholder="you@propertypanel.co.uk" />
+            </label>
+            <div class="admin-form-actions">
+              <button class="tax-button" type="submit">Save template</button>
+              <button class="secondary-button" id="adminEmailTemplateNew" type="button">New template</button>
+              <button class="secondary-button" id="adminEmailTemplateTest" type="button">Send test</button>
+            </div>
+            <p class="field-hint" id="adminEmailTemplateMessage">Use variables like {{first_name}}, {{property_reference}} and {{due_date}}.</p>
+          </form>
+          <div class="admin-table" id="adminEmailTemplateList"></div>
+        </section>
+
+        <section class="panel-card admin-panel" data-admin-panel="send-email">
+          <div class="section-heading">
+            <p class="eyebrow">Email</p>
+            <h2>Send a custom email</h2>
+          </div>
+          <form class="admin-form" id="adminSendEmailForm">
+            <label>
+              <span>Recipient scope</span>
+              <select id="adminSendEmailScope">
+                <option value="single">Single recipient</option>
+                <option value="premium">Premium users</option>
+                <option value="pro">Pro users</option>
+                <option value="paid">Premium and Pro users</option>
+              </select>
+              <small class="field-hint">Broadcast scopes require confirmation and are logged.</small>
+            </label>
+            <label>
+              <span>Recipient email</span>
+              <input id="adminSendEmailTo" type="email" placeholder="customer@example.com" />
+            </label>
+            <label>
+              <span>From</span>
+              <input id="adminSendEmailFrom" value="PropertyPanel <noreply@propertypanel.co.uk>" />
+            </label>
+            <label>
+              <span>Template</span>
+              <select id="adminSendEmailTemplate"></select>
+            </label>
+            <label class="wide-field">
+              <span>Subject</span>
+              <input id="adminSendEmailSubject" required />
+            </label>
+            <label class="wide-field">
+              <span>HTML body</span>
+              <textarea id="adminSendEmailBody" rows="10" required></textarea>
+            </label>
+            <label>
+              <span>Sample first name</span>
+              <input id="adminSendEmailFirstName" placeholder="Pawel" />
+            </label>
+            <label>
+              <span>Sample property reference</span>
+              <input id="adminSendEmailProperty" placeholder="Flat 1 / Hawkhill" />
+            </label>
+            <div class="admin-form-actions wide-field">
+              <button class="secondary-button" id="adminSendEmailPreview" type="button">Preview</button>
+              <button class="tax-button" type="submit">Send email</button>
+            </div>
+            <div class="email-template-preview wide-field">
+              <span>Preview</span>
+              <div id="adminSendEmailPreviewBox"></div>
+            </div>
+            <p class="field-hint" id="adminSendEmailMessage">Send a test/single email first before using plan scopes.</p>
+          </form>
+        </section>
+
+        <section class="panel-card admin-panel" data-admin-panel="pricing">
+          <div class="section-heading">
+            <p class="eyebrow">Stripe</p>
+            <h2>Plans & pricing</h2>
+          </div>
+          <form class="admin-form" id="adminPricingForm">
+            <label>
+              <span>Premium display price</span>
+              <input id="adminPremiumDisplayPrice" placeholder="£4.99" />
+            </label>
+            <label>
+              <span>Premium monthly price (pence)</span>
+              <input id="adminPremiumPricePence" type="number" min="0" step="1" />
+            </label>
+            <label class="wide-field">
+              <span>Premium Stripe price ID</span>
+              <input id="adminPremiumStripePriceId" placeholder="price_..." />
+            </label>
+            <label>
+              <span>Pro display price</span>
+              <input id="adminProDisplayPrice" placeholder="£9.99" />
+            </label>
+            <label>
+              <span>Pro monthly price (pence)</span>
+              <input id="adminProPricePence" type="number" min="0" step="1" />
+            </label>
+            <label class="wide-field">
+              <span>Pro Stripe price ID</span>
+              <input id="adminProStripePriceId" placeholder="price_..." />
+            </label>
+            <p class="field-hint wide-field">Stripe prices cannot be edited directly. Create a new Stripe Price, paste the new price_ ID here, and new checkouts will use it.</p>
+            <button class="tax-button" type="submit">Save pricing</button>
+            <p class="field-hint" id="adminPricingMessage">Premium page and checkout will use these settings when available.</p>
+          </form>
         </section>
 
         <section class="panel-card admin-panel" data-admin-panel="users">

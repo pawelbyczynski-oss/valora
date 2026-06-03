@@ -54,6 +54,30 @@ function safePlacements(value: unknown, kind: string) {
   return [...new Set(placements)];
 }
 
+function renderVariables(content: string, variables: Record<string, unknown>) {
+  return String(content || "").replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_match, key) => {
+    const value = variables?.[key];
+    return value === undefined || value === null || value === "" ? `{{${key}}}` : String(value);
+  });
+}
+
+function fromAddress(value: { from_name?: unknown; from_email?: unknown }) {
+  const name = textValue(value?.from_name || "PropertyPanel", 120);
+  const email = textValue(value?.from_email || "noreply@propertypanel.co.uk", 180);
+  return `${name} <${email}>`;
+}
+
+async function sendResendEmail(to: string, from: string, subject: string, html: string) {
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendKey) throw new Error("RESEND_API_KEY is not configured.");
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to, subject, html }),
+  });
+  if (!response.ok) throw new Error(`Resend ${response.status}: ${await response.text()}`);
+}
+
 Deno.serve(async (request) => {
   const corsHeaders = corsHeadersFor(request);
   const reply = (body: unknown, status = 200) => jsonResponse(body, status, corsHeaders);
@@ -174,6 +198,15 @@ Deno.serve(async (request) => {
         .order("priority", { ascending: true })
         .order("created_at", { ascending: false })
         .limit(50);
+      const { data: emailTemplates } = await supabaseAdmin
+        .from("email_templates")
+        .select("*")
+        .order("name", { ascending: true });
+      const { data: planSettings } = await supabaseAdmin
+        .from("app_settings")
+        .select("setting_value")
+        .eq("setting_key", "plans")
+        .maybeSingle();
       const { data: recentProfiles } = await supabaseAdmin
         .from("profiles")
         .select("id, email, created_at")
@@ -215,6 +248,8 @@ Deno.serve(async (request) => {
         },
         promo_codes: promoCodes || [],
         marketing_cards: marketingCards || [],
+        email_templates: emailTemplates || [],
+        plan_settings: planSettings?.setting_value || {},
         recent_users: (recentProfiles || []).map((profile) => {
           const subscription = subscriptionByUser.get(profile.id);
           return {
@@ -305,6 +340,142 @@ Deno.serve(async (request) => {
         .eq("id", id);
       if (error) throw error;
       return reply({ success: true, id });
+    }
+
+    if (action === "upsert-email-template") {
+      const template = body?.template || {};
+      const id = textValue(template.id, 80);
+      const templateKey = textValue(template.template_key, 80);
+      const subject = textValue(template.subject, 220);
+      const bodyHtml = String(template.body_html || "").trim();
+      if (!templateKey || !subject || !bodyHtml) {
+        return reply({ success: false, message: "Template, subject and body are required" }, 400);
+      }
+      const row = {
+        template_key: templateKey,
+        name: textValue(template.name || templateKey.replaceAll("_", " "), 120),
+        description: nullableText(template.description, 300),
+        from_name: textValue(template.from_name || "PropertyPanel", 120),
+        from_email: textValue(template.from_email || "noreply@propertypanel.co.uk", 180),
+        subject,
+        body_html: bodyHtml,
+        variables: Array.isArray(template.variables) ? template.variables.map((item) => textValue(item, 60)).filter(Boolean) : [],
+        active: template.active !== false,
+        updated_at: new Date().toISOString(),
+      };
+      const { data, error } = id
+        ? await supabaseAdmin.from("email_templates").update(row).eq("id", id).select("*").single()
+        : await supabaseAdmin.from("email_templates").upsert(row, { onConflict: "template_key" }).select("*").single();
+      if (error) throw error;
+      return reply({ success: true, template: data });
+    }
+
+    if (action === "send-admin-email") {
+      const scope = textValue(body?.scope || "single", 30);
+      const allowedScopes = new Set(["single", "premium", "pro", "paid"]);
+      if (!allowedScopes.has(scope)) return reply({ success: false, message: "Invalid recipient scope" }, 400);
+      const subjectTemplate = textValue(body?.subject, 220);
+      const htmlTemplate = String(body?.body_html || "").trim();
+      if (!subjectTemplate || !htmlTemplate) return reply({ success: false, message: "Subject and body are required" }, 400);
+      const variables = typeof body?.variables === "object" && body.variables ? body.variables : {};
+      const from = fromAddress(body?.from || {});
+
+      let recipients: { email: string; variables?: Record<string, unknown> }[] = [];
+      if (scope === "single") {
+        const to = textValue(body?.to, 180);
+        if (!to.includes("@")) return reply({ success: false, message: "Valid recipient email is required" }, 400);
+        recipients = [{ email: to, variables: variables as Record<string, unknown> }];
+      } else {
+        const { data: subscriptions, error } = await supabaseAdmin
+          .from("subscriptions")
+          .select("user_id,plan_code,amount_monthly_pence")
+          .in("status", ["active", "trialing"])
+          .limit(250);
+        if (error) throw error;
+        const eligibleSubscriptions = (subscriptions || [])
+          .filter((subscription) => {
+            if (scope === "paid") return true;
+            const planCode = subscription.plan_code === "pro" || Number(subscription.amount_monthly_pence || 0) >= 999 ? "pro" : "premium";
+            return planCode === scope;
+          });
+        const userIds = [...new Set(eligibleSubscriptions.map((subscription) => subscription.user_id).filter(Boolean))];
+        const { data: profiles, error: profileError } = userIds.length
+          ? await supabaseAdmin.from("profiles").select("id,email").in("id", userIds)
+          : { data: [], error: null };
+        if (profileError) throw profileError;
+        const emailByUser = new Map((profiles || []).map((profile) => [profile.id, profile.email]));
+        recipients = eligibleSubscriptions
+          .map((subscription) => {
+            const email = emailByUser.get(subscription.user_id);
+            if (!email) return null;
+            const planName = subscription.plan_code === "pro" || Number(subscription.amount_monthly_pence || 0) >= 999 ? "Pro" : "Premium";
+            return { email, variables: { ...variables, plan_name: planName } };
+          })
+          .filter(Boolean) as { email: string; variables?: Record<string, unknown> }[];
+      }
+
+      let sent = 0;
+      let failed = 0;
+      for (const recipient of recipients) {
+        const mergedVariables = { ...(variables as Record<string, unknown>), ...(recipient.variables || {}), email: recipient.email };
+        const subject = renderVariables(subjectTemplate, mergedVariables);
+        const html = renderVariables(htmlTemplate, mergedVariables);
+        try {
+          await sendResendEmail(recipient.email, from, subject, html);
+          await supabaseAdmin.from("email_send_logs").insert({
+            template_key: nullableText(body?.template_key, 80),
+            recipient_email: recipient.email,
+            recipient_scope: scope,
+            subject,
+            status: "sent",
+            sent_by: user.id,
+          });
+          sent += 1;
+        } catch (sendError) {
+          await supabaseAdmin.from("email_send_logs").insert({
+            template_key: nullableText(body?.template_key, 80),
+            recipient_email: recipient.email,
+            recipient_scope: scope,
+            subject,
+            status: "failed",
+            error_message: sendError instanceof Error ? sendError.message : String(sendError),
+            sent_by: user.id,
+          });
+          failed += 1;
+        }
+      }
+      return reply({ success: failed === 0, sent, failed });
+    }
+
+    if (action === "update-plan-settings") {
+      const settings = body?.settings || {};
+      const validatePlan = (plan: string, fallbackPrice: string, fallbackPence: number) => {
+        const value = settings?.[plan] || {};
+        const stripePriceId = textValue(value.stripe_price_id, 120);
+        if (stripePriceId && !stripePriceId.startsWith("price_")) {
+          throw new Error(`${plan} Stripe price ID must start with price_.`);
+        }
+        return {
+          name: plan === "pro" ? "Pro" : "Premium",
+          display_price: textValue(value.display_price || fallbackPrice, 20),
+          price_monthly_pence: Math.max(Number(value.price_monthly_pence || fallbackPence), 0),
+          stripe_price_id: stripePriceId,
+          checkout_enabled: value.checkout_enabled !== false,
+        };
+      };
+      const row = {
+        setting_key: "plans",
+        setting_value: {
+          premium: validatePlan("premium", "£4.99", 499),
+          pro: validatePlan("pro", "£9.99", 999),
+        },
+        description: "Admin-managed plan display prices and optional Stripe price IDs.",
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      };
+      const { error } = await supabaseAdmin.from("app_settings").upsert(row, { onConflict: "setting_key" });
+      if (error) throw error;
+      return reply({ success: true, settings: row.setting_value });
     }
 
     if (action === "create-admin-promo") {

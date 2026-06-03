@@ -41,6 +41,10 @@ Deno.serve(async (request) => {
     Deno.env.get("SUPABASE_ANON_KEY") ?? "",
     { global: { headers: { Authorization: authHeader } } },
   );
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const supabaseAdmin = serviceRoleKey
+    ? createClient(Deno.env.get("SUPABASE_URL") ?? "", serviceRoleKey)
+    : null;
 
   const {
     data: { user },
@@ -58,10 +62,19 @@ Deno.serve(async (request) => {
     return new Response("Missing STRIPE_SECRET_KEY", { status: 500, headers: corsHeaders });
   }
 
+  const { data: planSettings } = supabaseAdmin
+    ? await supabaseAdmin
+      .from("app_settings")
+      .select("setting_value")
+      .eq("setting_key", "plans")
+      .maybeSingle()
+    : { data: null };
+  const configuredPriceId = planSettings?.setting_value?.[selectedPlan]?.stripe_price_id;
+  const configuredAmount = planSettings?.setting_value?.[selectedPlan]?.price_monthly_pence;
   const priceSecretName =
     selectedPlan === "pro" ? "STRIPE_PRICE_ID_PRO_MONTHLY" : "STRIPE_PRICE_ID_PREMIUM_MONTHLY";
   const fallbackPriceId = Deno.env.get("STRIPE_PRICE_ID_MONTHLY");
-  const priceId = Deno.env.get(priceSecretName) || fallbackPriceId;
+  const priceId = configuredPriceId || Deno.env.get(priceSecretName) || fallbackPriceId;
   if (!priceId) {
     return new Response(`Missing ${priceSecretName} and STRIPE_PRICE_ID_MONTHLY fallback`, {
       status: 500,
@@ -83,9 +96,9 @@ Deno.serve(async (request) => {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${appBaseUrl}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appBaseUrl}/?checkout=cancelled`,
-      metadata: { user_id: user.id, plan: selectedPlan },
+      metadata: { user_id: user.id, plan: selectedPlan, configured_amount_pence: configuredAmount ? String(configuredAmount) : "" },
       subscription_data: {
-        metadata: { user_id: user.id, plan: selectedPlan },
+        metadata: { user_id: user.id, plan: selectedPlan, configured_amount_pence: configuredAmount ? String(configuredAmount) : "" },
       },
     });
 

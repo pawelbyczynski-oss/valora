@@ -199,6 +199,42 @@ const premium = {
   adminSponsorForm: document.querySelector("#adminSponsorForm"),
   adminSponsorList: document.querySelector("#adminSponsorList"),
   adminSponsorMessage: document.querySelector("#adminSponsorMessage"),
+  adminEmailTemplateForm: document.querySelector("#adminEmailTemplateForm"),
+  adminEmailTemplateId: document.querySelector("#adminEmailTemplateId"),
+  adminEmailTemplateSelect: document.querySelector("#adminEmailTemplateSelect"),
+  adminEmailTemplateKey: document.querySelector("#adminEmailTemplateKey"),
+  adminEmailTemplateDescription: document.querySelector("#adminEmailTemplateDescription"),
+  adminEmailTemplateFrom: document.querySelector("#adminEmailTemplateFrom"),
+  adminEmailTemplateSubject: document.querySelector("#adminEmailTemplateSubject"),
+  adminEmailTemplateActive: document.querySelector("#adminEmailTemplateActive"),
+  adminEmailTemplateBody: document.querySelector("#adminEmailTemplateBody"),
+  adminEmailTemplateVariables: document.querySelector("#adminEmailTemplateVariables"),
+  adminEmailTemplatePreview: document.querySelector("#adminEmailTemplatePreview"),
+  adminEmailTemplateTestTo: document.querySelector("#adminEmailTemplateTestTo"),
+  adminEmailTemplateNew: document.querySelector("#adminEmailTemplateNew"),
+  adminEmailTemplateTest: document.querySelector("#adminEmailTemplateTest"),
+  adminEmailTemplateMessage: document.querySelector("#adminEmailTemplateMessage"),
+  adminEmailTemplateList: document.querySelector("#adminEmailTemplateList"),
+  adminSendEmailForm: document.querySelector("#adminSendEmailForm"),
+  adminSendEmailScope: document.querySelector("#adminSendEmailScope"),
+  adminSendEmailTo: document.querySelector("#adminSendEmailTo"),
+  adminSendEmailFrom: document.querySelector("#adminSendEmailFrom"),
+  adminSendEmailTemplate: document.querySelector("#adminSendEmailTemplate"),
+  adminSendEmailSubject: document.querySelector("#adminSendEmailSubject"),
+  adminSendEmailBody: document.querySelector("#adminSendEmailBody"),
+  adminSendEmailFirstName: document.querySelector("#adminSendEmailFirstName"),
+  adminSendEmailProperty: document.querySelector("#adminSendEmailProperty"),
+  adminSendEmailPreview: document.querySelector("#adminSendEmailPreview"),
+  adminSendEmailPreviewBox: document.querySelector("#adminSendEmailPreviewBox"),
+  adminSendEmailMessage: document.querySelector("#adminSendEmailMessage"),
+  adminPricingForm: document.querySelector("#adminPricingForm"),
+  adminPremiumDisplayPrice: document.querySelector("#adminPremiumDisplayPrice"),
+  adminPremiumPricePence: document.querySelector("#adminPremiumPricePence"),
+  adminPremiumStripePriceId: document.querySelector("#adminPremiumStripePriceId"),
+  adminProDisplayPrice: document.querySelector("#adminProDisplayPrice"),
+  adminProPricePence: document.querySelector("#adminProPricePence"),
+  adminProStripePriceId: document.querySelector("#adminProStripePriceId"),
+  adminPricingMessage: document.querySelector("#adminPricingMessage"),
   dashboardTabButtons: document.querySelectorAll("[data-dashboard-tab]"),
   dashboardPanels: document.querySelectorAll("[data-dashboard-panel]"),
   transactionForm: document.querySelector("#transactionForm"),
@@ -411,6 +447,11 @@ let currentSubscription = null;
 let currentUser = null;
 let subscriptionSyncAttempted = false;
 let selectedPlan = localStorage.getItem(SELECTED_PLAN_STORAGE_KEY) === "pro" ? "pro" : "premium";
+let emailTemplates = [];
+let planSettings = {
+  premium: { display_price: "£4.99", price_monthly_pence: 499, stripe_price_id: "" },
+  pro: { display_price: "£9.99", price_monthly_pence: 999, stripe_price_id: "" },
+};
 let calendarVisibleMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1, 12);
 let selectedCalendarDate = new Date().toISOString().slice(0, 10);
 let calendarFeedToken = "";
@@ -3233,13 +3274,15 @@ function selectedPlanLabel() {
 }
 
 function selectedPlanPrice() {
-  return selectedPlan === "pro" ? "£9.99/month" : "£4.99/month";
+  const plan = selectedPlan === "pro" ? planSettings.pro : planSettings.premium;
+  return `${plan.display_price || (selectedPlan === "pro" ? "£9.99" : "£4.99")}/month`;
 }
 
 function selectedPlanDescription() {
+  const price = selectedPlanPrice();
   return selectedPlan === "pro"
-    ? "Pro is selected at £9.99/month with unlimited properties, reminders, quarterly accountant packs, landlord reports and the complete operations workflow."
-    : `Premium is selected at £4.99/month with up to ${PREMIUM_PROPERTY_LIMIT} properties, rent tracking, document checklist, bank CSV drafts and lender exports.`;
+    ? `Pro is selected at ${price} with unlimited properties, reminders, quarterly accountant packs, landlord reports and the complete operations workflow.`
+    : `Premium is selected at ${price} with up to ${PREMIUM_PROPERTY_LIMIT} properties, rent tracking, document checklist, bank CSV drafts and lender exports.`;
 }
 
 function setSelectedPlan(plan) {
@@ -3439,7 +3482,8 @@ async function startStripeCheckout(plan = selectedPlan) {
 
   premium.manageBilling.disabled = true;
   const checkoutPlan = plan === "pro" ? "pro" : "premium";
-  premium.subscriptionNote.textContent = `Opening Stripe Checkout for ${checkoutPlan === "pro" ? "Pro - £9.99/month" : "Premium - £4.99/month"}...`;
+  const checkoutPrice = `${(checkoutPlan === "pro" ? planSettings.pro : planSettings.premium).display_price || (checkoutPlan === "pro" ? "£9.99" : "£4.99")}/month`;
+  premium.subscriptionNote.textContent = `Opening Stripe Checkout for ${checkoutPlan === "pro" ? "Pro" : "Premium"} - ${checkoutPrice}...`;
 
   const { data, error } = await supabaseClient.functions.invoke(CHECKOUT_FUNCTION, {
     body: { plan: checkoutPlan },
@@ -3758,6 +3802,139 @@ function renderCalculatorMarketing(cards = []) {
   premium.calculatorPartnersSection.hidden = !sponsor && !partners.length;
 }
 
+function replaceTemplateVariables(content, variables = {}) {
+  return String(content || "").replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key) => {
+    if (variables[key] !== undefined && variables[key] !== null && variables[key] !== "") return String(variables[key]);
+    return `{{${key}}}`;
+  });
+}
+
+function defaultTemplateVariables() {
+  return {
+    first_name: premium.adminSendEmailFirstName?.value || "Pawel",
+    email: premium.adminSendEmailTo?.value || "customer@example.com",
+    property_reference: premium.adminSendEmailProperty?.value || "Flat 1 / Hawkhill",
+    rent_amount: "£1,000",
+    due_date: new Date().toISOString().slice(0, 10),
+    plan_name: selectedPlan === "pro" ? "Pro" : "Premium",
+    document_name: "Gas safety certificate",
+    tenant_name: "Tenant",
+    digest_items: "Rent due, mortgage review and document expiry.",
+    company_name: "Sponsor Ltd",
+    contact_name: "Partner",
+    paid_until: new Date().toISOString().slice(0, 10),
+    billing_email: "billing@example.com",
+    renewal_amount: "£99",
+    renewal_payment_link: "https://buy.stripe.com/...",
+    renewal_message: "Use the renewal link to continue your placement.",
+  };
+}
+
+function splitFromAddress(value) {
+  const match = String(value || "").match(/^(.*?)\s*<([^>]+)>$/);
+  if (!match) return { from_name: "PropertyPanel", from_email: String(value || "noreply@propertypanel.co.uk").trim() };
+  return { from_name: match[1].trim() || "PropertyPanel", from_email: match[2].trim() };
+}
+
+function formatFromAddress(template) {
+  return `${template.from_name || "PropertyPanel"} <${template.from_email || "noreply@propertypanel.co.uk"}>`;
+}
+
+function applyPlanSettings(settings = {}) {
+  planSettings = {
+    premium: { ...planSettings.premium, ...(settings.premium || {}) },
+    pro: { ...planSettings.pro, ...(settings.pro || {}) },
+  };
+  const premiumPrice = planSettings.premium.display_price || "£4.99";
+  const proPrice = planSettings.pro.display_price || "£9.99";
+  document.querySelectorAll(".plan-card .plan-price").forEach((item) => {
+    const card = item.closest(".plan-card");
+    const planButton = card?.querySelector("[data-plan]");
+    if (planButton?.dataset.plan === "premium") item.textContent = premiumPrice;
+    if (planButton?.dataset.plan === "pro") item.textContent = proPrice;
+  });
+  const comparisonHeader = document.querySelector(".comparison-table div:first-child");
+  if (comparisonHeader) {
+    const headers = comparisonHeader.querySelectorAll("strong");
+    if (headers[0]) headers[0].textContent = `Premium ${premiumPrice}`;
+    if (headers[1]) headers[1].textContent = `Pro ${proPrice}`;
+  }
+  if (document.querySelector("#selectedPlanTitle")) setSelectedPlan(selectedPlan);
+}
+
+function renderEmailTemplates(templates = []) {
+  emailTemplates = templates;
+  const options = templates.map((template) =>
+    `<option value="${escapeHtml(template.template_key)}">${escapeHtml(template.name)}</option>`,
+  ).join("");
+  if (premium.adminEmailTemplateSelect) premium.adminEmailTemplateSelect.innerHTML = options;
+  if (premium.adminSendEmailTemplate) premium.adminSendEmailTemplate.innerHTML = `<option value="">Custom email</option>${options}`;
+  renderAdminTable(premium.adminEmailTemplateList, templates, [
+    ["Template", "name"],
+    ["Key", "template_key"],
+    ["From", "from_email"],
+    ["Active", "active"],
+  ]);
+  if (templates.length) selectEmailTemplate(templates[0].template_key);
+}
+
+function selectEmailTemplate(templateKey) {
+  const template = emailTemplates.find((item) => item.template_key === templateKey);
+  if (!template || !premium.adminEmailTemplateForm) return;
+  premium.adminEmailTemplateId.value = template.id || "";
+  premium.adminEmailTemplateKey.value = template.template_key || "";
+  premium.adminEmailTemplateSelect.value = template.template_key;
+  premium.adminEmailTemplateDescription.textContent = template.description || "Email template.";
+  premium.adminEmailTemplateFrom.value = formatFromAddress(template);
+  premium.adminEmailTemplateSubject.value = template.subject || "";
+  premium.adminEmailTemplateActive.value = template.active === false ? "false" : "true";
+  premium.adminEmailTemplateBody.value = template.body_html || "";
+  premium.adminEmailTemplateVariables.textContent = `Available variables: ${(template.variables || []).map((item) => `{{${item}}}`).join(", ") || "none"}`;
+  premium.adminEmailTemplatePreview.innerHTML = replaceTemplateVariables(template.body_html, defaultTemplateVariables());
+}
+
+function newEmailTemplate() {
+  premium.adminEmailTemplateId.value = "";
+  premium.adminEmailTemplateKey.value = "";
+  premium.adminEmailTemplateDescription.textContent = "Create a new reusable template.";
+  premium.adminEmailTemplateFrom.value = "PropertyPanel <noreply@propertypanel.co.uk>";
+  premium.adminEmailTemplateSubject.value = "";
+  premium.adminEmailTemplateActive.value = "true";
+  premium.adminEmailTemplateBody.value = "<p>Dear {{first_name}},</p><p>Your message here.</p>";
+  premium.adminEmailTemplateVariables.textContent = "Suggested variables: {{first_name}}, {{email}}, {{property_reference}}, {{due_date}}";
+  premium.adminEmailTemplatePreview.innerHTML = replaceTemplateVariables(
+    premium.adminEmailTemplateBody.value,
+    defaultTemplateVariables(),
+  );
+}
+
+function applyTemplateToSendForm(templateKey) {
+  const template = emailTemplates.find((item) => item.template_key === templateKey);
+  if (!template) return;
+  premium.adminSendEmailFrom.value = formatFromAddress(template);
+  premium.adminSendEmailSubject.value = template.subject || "";
+  premium.adminSendEmailBody.value = template.body_html || "";
+  previewAdminSendEmail();
+}
+
+function previewAdminSendEmail() {
+  if (!premium.adminSendEmailPreviewBox) return;
+  premium.adminSendEmailPreviewBox.innerHTML = replaceTemplateVariables(
+    premium.adminSendEmailBody.value,
+    defaultTemplateVariables(),
+  );
+}
+
+function fillPricingForm(settings = planSettings) {
+  if (!premium.adminPricingForm) return;
+  premium.adminPremiumDisplayPrice.value = settings.premium?.display_price || "£4.99";
+  premium.adminPremiumPricePence.value = settings.premium?.price_monthly_pence ?? 499;
+  premium.adminPremiumStripePriceId.value = settings.premium?.stripe_price_id || "";
+  premium.adminProDisplayPrice.value = settings.pro?.display_price || "£9.99";
+  premium.adminProPricePence.value = settings.pro?.price_monthly_pence ?? 999;
+  premium.adminProStripePriceId.value = settings.pro?.stripe_price_id || "";
+}
+
 async function loadPublicMarketingCards() {
   if (!supabaseClient) {
     renderCalculatorMarketing([]);
@@ -3777,6 +3954,20 @@ async function loadPublicMarketingCards() {
     return;
   }
   renderCalculatorMarketing(data || []);
+}
+
+async function loadPublicPlanSettings() {
+  if (!supabaseClient) {
+    applyPlanSettings(planSettings);
+    return;
+  }
+  const { data, error } = await supabaseClient
+    .from("app_settings")
+    .select("setting_value")
+    .eq("setting_key", "plans")
+    .maybeSingle();
+  if (!error && data?.setting_value) applyPlanSettings(data.setting_value);
+  else applyPlanSettings(planSettings);
 }
 
 async function loadAdminOverview() {
@@ -3816,6 +4007,9 @@ async function loadAdminOverview() {
   renderAdminPromos(data.promo_codes || []);
   renderAdminMarketingRows("partner", data.marketing_cards?.filter((card) => card.kind === "partner") || []);
   renderAdminMarketingRows("sponsor", data.marketing_cards?.filter((card) => card.kind === "sponsor") || []);
+  renderEmailTemplates(data.email_templates || []);
+  applyPlanSettings(data.plan_settings || {});
+  fillPricingForm(planSettings);
   return true;
 }
 
@@ -3936,6 +4130,113 @@ async function deactivateMarketingCard(kind, id) {
   message.textContent = "Record deactivated.";
   await loadAdminOverview();
   await loadPublicMarketingCards();
+}
+
+async function saveEmailTemplate() {
+  if (!supabaseClient) return;
+  const from = splitFromAddress(premium.adminEmailTemplateFrom.value);
+  const templateKey = premium.adminEmailTemplateKey.value.trim() || premium.adminEmailTemplateSelect.value;
+  premium.adminEmailTemplateMessage.textContent = "Saving template...";
+  const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+    body: {
+      action: "upsert-email-template",
+      template: {
+        id: premium.adminEmailTemplateId.value,
+        template_key: templateKey,
+        name: emailTemplates.find((item) => item.template_key === templateKey)?.name || templateKey.replaceAll("_", " "),
+        ...from,
+        subject: premium.adminEmailTemplateSubject.value.trim(),
+        body_html: premium.adminEmailTemplateBody.value,
+        active: premium.adminEmailTemplateActive.value === "true",
+      },
+    },
+  });
+  if (error || !data?.success) {
+    premium.adminEmailTemplateMessage.textContent = error?.message || data?.message || "Could not save template.";
+    return;
+  }
+  premium.adminEmailTemplateMessage.textContent = "Template saved.";
+  await loadAdminOverview();
+  selectEmailTemplate(templateKey);
+}
+
+async function sendTemplateTestEmail() {
+  const recipient = premium.adminEmailTemplateTestTo.value.trim();
+  if (!recipient) {
+    premium.adminEmailTemplateMessage.textContent = "Enter a test recipient email.";
+    return;
+  }
+  const from = splitFromAddress(premium.adminEmailTemplateFrom.value);
+  premium.adminEmailTemplateMessage.textContent = "Sending test email...";
+  const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+    body: {
+      action: "send-admin-email",
+      scope: "single",
+      to: recipient,
+      from,
+      subject: premium.adminEmailTemplateSubject.value.trim(),
+      body_html: premium.adminEmailTemplateBody.value,
+      template_key: premium.adminEmailTemplateSelect.value,
+      variables: defaultTemplateVariables(),
+    },
+  });
+  premium.adminEmailTemplateMessage.textContent =
+    error || !data?.success ? error?.message || data?.message || "Could not send test email." : "Test email sent.";
+}
+
+async function sendAdminEmail() {
+  const scope = premium.adminSendEmailScope.value;
+  if (scope !== "single" && !confirm(`Send this email to ${scope} users? Send a test first if unsure.`)) return;
+  if (scope === "single" && !premium.adminSendEmailTo.value.trim()) {
+    premium.adminSendEmailMessage.textContent = "Enter recipient email.";
+    return;
+  }
+  const from = splitFromAddress(premium.adminSendEmailFrom.value);
+  premium.adminSendEmailMessage.textContent = "Sending email...";
+  const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+    body: {
+      action: "send-admin-email",
+      scope,
+      to: premium.adminSendEmailTo.value.trim(),
+      from,
+      subject: premium.adminSendEmailSubject.value.trim(),
+      body_html: premium.adminSendEmailBody.value,
+      template_key: premium.adminSendEmailTemplate.value || null,
+      variables: defaultTemplateVariables(),
+    },
+  });
+  premium.adminSendEmailMessage.textContent =
+    error || !data?.success ? error?.message || data?.message || "Could not send email." : `Email queued/sent to ${data.sent || 0} recipient(s).`;
+}
+
+async function savePricingSettings() {
+  const settings = {
+    premium: {
+      name: "Premium",
+      display_price: premium.adminPremiumDisplayPrice.value.trim() || "£4.99",
+      price_monthly_pence: Number(premium.adminPremiumPricePence.value) || 499,
+      stripe_price_id: premium.adminPremiumStripePriceId.value.trim(),
+      checkout_enabled: true,
+    },
+    pro: {
+      name: "Pro",
+      display_price: premium.adminProDisplayPrice.value.trim() || "£9.99",
+      price_monthly_pence: Number(premium.adminProPricePence.value) || 999,
+      stripe_price_id: premium.adminProStripePriceId.value.trim(),
+      checkout_enabled: true,
+    },
+  };
+  premium.adminPricingMessage.textContent = "Saving pricing...";
+  const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+    body: { action: "update-plan-settings", settings },
+  });
+  if (error || !data?.success) {
+    premium.adminPricingMessage.textContent = error?.message || data?.message || "Could not save pricing.";
+    return;
+  }
+  premium.adminPricingMessage.textContent = "Pricing saved. New checkouts use the saved Stripe price IDs.";
+  applyPlanSettings(settings);
+  fillPricingForm(settings);
 }
 
 async function loadSupabaseProperties(userId) {
@@ -5980,6 +6281,52 @@ premium.adminSponsorForm?.addEventListener("submit", (event) => {
   saveMarketingCard("sponsor");
 });
 
+premium.adminEmailTemplateSelect?.addEventListener("change", () => {
+  selectEmailTemplate(premium.adminEmailTemplateSelect.value);
+});
+
+premium.adminEmailTemplateBody?.addEventListener("input", () => {
+  premium.adminEmailTemplatePreview.innerHTML = replaceTemplateVariables(
+    premium.adminEmailTemplateBody.value,
+    defaultTemplateVariables(),
+  );
+});
+
+premium.adminEmailTemplateForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  saveEmailTemplate();
+});
+
+premium.adminEmailTemplateNew?.addEventListener("click", () => {
+  newEmailTemplate();
+});
+
+premium.adminEmailTemplateTest?.addEventListener("click", () => {
+  sendTemplateTestEmail();
+});
+
+premium.adminSendEmailTemplate?.addEventListener("change", () => {
+  applyTemplateToSendForm(premium.adminSendEmailTemplate.value);
+});
+
+premium.adminSendEmailPreview?.addEventListener("click", () => {
+  previewAdminSendEmail();
+});
+
+premium.adminSendEmailBody?.addEventListener("input", previewAdminSendEmail);
+premium.adminSendEmailFirstName?.addEventListener("input", previewAdminSendEmail);
+premium.adminSendEmailProperty?.addEventListener("input", previewAdminSendEmail);
+
+premium.adminSendEmailForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  sendAdminEmail();
+});
+
+premium.adminPricingForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  savePricingSettings();
+});
+
 document.addEventListener("click", (event) => {
   const editButton = event.target.closest("[data-marketing-edit]");
   if (editButton) {
@@ -7175,4 +7522,5 @@ setSelectedPlan(selectedPlan);
 trackEvent("page_view", { path: window.location.pathname });
 initAuth();
 loadPublicMarketingCards();
+loadPublicPlanSettings();
 update();
