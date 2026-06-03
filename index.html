@@ -227,9 +227,18 @@
           </div>
           <div class="mode-toggle wide-toggle" role="group" aria-label="Purchase type">
             <button class="toggle-button active" type="button" data-property-type="residential" aria-pressed="true">Residential BTL</button>
-            <button class="toggle-button" type="button" data-property-type="commercial" aria-pressed="false">Commercial</button>
-            <button class="toggle-button" type="button" data-property-type="mixed" aria-pressed="false">Mixed-use</button>
-            <button class="toggle-button" type="button" data-property-type="bulk" aria-pressed="false">Bulk / MDR</button>
+            <button class="toggle-button" type="button" data-property-type="commercial" aria-pressed="false">
+              Commercial
+              <span class="toggle-help" aria-hidden="true" title="Commercial/non-residential only: shops, offices, land or other non-residential property. If there are flats/dwellings in the same transaction, use Mixed-use.">?</span>
+            </button>
+            <button class="toggle-button" type="button" data-property-type="mixed" aria-pressed="false">
+              Mixed-use
+              <span class="toggle-help" aria-hidden="true" title="Use when the same transaction includes commercial/non-residential property and residential dwellings. Enter the commercial and residential value split below.">?</span>
+            </button>
+            <button class="toggle-button" type="button" data-property-type="bulk" aria-pressed="false">
+              Bulk / MDR
+              <span class="toggle-help" aria-hidden="true" title="Use for multiple residential dwellings only. England/NI MDR is abolished for current transactions, but 6+ dwellings can use non-residential SDLT. Scotland MDR can still apply to 2+ dwellings.">?</span>
+            </button>
           </div>
         </div>
 
@@ -331,6 +340,14 @@
               <option value="no">Do not apply</option>
             </select>
             <small class="field-hint">For Scotland only. If 6+ dwellings relief is available, ADS is not included.</small>
+          </label>
+          <label class="mixed-field">
+            <span>Scottish mixed MDR</span>
+            <select id="mixedMdrRelief">
+              <option value="no">Do not claim / unsure</option>
+              <option value="yes">Estimate MDR if available</option>
+            </select>
+            <small class="field-hint">For Scotland only. MDR can apply to multiple dwellings even where the transaction also includes non-residential property.</small>
           </label>
           <div class="field-control bulk-field">
             <span>Bulk purchase note</span>

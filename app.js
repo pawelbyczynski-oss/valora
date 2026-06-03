@@ -16,6 +16,7 @@ const inputs = {
   mixedResidentialValue: document.querySelector("#mixedResidentialValue"),
   mixedDwellingCount: document.querySelector("#mixedDwellingCount"),
   mixedAdsApplies: document.querySelector("#mixedAdsApplies"),
+  mixedMdrRelief: document.querySelector("#mixedMdrRelief"),
 };
 
 const outputs = {
@@ -5024,6 +5025,28 @@ function calculateCommercialTax(price) {
   };
 }
 
+function calculateScotlandMixedMdrTax(totalConsideration, commercialValue, residentialValue, dwellingCount) {
+  if (!totalConsideration || !residentialValue || dwellingCount < 2) {
+    return null;
+  }
+
+  const taxWithoutMdr = calculateScotlandNonResidentialTax(totalConsideration);
+  const remainingTax = commercialValue > 0
+    ? taxWithoutMdr * (commercialValue / totalConsideration)
+    : 0;
+  const averageDwellingValue = residentialValue / dwellingCount;
+  const dwellingTax = calculateResidentialLbtt(averageDwellingValue) * dwellingCount;
+  const minimumPrescribedAmount = Math.max((taxWithoutMdr - remainingTax) * 0.25, 0);
+  const residentialMdrTax = Math.max(dwellingTax, minimumPrescribedAmount);
+
+  return {
+    baseTax: residentialMdrTax + remainingTax,
+    averageDwellingValue,
+    remainingTax,
+    minimumPrescribedAmount,
+  };
+}
+
 function calculateMixedUseTax(price, details = {}) {
   const commercialValue = Math.max(details.commercialValue || 0, 0);
   const residentialValue = Math.max(details.residentialValue || 0, 0);
@@ -5036,12 +5059,27 @@ function calculateMixedUseTax(price, details = {}) {
 
   if (region === "scotland") {
     const sixPlusRelief = dwellingCount >= 6;
+    const mdrEstimate = details.mdrRelief
+      ? calculateScotlandMixedMdrTax(effectivePrice, commercialValue, residentialValue, dwellingCount)
+      : null;
     const ads = !sixPlusRelief && details.adsApplies && residentialValue >= 40000
       ? residentialValue * 0.08
       : 0;
     const splitNote = apportionedTotal > 0
       ? ` Split entered: ${money.format(commercialValue)} commercial/non-residential and ${money.format(residentialValue)} residential across ${dwellingCount || "unspecified"} dwellings.`
       : " Enter commercial and residential values for a more useful mixed-use split.";
+
+    if (mdrEstimate) {
+      return {
+        baseTax: mdrEstimate.baseTax,
+        supplement: ads,
+        total: mdrEstimate.baseTax + ads,
+        label: "Mixed-use LBTT MDR",
+        basis:
+          `Scotland mixed transaction with MDR estimate: residential dwellings are averaged at ${money.format(mdrEstimate.averageDwellingValue)} each, remaining commercial/non-residential tax is apportioned at ${money.format(mdrEstimate.remainingTax)}, and the 25% minimum prescribed amount is checked. ${sixPlusRelief ? "Because 6+ dwellings are entered, this estimate does not add ADS where 6+ dwellings relief is available." : `ADS is ${ads ? "estimated on the residential part only" : "not included in this estimate"}; confirm claim eligibility with a solicitor.`}${splitNote}`,
+      };
+    }
+
     return {
       baseTax: tax,
       supplement: ads,
@@ -5116,6 +5154,7 @@ function calculatePurchaseTax(price, dwellings = 1, mode = propertyType) {
       residentialValue: valueOf(inputs.mixedResidentialValue),
       dwellingCount: Math.round(valueOf(inputs.mixedDwellingCount)),
       adsApplies: inputs.mixedAdsApplies.value === "yes",
+      mdrRelief: inputs.mixedMdrRelief.value === "yes",
     });
   }
 
@@ -5231,7 +5270,7 @@ function buildInsights(metrics) {
     const mixedDwellingCount = Math.round(valueOf(inputs.mixedDwellingCount));
     insights.push(
       region === "scotland"
-        ? `Mixed-use mode: Scotland treats the commercial/residential transaction under non-residential LBTT bands, with ADS reviewed against the residential part (${money.format(residentialValue)}) and ${mixedDwellingCount || "unspecified"} dwellings.`
+        ? `Mixed-use mode: Scotland treats the commercial/residential transaction under non-residential LBTT bands. MDR can be estimated for the residential dwellings where eligible; ADS is reviewed against the residential part (${money.format(residentialValue)}) and ${mixedDwellingCount || "unspecified"} dwellings.`
         : `Mixed-use mode: England/Northern Ireland uses non-residential SDLT bands where the transaction includes both commercial/non-residential value (${money.format(commercialValue)}) and residential value (${money.format(residentialValue)}).`,
     );
   }
