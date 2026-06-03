@@ -8,6 +8,7 @@ const supabase = createClient(
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL") ?? "https://valora-property-os.vercel.app";
 const REMINDER_FROM_EMAIL =
   Deno.env.get("REMINDER_FROM_EMAIL") ?? "PropertyPanel Reminder <reminder@propertypanel.co.uk>";
+const SPONSOR_ADMIN_EMAIL = Deno.env.get("SPONSOR_ADMIN_EMAIL") ?? "contact@propertypanel.co.uk";
 const EXPIRY_LEAD_DAYS = [90, 30, 7];
 const RENT_LEAD_DAYS = [7, 1, 0];
 
@@ -285,6 +286,139 @@ async function syncGeneratedReminders() {
   return { proUsers: proUserIds.length, generated: candidates.length };
 }
 
+function marketingRenewalAdminHtml(card: Record<string, unknown>) {
+  const name = escapeHtml(card.name);
+  const kind = escapeHtml(card.kind);
+  const paidUntil = escapeHtml(card.paid_until);
+  const billingEmail = escapeHtml(card.billing_email || "-");
+  const amount = Number(card.amount_pence || 0) / 100;
+  const renewalAmount = Number(card.renewal_amount_pence || 0) / 100;
+  const renewalLink = String(card.renewal_payment_link_url || "");
+  return `
+    <!doctype html>
+    <html>
+      <body style="margin:0;background:#f7f8fa;color:#1f2933;font-family:Arial,sans-serif">
+        <div style="max-width:640px;margin:0 auto;padding:32px 20px">
+          <div style="background:#ffffff;border:1px solid #d8dee6;border-radius:8px;padding:24px">
+            <div style="color:#0f766e;font-size:14px;font-weight:700">PropertyPanel Admin Reminder</div>
+            <h1 style="margin:16px 0 8px;font-size:24px;line-height:1.25">${name} ends in 8 days</h1>
+            <p style="color:#475569;line-height:1.6">Prepare a renewal offer or new Stripe payment link before the customer reminder goes out tomorrow.</p>
+            <ul style="line-height:1.8;color:#1f2933">
+              <li><strong>Type:</strong> ${kind}</li>
+              <li><strong>Ends:</strong> ${paidUntil}</li>
+              <li><strong>Billing email:</strong> ${billingEmail}</li>
+              <li><strong>Current amount:</strong> £${amount.toFixed(2)}</li>
+              <li><strong>Renewal amount:</strong> £${renewalAmount.toFixed(2)}</li>
+              <li><strong>Renewal link:</strong> ${renewalLink ? `<a href="${escapeHtml(renewalLink)}">${escapeHtml(renewalLink)}</a>` : "not set"}</li>
+            </ul>
+            <a href="${escapeHtml(APP_BASE_URL)}" style="display:inline-block;padding:12px 16px;border-radius:6px;background:#0f766e;color:#ffffff;text-decoration:none;font-weight:700">Open admin</a>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+function marketingRenewalCustomerHtml(card: Record<string, unknown>) {
+  const name = escapeHtml(card.name);
+  const paidUntil = escapeHtml(card.paid_until);
+  const renewalLink = String(card.renewal_payment_link_url || "");
+  const renewalAmount = Number(card.renewal_amount_pence || 0) / 100;
+  return `
+    <!doctype html>
+    <html>
+      <body style="margin:0;background:#f7f8fa;color:#1f2933;font-family:Arial,sans-serif">
+        <div style="max-width:640px;margin:0 auto;padding:32px 20px">
+          <div style="background:#ffffff;border:1px solid #d8dee6;border-radius:8px;padding:24px">
+            <div style="color:#0f766e;font-size:14px;font-weight:700">PropertyPanel Partners</div>
+            <h1 style="margin:16px 0 8px;font-size:24px;line-height:1.25">Your PropertyPanel placement ends soon</h1>
+            <p style="color:#475569;line-height:1.6">
+              ${name} is currently listed with PropertyPanel until <strong>${paidUntil}</strong>.
+              ${renewalAmount ? `The renewal amount is <strong>£${renewalAmount.toFixed(2)}</strong>.` : ""}
+            </p>
+            ${renewalLink ? `<a href="${escapeHtml(renewalLink)}" style="display:inline-block;padding:12px 16px;border-radius:6px;background:#0f766e;color:#ffffff;text-decoration:none;font-weight:700">Renew placement</a>` : `<p style="color:#475569">Reply to this email if you would like to renew or change the placement.</p>`}
+            <p style="margin:24px 0 0;color:#64748b;font-size:12px;line-height:1.5">Thank you for supporting PropertyPanel.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+async function sendMarketingEmail(to: string, subject: string, html: string) {
+  const resendKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendKey) throw new Error("RESEND_API_KEY is not configured.");
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: REMINDER_FROM_EMAIL,
+      to,
+      subject,
+      html,
+    }),
+  });
+  if (!response.ok) throw new Error(`Resend ${response.status}: ${await response.text()}`);
+}
+
+async function sendMarketingRenewalReminders(today: string) {
+  let adminSent = 0;
+  let customerSent = 0;
+  let failed = 0;
+
+  const adminReminderDate = addDays(today, 8);
+  const { data: adminCards, error: adminError } = await supabase
+    .from("marketing_cards")
+    .select("*")
+    .eq("active", true)
+    .eq("paid_until", adminReminderDate)
+    .is("admin_reminder_sent_at", null);
+  if (adminError) throw adminError;
+
+  for (const card of adminCards ?? []) {
+    try {
+      await sendMarketingEmail(
+        SPONSOR_ADMIN_EMAIL,
+        `PropertyPanel: ${card.name} placement ends in 8 days`,
+        marketingRenewalAdminHtml(card),
+      );
+      await supabase.from("marketing_cards").update({ admin_reminder_sent_at: new Date().toISOString() }).eq("id", card.id);
+      adminSent += 1;
+    } catch (error) {
+      console.error("Marketing admin reminder failed", card.id, error);
+      failed += 1;
+    }
+  }
+
+  const customerReminderDate = addDays(today, 7);
+  const { data: customerCards, error: customerError } = await supabase
+    .from("marketing_cards")
+    .select("*")
+    .eq("active", true)
+    .eq("renewal_reminder_enabled", true)
+    .eq("paid_until", customerReminderDate)
+    .not("billing_email", "is", null)
+    .is("renewal_reminder_sent_at", null);
+  if (customerError) throw customerError;
+
+  for (const card of customerCards ?? []) {
+    try {
+      await sendMarketingEmail(
+        String(card.billing_email),
+        "Your PropertyPanel placement ends soon",
+        marketingRenewalCustomerHtml(card),
+      );
+      await supabase.from("marketing_cards").update({ renewal_reminder_sent_at: new Date().toISOString() }).eq("id", card.id);
+      customerSent += 1;
+    } catch (error) {
+      console.error("Marketing customer reminder failed", card.id, error);
+      failed += 1;
+    }
+  }
+
+  return { marketingAdminSent: adminSent, marketingCustomerSent: customerSent, marketingFailed: failed };
+}
+
 async function sendEmail(reminder: Record<string, unknown>, email: string) {
   const resendKey = Deno.env.get("RESEND_API_KEY");
   if (!resendKey) throw new Error("RESEND_API_KEY is not configured.");
@@ -439,7 +573,17 @@ Deno.serve(async (request) => {
       }
     }
     const digestsSent = await sendWeeklyDigests(today);
-    return Response.json({ ok: true, ...sync, due: reminders?.length ?? 0, emailsSent, digestsSent, smsSent, failed });
+    const marketing = await sendMarketingRenewalReminders(today);
+    return Response.json({
+      ok: true,
+      ...sync,
+      ...marketing,
+      due: reminders?.length ?? 0,
+      emailsSent,
+      digestsSent,
+      smsSent,
+      failed: failed + marketing.marketingFailed,
+    });
   } catch (error) {
     console.error(error);
     return Response.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });

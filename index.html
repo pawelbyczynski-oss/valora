@@ -422,6 +422,15 @@
 
         <button class="tax-button" id="openTaxModal" type="button">See how much tax you'll pay</button>
       </section>
+
+      <section class="calculator-partners" id="calculatorPartnersSection" aria-label="PropertyPanel partners" hidden>
+        <div class="sponsor-slot" id="calculatorSponsorSlot" hidden></div>
+        <div class="section-heading partners-heading" id="calculatorPartnersHeading" hidden>
+          <p class="eyebrow">PropertyPanel partners</p>
+          <h2>Useful services for landlords</h2>
+        </div>
+        <div class="partner-grid" id="calculatorPartnerGrid"></div>
+      </section>
         </div>
       </section>
     </main>
@@ -878,6 +887,8 @@
       <div class="section-tabs" aria-label="Admin sections">
         <button class="section-tab active" type="button" data-admin-tab="overview">Overview</button>
         <button class="section-tab" type="button" data-admin-tab="promos">Promo codes</button>
+        <button class="section-tab" type="button" data-admin-tab="partners">Partners</button>
+        <button class="section-tab" type="button" data-admin-tab="sponsors">Sponsors</button>
         <button class="section-tab" type="button" data-admin-tab="users">Users</button>
         <button class="section-tab" type="button" data-admin-tab="activity">Activity</button>
         <button class="section-tab" type="button" data-admin-tab="stripe">Stripe</button>
@@ -925,6 +936,257 @@
             <p class="field-hint" id="adminPromoMessage">Codes are saved in Supabase and checked securely during redemption.</p>
           </form>
           <div class="admin-table promo-table" id="adminPromoList"></div>
+        </section>
+
+        <section class="panel-card admin-panel" data-admin-panel="partners">
+          <div class="section-heading">
+            <p class="eyebrow">Partners</p>
+            <h2>PropertyPanel partners</h2>
+          </div>
+          <form class="admin-form marketing-admin-form" id="adminPartnerForm" data-marketing-kind="partner">
+            <input id="adminPartnerId" type="hidden" />
+            <label>
+              <span>Partner name</span>
+              <input id="adminPartnerName" required placeholder="Acme Mortgages" />
+            </label>
+            <label>
+              <span>Category</span>
+              <input id="adminPartnerCategory" placeholder="Mortgage broker, accountant, solicitor..." />
+            </label>
+            <label>
+              <span>Headline</span>
+              <input id="adminPartnerHeadline" maxlength="60" placeholder="Specialist support for UK landlords" />
+            </label>
+            <label>
+              <span>Short description</span>
+              <textarea id="adminPartnerDescription" maxlength="180" placeholder="Short card copy shown under the logo."></textarea>
+            </label>
+            <label>
+              <span>Logo URL</span>
+              <input id="adminPartnerLogoUrl" type="url" placeholder="https://..." />
+              <small class="field-hint">Logo: SVG, PNG or WebP, recommended 512 x 512 px, max 500 KB, transparent background preferred.</small>
+            </label>
+            <label>
+              <span>Image / banner / GIF URL</span>
+              <input id="adminPartnerAssetUrl" type="url" placeholder="https://..." />
+              <small class="field-hint">Banner: 1200 x 630 JPG/PNG/WebP up to 1 MB. GIF: 600 x 400 up to 2 MB, no aggressive animation.</small>
+            </label>
+            <label>
+              <span>CTA text</span>
+              <input id="adminPartnerCtaText" maxlength="24" placeholder="Visit partner" />
+            </label>
+            <label>
+              <span>CTA URL</span>
+              <input id="adminPartnerCtaUrl" type="url" placeholder="https://..." />
+            </label>
+            <fieldset class="checkbox-group">
+              <legend>Placement</legend>
+              <label><input id="adminPartnerPlacementCalculator" type="checkbox" checked /> Calculator footer</label>
+              <small class="field-hint">Partners currently show only at the bottom of the calculator.</small>
+            </fieldset>
+            <label>
+              <span>Billing type</span>
+              <select id="adminPartnerBillingType">
+                <option value="free">Free / complimentary</option>
+                <option value="paid">Paid</option>
+              </select>
+            </label>
+            <label>
+              <span>Billing email</span>
+              <input id="adminPartnerBillingEmail" type="email" placeholder="billing@example.com" />
+            </label>
+            <label>
+              <span>Billing contact name</span>
+              <input id="adminPartnerBillingName" placeholder="Contact name" />
+            </label>
+            <label>
+              <span>Company name</span>
+              <input id="adminPartnerCompanyName" placeholder="Company Ltd" />
+            </label>
+            <label>
+              <span>Billing address</span>
+              <textarea id="adminPartnerBillingAddress" placeholder="Address for invoice / records"></textarea>
+            </label>
+            <label>
+              <span>Amount charged</span>
+              <input id="adminPartnerAmount" type="number" min="0" step="1" placeholder="0" />
+            </label>
+            <label>
+              <span>Payment link URL</span>
+              <input id="adminPartnerPaymentLink" type="url" placeholder="Stripe payment link" />
+            </label>
+            <label>
+              <span>Payment status</span>
+              <select id="adminPartnerPaymentStatus">
+                <option value="free">Free</option>
+                <option value="unpaid">Unpaid</option>
+                <option value="payment_link_sent">Payment link sent</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+            <label>
+              <span>Start date</span>
+              <input id="adminPartnerStartDate" type="date" />
+            </label>
+            <label>
+              <span>End / paid until</span>
+              <input id="adminPartnerEndDate" type="date" />
+            </label>
+            <label>
+              <span>Renewal amount</span>
+              <input id="adminPartnerRenewalAmount" type="number" min="0" step="1" placeholder="0" />
+            </label>
+            <label>
+              <span>Renewal payment link</span>
+              <input id="adminPartnerRenewalLink" type="url" placeholder="New Stripe payment link" />
+            </label>
+            <label>
+              <span>Internal memo</span>
+              <textarea id="adminPartnerMemo" placeholder="Short memo: what was agreed, when, free reason, renewal note..."></textarea>
+            </label>
+            <label>
+              <span>Order</span>
+              <input id="adminPartnerPriority" type="number" step="1" value="10" />
+            </label>
+            <fieldset class="checkbox-group">
+              <legend>Status</legend>
+              <label><input id="adminPartnerActive" type="checkbox" checked /> Active</label>
+              <label><input id="adminPartnerRenewalEnabled" type="checkbox" checked /> Send sponsor/partner renewal email 7 days before end</label>
+              <small class="field-hint">Admin email is sent 8 days before end so you can prepare a new offer.</small>
+            </fieldset>
+            <button class="tax-button" type="submit">Save partner</button>
+            <p class="field-hint" id="adminPartnerMessage">Partners stay invisible until active and placed on calculator footer.</p>
+          </form>
+          <div class="admin-table marketing-table" id="adminPartnerList"></div>
+        </section>
+
+        <section class="panel-card admin-panel" data-admin-panel="sponsors">
+          <div class="section-heading">
+            <p class="eyebrow">Sponsors</p>
+            <h2>Sponsored placements</h2>
+          </div>
+          <form class="admin-form marketing-admin-form" id="adminSponsorForm" data-marketing-kind="sponsor">
+            <input id="adminSponsorId" type="hidden" />
+            <label>
+              <span>Sponsor name</span>
+              <input id="adminSponsorName" required placeholder="Sponsor company" />
+            </label>
+            <label>
+              <span>Campaign name</span>
+              <input id="adminSponsorCategory" placeholder="Calculator June campaign" />
+            </label>
+            <label>
+              <span>Headline</span>
+              <input id="adminSponsorHeadline" maxlength="60" placeholder="Sponsored offer for landlords" />
+            </label>
+            <label>
+              <span>Short description</span>
+              <textarea id="adminSponsorDescription" maxlength="180" placeholder="Short sponsored copy."></textarea>
+            </label>
+            <label>
+              <span>Logo URL</span>
+              <input id="adminSponsorLogoUrl" type="url" placeholder="https://..." />
+              <small class="field-hint">Logo: SVG, PNG or WebP, recommended 512 x 512 px, max 500 KB.</small>
+            </label>
+            <label>
+              <span>Banner / GIF URL</span>
+              <input id="adminSponsorAssetUrl" type="url" placeholder="https://..." />
+              <small class="field-hint">Banner: 1200 x 630 JPG/PNG/WebP up to 1 MB. GIF: 600 x 400 up to 2 MB.</small>
+            </label>
+            <label>
+              <span>CTA text</span>
+              <input id="adminSponsorCtaText" maxlength="24" placeholder="Get quote" />
+            </label>
+            <label>
+              <span>CTA URL</span>
+              <input id="adminSponsorCtaUrl" type="url" placeholder="https://..." />
+            </label>
+            <fieldset class="checkbox-group">
+              <legend>Placements</legend>
+              <label><input id="adminSponsorPlacementCalculator" type="checkbox" checked /> Calculator sponsored slot</label>
+              <label><input id="adminSponsorPlacementPremium" type="checkbox" /> Pro plan page</label>
+              <label><input id="adminSponsorPlacementDashboard" type="checkbox" /> Portfolio dashboard</label>
+              <label><input id="adminSponsorPlacementReports" type="checkbox" /> Reports / accountant pack</label>
+              <small class="field-hint">Currently calculator placement is live. Other placements are recorded for future use.</small>
+            </fieldset>
+            <label>
+              <span>Billing type</span>
+              <select id="adminSponsorBillingType">
+                <option value="paid">Paid</option>
+                <option value="free">Free / complimentary</option>
+              </select>
+            </label>
+            <label>
+              <span>Billing email</span>
+              <input id="adminSponsorBillingEmail" type="email" placeholder="billing@example.com" />
+            </label>
+            <label>
+              <span>Billing contact name</span>
+              <input id="adminSponsorBillingName" placeholder="Contact name" />
+            </label>
+            <label>
+              <span>Company name</span>
+              <input id="adminSponsorCompanyName" placeholder="Company Ltd" />
+            </label>
+            <label>
+              <span>Billing address</span>
+              <textarea id="adminSponsorBillingAddress" placeholder="Address for invoice / records"></textarea>
+            </label>
+            <label>
+              <span>Amount charged</span>
+              <input id="adminSponsorAmount" type="number" min="0" step="1" placeholder="0" />
+            </label>
+            <label>
+              <span>Payment link URL</span>
+              <input id="adminSponsorPaymentLink" type="url" placeholder="Stripe payment link" />
+            </label>
+            <label>
+              <span>Payment status</span>
+              <select id="adminSponsorPaymentStatus">
+                <option value="unpaid">Unpaid</option>
+                <option value="payment_link_sent">Payment link sent</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="free">Free</option>
+              </select>
+            </label>
+            <label>
+              <span>Start date</span>
+              <input id="adminSponsorStartDate" type="date" />
+            </label>
+            <label>
+              <span>End / paid until</span>
+              <input id="adminSponsorEndDate" type="date" />
+            </label>
+            <label>
+              <span>Renewal amount</span>
+              <input id="adminSponsorRenewalAmount" type="number" min="0" step="1" placeholder="0" />
+            </label>
+            <label>
+              <span>Renewal payment link</span>
+              <input id="adminSponsorRenewalLink" type="url" placeholder="New Stripe payment link" />
+            </label>
+            <label>
+              <span>Internal memo</span>
+              <textarea id="adminSponsorMemo" placeholder="Short memo: package, dates, price changes, free reason..."></textarea>
+            </label>
+            <label>
+              <span>Priority</span>
+              <input id="adminSponsorPriority" type="number" step="1" value="10" />
+            </label>
+            <fieldset class="checkbox-group">
+              <legend>Status</legend>
+              <label><input id="adminSponsorActive" type="checkbox" checked /> Active</label>
+              <label><input id="adminSponsorRenewalEnabled" type="checkbox" checked /> Send sponsor renewal email 7 days before end</label>
+              <small class="field-hint">Admin email is sent 8 days before end so you can prepare a new payment link or price.</small>
+            </fieldset>
+            <button class="tax-button" type="submit">Save sponsor</button>
+            <p class="field-hint" id="adminSponsorMessage">Sponsors stay invisible until active, in date and allowed by billing status.</p>
+          </form>
+          <div class="admin-table marketing-table" id="adminSponsorList"></div>
         </section>
 
         <section class="panel-card admin-panel" data-admin-panel="users">

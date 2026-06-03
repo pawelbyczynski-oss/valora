@@ -655,6 +655,7 @@ select {
 
 .calculator-panel,
 .results-panel,
+.calculator-partners,
 .premium-hero,
 .login-panel,
 .dashboard-shell,
@@ -672,6 +673,100 @@ select {
 
 .results-panel {
   padding: 20px;
+}
+
+.calculator-partners {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.calculator-partners[hidden] {
+  display: none;
+}
+
+.sponsor-slot {
+  display: grid;
+  justify-items: center;
+}
+
+.sponsor-slot[hidden],
+.partners-heading[hidden] {
+  display: none;
+}
+
+.marketing-card {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbfa;
+}
+
+.marketing-card.sponsor-card {
+  max-width: 760px;
+  grid-template-columns: minmax(0, 0.32fr) minmax(0, 1fr);
+  align-items: center;
+}
+
+.marketing-card-media {
+  display: grid;
+  place-items: center;
+  min-height: 96px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.marketing-card-media img {
+  display: block;
+  max-width: 100%;
+  max-height: 126px;
+  object-fit: contain;
+}
+
+.marketing-card-body {
+  display: grid;
+  gap: 8px;
+}
+
+.marketing-card-body h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.marketing-card-body p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.marketing-badge {
+  width: fit-content;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.08);
+  color: var(--teal);
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.marketing-card-action {
+  justify-self: start;
+}
+
+.partner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 300px));
+  justify-content: center;
+  gap: 12px;
 }
 
 .premium-shell {
@@ -1372,6 +1467,11 @@ select {
   grid-column: 1 / -1;
 }
 
+[data-admin-panel="partners"],
+[data-admin-panel="sponsors"] {
+  grid-column: 1 / -1;
+}
+
 .admin-table {
   display: grid;
   gap: 8px;
@@ -1403,6 +1503,41 @@ select {
   display: grid;
   gap: 4px;
   min-width: 0;
+}
+
+.marketing-admin-form textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+
+.checkbox-group {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.checkbox-group legend {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.marketing-admin-row {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(0, 0.8fr) auto auto;
 }
 
 .admin-row strong {
@@ -3117,7 +3252,8 @@ li {
   }
 
   .calculator-panel,
-  .results-panel {
+  .results-panel,
+  .calculator-partners {
     padding: 16px;
   }
 
@@ -3144,6 +3280,7 @@ li {
   .admin-metrics,
   .admin-form,
   .admin-row,
+  .marketing-admin-row,
   .promo-table .admin-row,
   .property-meta,
   .property-form,
@@ -3188,6 +3325,11 @@ li {
 
   .dashboard-head {
     display: grid;
+  }
+
+  .marketing-card.sponsor-card,
+  .partner-grid {
+    grid-template-columns: 1fr;
   }
 }
 

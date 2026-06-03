@@ -29,6 +29,31 @@ function eventLabel(value?: string | null) {
   return new Date(value).toLocaleDateString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+function textValue(value: unknown, maxLength = 500) {
+  return String(value ?? "").trim().slice(0, maxLength);
+}
+
+function nullableText(value: unknown, maxLength = 500) {
+  const text = textValue(value, maxLength);
+  return text || null;
+}
+
+function dateOnly(value: unknown) {
+  const text = textValue(value, 20);
+  if (!text) return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function safePlacements(value: unknown, kind: string) {
+  const allowed = kind === "sponsor"
+    ? new Set(["calculator", "premium", "dashboard", "reports", "documents"])
+    : new Set(["calculator"]);
+  const placements = Array.isArray(value)
+    ? value.map((item) => textValue(item, 30)).filter((item) => allowed.has(item))
+    : [];
+  return [...new Set(placements)];
+}
+
 Deno.serve(async (request) => {
   const corsHeaders = corsHeadersFor(request);
   const reply = (body: unknown, status = 200) => jsonResponse(body, status, corsHeaders);
@@ -143,6 +168,12 @@ Deno.serve(async (request) => {
         .select("code, free_months, lifetime_access, max_redemptions, redeemed_count, expires_at, active, created_at")
         .order("created_at", { ascending: false })
         .limit(10);
+      const { data: marketingCards } = await supabaseAdmin
+        .from("marketing_cards")
+        .select("*")
+        .order("priority", { ascending: true })
+        .order("created_at", { ascending: false })
+        .limit(50);
       const { data: recentProfiles } = await supabaseAdmin
         .from("profiles")
         .select("id, email, created_at")
@@ -183,6 +214,7 @@ Deno.serve(async (request) => {
           pdf_exported: eventCounts[2].count || 0,
         },
         promo_codes: promoCodes || [],
+        marketing_cards: marketingCards || [],
         recent_users: (recentProfiles || []).map((profile) => {
           const subscription = subscriptionByUser.get(profile.id);
           return {
@@ -198,6 +230,81 @@ Deno.serve(async (request) => {
           email: event.user_id ? emailByUser.get(event.user_id) || "anonymous" : "anonymous",
         })),
       });
+    }
+
+    if (action === "get-marketing-card") {
+      const id = textValue(body?.id, 80);
+      if (!id) return reply({ success: false, message: "Record id is required" }, 400);
+      const { data, error } = await supabaseAdmin
+        .from("marketing_cards")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return reply({ success: false, message: "Record not found" }, 404);
+      return reply({ success: true, card: data });
+    }
+
+    if (action === "upsert-marketing-card") {
+      const card = body?.card || {};
+      const kind = textValue(card.kind, 20);
+      if (!["partner", "sponsor"].includes(kind)) return reply({ success: false, message: "Choose partner or sponsor" }, 400);
+      const name = textValue(card.name, 80);
+      if (!name) return reply({ success: false, message: "Name is required" }, 400);
+      const placements = safePlacements(card.placements, kind);
+      if (!placements.length) return reply({ success: false, message: "Choose at least one placement" }, 400);
+      const billingType = ["paid", "free"].includes(textValue(card.billing_type, 20)) ? textValue(card.billing_type, 20) : "free";
+      const paymentStatus = ["free", "unpaid", "payment_link_sent", "paid", "overdue", "cancelled"].includes(textValue(card.payment_status, 30))
+        ? textValue(card.payment_status, 30)
+        : billingType === "free" ? "free" : "unpaid";
+      const id = textValue(card.id, 80);
+      const row = {
+        kind,
+        name,
+        category: nullableText(card.category, 80),
+        headline: nullableText(card.headline, 80),
+        description: nullableText(card.description, 220),
+        logo_url: nullableText(card.logo_url, 500),
+        asset_url: nullableText(card.asset_url, 500),
+        cta_text: nullableText(card.cta_text, 40),
+        cta_url: nullableText(card.cta_url, 500),
+        placements,
+        billing_type: billingType,
+        billing_email: nullableText(card.billing_email, 160),
+        billing_contact_name: nullableText(card.billing_contact_name, 120),
+        company_name: nullableText(card.company_name, 160),
+        billing_address: nullableText(card.billing_address, 500),
+        amount_pence: Math.max(Number(card.amount_pence || 0), 0),
+        payment_link_url: nullableText(card.payment_link_url, 500),
+        payment_status: paymentStatus,
+        starts_at: dateOnly(card.starts_at),
+        paid_until: dateOnly(card.paid_until),
+        renewal_amount_pence: Math.max(Number(card.renewal_amount_pence || 0), 0),
+        renewal_payment_link_url: nullableText(card.renewal_payment_link_url, 500),
+        internal_memo: nullableText(card.internal_memo, 1000),
+        priority: Number(card.priority || 10),
+        active: card.active !== false,
+        renewal_reminder_enabled: card.renewal_reminder_enabled !== false,
+        updated_at: new Date().toISOString(),
+      };
+
+      const query = id
+        ? supabaseAdmin.from("marketing_cards").update(row).eq("id", id).select("*").single()
+        : supabaseAdmin.from("marketing_cards").insert(row).select("*").single();
+      const { data, error } = await query;
+      if (error) throw error;
+      return reply({ success: true, card: data });
+    }
+
+    if (action === "deactivate-marketing-card") {
+      const id = textValue(body?.id, 80);
+      if (!id) return reply({ success: false, message: "Record id is required" }, 400);
+      const { error } = await supabaseAdmin
+        .from("marketing_cards")
+        .update({ active: false, updated_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+      return reply({ success: true, id });
     }
 
     if (action === "create-admin-promo") {

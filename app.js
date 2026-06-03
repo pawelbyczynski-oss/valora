@@ -189,6 +189,16 @@ const premium = {
   adminPromoDuration: document.querySelector("#adminPromoDuration"),
   adminPromoMessage: document.querySelector("#adminPromoMessage"),
   adminPromoList: document.querySelector("#adminPromoList"),
+  calculatorPartnersSection: document.querySelector("#calculatorPartnersSection"),
+  calculatorSponsorSlot: document.querySelector("#calculatorSponsorSlot"),
+  calculatorPartnersHeading: document.querySelector("#calculatorPartnersHeading"),
+  calculatorPartnerGrid: document.querySelector("#calculatorPartnerGrid"),
+  adminPartnerForm: document.querySelector("#adminPartnerForm"),
+  adminPartnerList: document.querySelector("#adminPartnerList"),
+  adminPartnerMessage: document.querySelector("#adminPartnerMessage"),
+  adminSponsorForm: document.querySelector("#adminSponsorForm"),
+  adminSponsorList: document.querySelector("#adminSponsorList"),
+  adminSponsorMessage: document.querySelector("#adminSponsorMessage"),
   dashboardTabButtons: document.querySelectorAll("[data-dashboard-tab]"),
   dashboardPanels: document.querySelectorAll("[data-dashboard-panel]"),
   transactionForm: document.querySelector("#transactionForm"),
@@ -3550,6 +3560,225 @@ function renderAdminPromos(promos = []) {
   );
 }
 
+function marketingFormFields(kind) {
+  const prefix = kind === "sponsor" ? "adminSponsor" : "adminPartner";
+  return {
+    id: document.querySelector(`#${prefix}Id`),
+    name: document.querySelector(`#${prefix}Name`),
+    category: document.querySelector(`#${prefix}Category`),
+    headline: document.querySelector(`#${prefix}Headline`),
+    description: document.querySelector(`#${prefix}Description`),
+    logoUrl: document.querySelector(`#${prefix}LogoUrl`),
+    assetUrl: document.querySelector(`#${prefix}AssetUrl`),
+    ctaText: document.querySelector(`#${prefix}CtaText`),
+    ctaUrl: document.querySelector(`#${prefix}CtaUrl`),
+    billingType: document.querySelector(`#${prefix}BillingType`),
+    billingEmail: document.querySelector(`#${prefix}BillingEmail`),
+    billingName: document.querySelector(`#${prefix}BillingName`),
+    companyName: document.querySelector(`#${prefix}CompanyName`),
+    billingAddress: document.querySelector(`#${prefix}BillingAddress`),
+    amount: document.querySelector(`#${prefix}Amount`),
+    paymentLink: document.querySelector(`#${prefix}PaymentLink`),
+    paymentStatus: document.querySelector(`#${prefix}PaymentStatus`),
+    startDate: document.querySelector(`#${prefix}StartDate`),
+    endDate: document.querySelector(`#${prefix}EndDate`),
+    renewalAmount: document.querySelector(`#${prefix}RenewalAmount`),
+    renewalLink: document.querySelector(`#${prefix}RenewalLink`),
+    memo: document.querySelector(`#${prefix}Memo`),
+    priority: document.querySelector(`#${prefix}Priority`),
+    active: document.querySelector(`#${prefix}Active`),
+    renewalEnabled: document.querySelector(`#${prefix}RenewalEnabled`),
+    placementCalculator: document.querySelector(`#${prefix}PlacementCalculator`),
+    placementPremium: document.querySelector(`#${prefix}PlacementPremium`),
+    placementDashboard: document.querySelector(`#${prefix}PlacementDashboard`),
+    placementReports: document.querySelector(`#${prefix}PlacementReports`),
+  };
+}
+
+function dateInputValue(value) {
+  return value ? String(value).slice(0, 10) : "";
+}
+
+function marketingPlacementsFromFields(fields, kind) {
+  const placements = [];
+  if (fields.placementCalculator?.checked) placements.push("calculator");
+  if (kind === "sponsor") {
+    if (fields.placementPremium?.checked) placements.push("premium");
+    if (fields.placementDashboard?.checked) placements.push("dashboard");
+    if (fields.placementReports?.checked) placements.push("reports");
+  }
+  return placements;
+}
+
+function marketingPayloadFromForm(kind) {
+  const fields = marketingFormFields(kind);
+  return {
+    id: fields.id.value || null,
+    kind,
+    name: fields.name.value.trim(),
+    category: fields.category.value.trim(),
+    headline: fields.headline.value.trim(),
+    description: fields.description.value.trim(),
+    logo_url: fields.logoUrl.value.trim(),
+    asset_url: fields.assetUrl.value.trim(),
+    cta_text: fields.ctaText.value.trim() || (kind === "sponsor" ? "View offer" : "Visit partner"),
+    cta_url: fields.ctaUrl.value.trim(),
+    placements: marketingPlacementsFromFields(fields, kind),
+    billing_type: fields.billingType.value,
+    billing_email: fields.billingEmail.value.trim(),
+    billing_contact_name: fields.billingName.value.trim(),
+    company_name: fields.companyName.value.trim(),
+    billing_address: fields.billingAddress.value.trim(),
+    amount_pence: Math.round((Number(fields.amount.value) || 0) * 100),
+    payment_link_url: fields.paymentLink.value.trim(),
+    payment_status: fields.billingType.value === "free" ? "free" : fields.paymentStatus.value,
+    starts_at: fields.startDate.value || null,
+    paid_until: fields.endDate.value || null,
+    renewal_amount_pence: Math.round((Number(fields.renewalAmount.value) || 0) * 100),
+    renewal_payment_link_url: fields.renewalLink.value.trim(),
+    internal_memo: fields.memo.value.trim(),
+    priority: Number(fields.priority.value) || 10,
+    active: fields.active.checked,
+    renewal_reminder_enabled: fields.renewalEnabled.checked,
+  };
+}
+
+function fillMarketingForm(kind, card) {
+  const fields = marketingFormFields(kind);
+  fields.id.value = card.id || "";
+  fields.name.value = card.name || "";
+  fields.category.value = card.category || "";
+  fields.headline.value = card.headline || "";
+  fields.description.value = card.description || "";
+  fields.logoUrl.value = card.logo_url || "";
+  fields.assetUrl.value = card.asset_url || "";
+  fields.ctaText.value = card.cta_text || "";
+  fields.ctaUrl.value = card.cta_url || "";
+  fields.billingType.value = card.billing_type || (kind === "sponsor" ? "paid" : "free");
+  fields.billingEmail.value = card.billing_email || "";
+  fields.billingName.value = card.billing_contact_name || "";
+  fields.companyName.value = card.company_name || "";
+  fields.billingAddress.value = card.billing_address || "";
+  fields.amount.value = card.amount_pence ? (Number(card.amount_pence) / 100).toFixed(0) : "";
+  fields.paymentLink.value = card.payment_link_url || "";
+  fields.paymentStatus.value = card.payment_status || (card.billing_type === "free" ? "free" : "unpaid");
+  fields.startDate.value = dateInputValue(card.starts_at);
+  fields.endDate.value = dateInputValue(card.paid_until);
+  fields.renewalAmount.value = card.renewal_amount_pence ? (Number(card.renewal_amount_pence) / 100).toFixed(0) : "";
+  fields.renewalLink.value = card.renewal_payment_link_url || "";
+  fields.memo.value = card.internal_memo || "";
+  fields.priority.value = card.priority ?? 10;
+  fields.active.checked = card.active !== false;
+  fields.renewalEnabled.checked = card.renewal_reminder_enabled !== false;
+  const placements = card.placements || [];
+  fields.placementCalculator.checked = placements.includes("calculator");
+  if (kind === "sponsor") {
+    fields.placementPremium.checked = placements.includes("premium");
+    fields.placementDashboard.checked = placements.includes("dashboard");
+    fields.placementReports.checked = placements.includes("reports");
+  }
+}
+
+function resetMarketingForm(kind) {
+  const form = kind === "sponsor" ? premium.adminSponsorForm : premium.adminPartnerForm;
+  form.reset();
+  const fields = marketingFormFields(kind);
+  fields.id.value = "";
+  fields.priority.value = 10;
+  fields.active.checked = true;
+  fields.renewalEnabled.checked = true;
+  fields.placementCalculator.checked = true;
+}
+
+function marketingStatus(card) {
+  if (!card.active) return "Inactive";
+  if (card.billing_type === "free") return "Free";
+  return card.payment_status || "unpaid";
+}
+
+function renderAdminMarketingRows(kind, rows = []) {
+  const target = kind === "sponsor" ? premium.adminSponsorList : premium.adminPartnerList;
+  if (!target) return;
+
+  if (!rows.length) {
+    target.innerHTML = `<div class="admin-row muted-row">No ${kind}s yet</div>`;
+    return;
+  }
+
+  target.replaceChildren(
+    ...rows.map((card) => {
+      const row = document.createElement("div");
+      row.className = "admin-row marketing-admin-row";
+      row.innerHTML = `
+        <div><span>Name</span><strong>${escapeHtml(card.name)}</strong></div>
+        <div><span>Placement</span><strong>${escapeHtml((card.placements || []).join(", ") || "-")}</strong></div>
+        <div><span>Billing</span><strong>${escapeHtml(marketingStatus(card))}</strong></div>
+        <div><span>Ends</span><strong>${card.paid_until ? formatDate(card.paid_until) : "No end"}</strong></div>
+        <button class="secondary-button small-button" type="button" data-marketing-edit="${escapeHtml(card.id)}" data-marketing-kind="${kind}">Edit</button>
+        <button class="secondary-button small-button" type="button" data-marketing-deactivate="${escapeHtml(card.id)}" data-marketing-kind="${kind}">Deactivate</button>
+      `;
+      return row;
+    }),
+  );
+}
+
+function marketingCardMarkup(card, sponsor = false) {
+  const image = card.logo_url || card.asset_url;
+  const badge = sponsor ? "Sponsored" : card.category || "Partner";
+  const title = card.headline || card.name;
+  const description = card.description || card.category || "";
+  const cta = card.cta_text || (sponsor ? "View offer" : "Visit partner");
+  const safeUrl = card.cta_url || "#";
+  return `
+    <article class="marketing-card ${sponsor ? "sponsor-card" : "partner-card"}">
+      ${image ? `<div class="marketing-card-media"><img src="${escapeHtml(image)}" alt="${escapeHtml(card.name)} logo" loading="lazy" /></div>` : ""}
+      <div class="marketing-card-body">
+        <span class="marketing-badge">${escapeHtml(badge)}</span>
+        <h3>${escapeHtml(title)}</h3>
+        ${description ? `<p>${escapeHtml(description)}</p>` : ""}
+        ${card.cta_url ? `<a class="secondary-button small-button marketing-card-action" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(cta)}</a>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function renderCalculatorMarketing(cards = []) {
+  if (!premium.calculatorPartnersSection) return;
+  const activeCalculatorCards = cards.filter((card) => (card.placements || []).includes("calculator"));
+  const sponsor = activeCalculatorCards.find((card) => card.kind === "sponsor");
+  const partners = activeCalculatorCards.filter((card) => card.kind === "partner").slice(0, 3);
+
+  premium.calculatorSponsorSlot.hidden = !sponsor;
+  premium.calculatorSponsorSlot.innerHTML = sponsor ? marketingCardMarkup(sponsor, true) : "";
+  premium.calculatorPartnersHeading.hidden = !partners.length;
+  premium.calculatorPartnerGrid.replaceChildren();
+  if (partners.length) {
+    premium.calculatorPartnerGrid.innerHTML = partners.map((partner) => marketingCardMarkup(partner, false)).join("");
+  }
+  premium.calculatorPartnersSection.hidden = !sponsor && !partners.length;
+}
+
+async function loadPublicMarketingCards() {
+  if (!supabaseClient) {
+    renderCalculatorMarketing([]);
+    return;
+  }
+  const today = new Date().toISOString();
+  const { data, error } = await supabaseClient
+    .from("marketing_cards")
+    .select("kind,name,category,headline,description,logo_url,asset_url,cta_text,cta_url,placements,priority")
+    .eq("active", true)
+    .or(`starts_at.is.null,starts_at.lte.${today}`)
+    .or(`paid_until.is.null,paid_until.gte.${today}`)
+    .order("priority", { ascending: true })
+    .order("created_at", { ascending: false });
+  if (error) {
+    renderCalculatorMarketing([]);
+    return;
+  }
+  renderCalculatorMarketing(data || []);
+}
+
 async function loadAdminOverview() {
   if (!supabaseClient) return false;
 
@@ -3585,6 +3814,8 @@ async function loadAdminOverview() {
     ["User", "email"],
   ]);
   renderAdminPromos(data.promo_codes || []);
+  renderAdminMarketingRows("partner", data.marketing_cards?.filter((card) => card.kind === "partner") || []);
+  renderAdminMarketingRows("sponsor", data.marketing_cards?.filter((card) => card.kind === "sponsor") || []);
   return true;
 }
 
@@ -3640,6 +3871,71 @@ async function deactivateAdminPromoCode(code) {
 
   premium.adminPromoMessage.textContent = `Promo code ${code} deactivated.`;
   loadAdminOverview();
+}
+
+async function saveMarketingCard(kind) {
+  const message = kind === "sponsor" ? premium.adminSponsorMessage : premium.adminPartnerMessage;
+  if (!supabaseClient) {
+    message.textContent = "Supabase is not configured.";
+    return;
+  }
+
+  const payload = marketingPayloadFromForm(kind);
+  if (!payload.name) {
+    message.textContent = `${kind === "sponsor" ? "Sponsor" : "Partner"} name is required.`;
+    return;
+  }
+  if (!payload.placements.length) {
+    message.textContent = "Choose at least one placement.";
+    return;
+  }
+
+  message.textContent = `Saving ${kind}...`;
+  const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+    body: { action: "upsert-marketing-card", card: payload },
+  });
+
+  if (error || !data?.success) {
+    message.textContent = error?.message || data?.message || `Could not save ${kind}.`;
+    return;
+  }
+
+  message.textContent = `${kind === "sponsor" ? "Sponsor" : "Partner"} saved.`;
+  resetMarketingForm(kind);
+  await loadAdminOverview();
+  await loadPublicMarketingCards();
+}
+
+async function editMarketingCard(kind, id) {
+  if (!supabaseClient || !id) return;
+  const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+    body: { action: "get-marketing-card", id },
+  });
+  const message = kind === "sponsor" ? premium.adminSponsorMessage : premium.adminPartnerMessage;
+  if (error || !data?.card) {
+    message.textContent = error?.message || data?.message || "Could not load record.";
+    return;
+  }
+  fillMarketingForm(kind, data.card);
+  message.textContent = `Editing ${data.card.name}. Save to update.`;
+}
+
+async function deactivateMarketingCard(kind, id) {
+  if (!supabaseClient || !id) return;
+  const message = kind === "sponsor" ? premium.adminSponsorMessage : premium.adminPartnerMessage;
+  message.textContent = "Deactivating...";
+  const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+    body: { action: "deactivate-marketing-card", id },
+  });
+
+  if (error || !data?.success) {
+    message.textContent = error?.message || data?.message || "Could not deactivate record.";
+    return;
+  }
+
+  message.textContent = "Record deactivated.";
+  await loadAdminOverview();
+  await loadPublicMarketingCards();
 }
 
 async function loadSupabaseProperties(userId) {
@@ -5674,6 +5970,28 @@ premium.adminPromoList.addEventListener("click", (event) => {
   deactivateAdminPromoCode(button.dataset.promoDelete);
 });
 
+premium.adminPartnerForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  saveMarketingCard("partner");
+});
+
+premium.adminSponsorForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  saveMarketingCard("sponsor");
+});
+
+document.addEventListener("click", (event) => {
+  const editButton = event.target.closest("[data-marketing-edit]");
+  if (editButton) {
+    editMarketingCard(editButton.dataset.marketingKind, editButton.dataset.marketingEdit);
+    return;
+  }
+  const deactivateButton = event.target.closest("[data-marketing-deactivate]");
+  if (deactivateButton) {
+    deactivateMarketingCard(deactivateButton.dataset.marketingKind, deactivateButton.dataset.marketingDeactivate);
+  }
+});
+
 premium.dashboardTabButtons.forEach((button) => {
   button.addEventListener("click", () => {
     switchDashboardTab(button.dataset.dashboardTab);
@@ -6856,4 +7174,5 @@ switchAdminTab("overview");
 setSelectedPlan(selectedPlan);
 trackEvent("page_view", { path: window.location.pathname });
 initAuth();
+loadPublicMarketingCards();
 update();
