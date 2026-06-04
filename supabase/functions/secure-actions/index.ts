@@ -176,7 +176,12 @@ Deno.serve(async (request) => {
         .select("amount_monthly_pence")
         .in("status", ["trialing", "active"]);
       const mrrPence = (activeSubscriptionRows || []).reduce((sum, row) => sum + Number(row.amount_monthly_pence || 0), 0);
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
       const eventCounts = await Promise.all(
         ["page_view", "premium_viewed", "pdf_exported"].map((eventType) =>
           supabaseAdmin
@@ -184,6 +189,15 @@ Deno.serve(async (request) => {
             .select("id", { count: "exact", head: true })
             .eq("event_type", eventType)
             .gte("created_at", thirtyDaysAgo),
+        ),
+      );
+      const calculatorCounts = await Promise.all(
+        [todayStart.toISOString(), sevenDaysAgo, thirtyDaysAgo, twelveMonthsAgo.toISOString()].map((periodStart) =>
+          supabaseAdmin
+            .from("analytics_events")
+            .select("id", { count: "exact", head: true })
+            .eq("event_type", "calculator_update")
+            .gte("created_at", periodStart),
         ),
       );
 
@@ -245,6 +259,12 @@ Deno.serve(async (request) => {
           page_view: eventCounts[0].count || 0,
           premium_viewed: eventCounts[1].count || 0,
           pdf_exported: eventCounts[2].count || 0,
+        },
+        calculator_usage: {
+          daily: calculatorCounts[0].count || 0,
+          weekly: calculatorCounts[1].count || 0,
+          monthly: calculatorCounts[2].count || 0,
+          yearly: calculatorCounts[3].count || 0,
         },
         promo_codes: promoCodes || [],
         marketing_cards: marketingCards || [],

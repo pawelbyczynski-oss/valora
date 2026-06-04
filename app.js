@@ -177,6 +177,10 @@ const premium = {
   adminMrr: document.querySelector("#adminMrr"),
   adminProperties: document.querySelector("#adminProperties"),
   adminPageViews: document.querySelector("#adminPageViews"),
+  adminCalculatorToday: document.querySelector("#adminCalculatorToday"),
+  adminCalculatorWeek: document.querySelector("#adminCalculatorWeek"),
+  adminCalculatorMonth: document.querySelector("#adminCalculatorMonth"),
+  adminCalculatorYear: document.querySelector("#adminCalculatorYear"),
   adminPremiumViews: document.querySelector("#adminPremiumViews"),
   adminPdfExports: document.querySelector("#adminPdfExports"),
   adminPromos: document.querySelector("#adminPromos"),
@@ -455,6 +459,7 @@ let planSettings = {
 let calendarVisibleMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1, 12);
 let selectedCalendarDate = new Date().toISOString().slice(0, 10);
 let calendarFeedToken = "";
+let lastCalculatorUsageTrackedAt = 0;
 
 function applyTheme(theme) {
   const resolvedTheme = theme === "dark" ? "dark" : "light";
@@ -3989,6 +3994,10 @@ async function loadAdminOverview() {
   premium.adminMrr.textContent = moneyFromPence(data.totals?.mrr_pence);
   premium.adminProperties.textContent = data.totals?.properties ?? 0;
   premium.adminPageViews.textContent = data.events?.page_view ?? 0;
+  premium.adminCalculatorToday.textContent = data.calculator_usage?.daily ?? 0;
+  premium.adminCalculatorWeek.textContent = data.calculator_usage?.weekly ?? 0;
+  premium.adminCalculatorMonth.textContent = data.calculator_usage?.monthly ?? 0;
+  premium.adminCalculatorYear.textContent = data.calculator_usage?.yearly ?? 0;
   premium.adminPremiumViews.textContent = data.events?.premium_viewed ?? 0;
   premium.adminPdfExports.textContent = data.events?.pdf_exported ?? 0;
   premium.adminPromos.textContent = data.totals?.promo_redemptions ?? 0;
@@ -5507,6 +5516,13 @@ async function trackEvent(eventType, metadata = {}) {
   });
 }
 
+function trackCalculatorUsage(source = "input") {
+  const now = Date.now();
+  if (now - lastCalculatorUsageTrackedAt < 30 * 60 * 1000) return;
+  lastCalculatorUsageTrackedAt = now;
+  trackEvent("calculator_update", { source });
+}
+
 async function redeemPromoCode(code, messageTarget = premium.promoMessage) {
   const normalizedCode = code.trim().toUpperCase();
   if (!normalizedCode) {
@@ -6114,17 +6130,20 @@ document.querySelectorAll(".toggle-button").forEach((button) => {
     }
 
     update();
+    trackCalculatorUsage("toggle");
   });
 });
 
 inputs.deposit.addEventListener("input", () => {
   depositEditedBy = "amount";
   update();
+  trackCalculatorUsage("input");
 });
 
 inputs.depositPercent.addEventListener("input", () => {
   depositEditedBy = "percent";
   update();
+  trackCalculatorUsage("input");
 });
 
 Object.values(inputs).forEach((input) => {
@@ -6132,10 +6151,12 @@ Object.values(inputs).forEach((input) => {
   input.addEventListener("input", () => {
     syncMixedUseValues(input);
     update();
+    trackCalculatorUsage("input");
   });
   input.addEventListener("change", () => {
     syncMixedUseValues(input);
     update();
+    trackCalculatorUsage("change");
   });
 });
 
