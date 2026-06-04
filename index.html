@@ -586,6 +586,7 @@
           <button class="section-tab" type="button" data-dashboard-tab="transactions"><span class="tab-icon">£</span>Transactions</button>
           <button class="section-tab" type="button" data-dashboard-tab="subscription"><span class="tab-icon">◉</span>Subscription</button>
           <button class="section-tab" type="button" data-dashboard-tab="account"><span class="tab-icon">⚙</span>Account</button>
+          <button class="section-tab" type="button" data-dashboard-tab="help"><span class="tab-icon">?</span>Help</button>
         </div>
 
         <div class="portfolio-metrics dashboard-panel" data-dashboard-panel="overview">
@@ -868,6 +869,117 @@
                 <button class="danger-button" id="deletePortfolioData" type="button">Delete portfolio data</button>
               </div>
               <p class="field-hint" id="privacyMessage">Deleting portfolio data removes properties, documents and transactions. Billing records stay attached to your account.</p>
+            </div>
+          </section>
+
+          <section class="panel-card dashboard-panel help-panel" data-dashboard-panel="help">
+            <div class="section-heading">
+              <p class="eyebrow">Help</p>
+              <h2>PropertyPanel FAQ</h2>
+            </div>
+            <div class="help-grid">
+              <details open>
+                <summary>How do I add a property?</summary>
+                <ol>
+                  <li>Open <strong>Properties</strong>.</li>
+                  <li>Click <strong>Add property</strong>.</li>
+                  <li>Enter the display name, address, postcode, region and ownership details.</li>
+                  <li>Choose whether it is owned or rent-to-rent / managed.</li>
+                  <li>Save the property. It will appear in your portfolio list and dashboard totals.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>How do I edit or delete a property?</summary>
+                <ol>
+                  <li>Open <strong>Properties</strong> and select the property record.</li>
+                  <li>Use <strong>Edit property</strong> on the Overview tab to update saved details.</li>
+                  <li>Use <strong>Delete property</strong> only if the record should be removed from your portfolio and exports.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>How do I add a long-term tenancy?</summary>
+                <ol>
+                  <li>Open the property record.</li>
+                  <li>Select <strong>Long-term rents</strong>.</li>
+                  <li>Add tenant details, guarantor details, start date, end date, rent amount and due day.</li>
+                  <li>Save the tenancy record. PropertyPanel creates the linked rent payment schedule.</li>
+                </ol>
+                <p>If the dates overlap an existing tenancy for the same property, the system will stop the save and keep your form filled in so you can adjust the dates.</p>
+              </details>
+              <details>
+                <summary>How do I confirm rent has been paid?</summary>
+                <ol>
+                  <li>Open the property record and go to <strong>Long-term rents</strong>, or use the portfolio calendar.</li>
+                  <li>Find the rent payment due date.</li>
+                  <li>Click the payment action to mark it as paid / approved.</li>
+                  <li>Paid rent stays in the records but no longer shows as an outstanding calendar dot.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>How do I edit or remove a rent transaction?</summary>
+                <ol>
+                  <li>Open <strong>Transactions</strong> or the property record connected to the payment.</li>
+                  <li>Find the rent payment using search, property filter, date filter or status filter.</li>
+                  <li>Edit the record if the amount, date, category or status needs correcting.</li>
+                  <li>Delete only if the transaction should not exist in the property history.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>What happens if a tenancy changes early?</summary>
+                <p>If you shorten a tenancy, future linked rent payments outside the new tenancy dates are removed. If you extend it, new future rent payments are created. If the rent amount changes during the tenancy, update the rent schedule so future payments use the new amount.</p>
+              </details>
+              <details>
+                <summary>How do I add mortgage or remortgage details?</summary>
+                <ol>
+                  <li>Open the property record.</li>
+                  <li>Select <strong>Remortgage history</strong>.</li>
+                  <li>Add mortgage balance, rate, product type, start date and product length.</li>
+                  <li>The product end date is calculated from the length, but you can change it before saving.</li>
+                  <li>The latest mortgage data feeds the property overview and reminders.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>How do I add expenses or documents?</summary>
+                <ol>
+                  <li>Open the property record.</li>
+                  <li>Use <strong>Expenses</strong> to add a cost manually, with amount, date, category and payment status.</li>
+                  <li>Use <strong>Documents</strong> to attach files such as invoices, certificates, reports or agreements.</li>
+                  <li>Documents with expiry dates can appear in reminders and the calendar.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>How do I use the calendar?</summary>
+                <ol>
+                  <li>Open <strong>Overview</strong> and find <strong>Portfolio calendar</strong>.</li>
+                  <li>Use the month and year selectors to jump ahead.</li>
+                  <li>Use the property filter if you only want one property.</li>
+                  <li>Click a day to see rent, mortgage, certificate, tenancy or rent review events.</li>
+                  <li>Pro users can use <strong>Calendar sync</strong> to subscribe in a calendar app.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>How do I export reports?</summary>
+                <ol>
+                  <li>Open the property record for property-specific reports.</li>
+                  <li>Use <strong>Landlord report</strong> for rent-to-rent / managed property reporting.</li>
+                  <li>Select the date range and choose which sections to include.</li>
+                  <li>Use <strong>Transactions</strong> for accountant CSV exports and portfolio summaries.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>How do I manage or cancel my subscription?</summary>
+                <ol>
+                  <li>Open <strong>Subscription</strong>.</li>
+                  <li>Click <strong>Manage subscription</strong>.</li>
+                  <li>Stripe Customer Portal will open.</li>
+                  <li>From there you can update card details, view invoices or cancel the subscription.</li>
+                </ol>
+                <p>If you cancel at the end of the billing period, your access continues until the paid period ends. After the subscription becomes inactive, portfolio features are locked until Premium or Pro is active again.</p>
+              </details>
+              <details>
+                <summary>What can I do if my subscription is not active?</summary>
+                <p>You can still use the calculator and choose a Premium or Pro plan. Portfolio features need an active subscription. Your billing history stays in Stripe and your account security controls remain separate from property records.</p>
+              </details>
             </div>
           </section>
 

@@ -3206,7 +3206,7 @@ function openPortfolioTarget(target = "overview") {
   }
 
   openDashboard();
-  switchDashboardTab(["overview", "properties", "transactions", "subscription", "account"].includes(target) ? target : "overview");
+  switchDashboardTab(["overview", "properties", "transactions", "subscription", "account", "help"].includes(target) ? target : "overview");
 }
 
 function restoreSavedLocation() {
