@@ -2010,7 +2010,7 @@ function renderPremiumDashboard() {
 
 function calendarEventStatus(event) {
   if (event.kind === "rent") {
-    if (event.transaction.status === "approved") return "Paid";
+    if (event.transaction?.status === "approved") return "Paid";
     return event.date < new Date().toISOString().slice(0, 10) ? "Overdue" : "Due";
   }
   if (event.kind === "review") return event.review.status === "completed" ? "Completed" : "Planned";
@@ -2029,6 +2029,23 @@ function portfolioCalendarEvents() {
       detail: `${money.format(transaction.amount)} · ${transaction.category}`,
       transaction,
     }));
+
+  const rentEventKeys = new Set(events.map((event) => `${event.propertyId}-${event.date}`));
+  properties.forEach((property) => {
+    if (property.rentReminder !== "On") return;
+    const dueDate = dateInputValue(nextRentDueDate(property.rentDueDay));
+    const key = `${property.id}-${dueDate}`;
+    if (rentEventKeys.has(key)) return;
+    events.push({
+      id: `rent-reminder-${property.id}-${dueDate}`,
+      kind: "rent",
+      date: dueDate,
+      propertyId: property.id,
+      title: "Rent due",
+      detail: `${money.format(property.rent)} · Rent reminder`,
+      transaction: null,
+    });
+  });
 
   if (!hasProAccess()) return events;
 
@@ -2101,7 +2118,7 @@ function portfolioCalendarEvents() {
 }
 
 function calendarEventAction(event) {
-  if (event.kind === "rent" && event.transaction.status !== "approved") {
+  if (event.kind === "rent" && event.transaction?.id && event.transaction.status !== "approved") {
     return `<button class="tax-button small-button" type="button" data-calendar-mark-paid="${event.transaction.id}">Mark as paid</button>`;
   }
   if (event.kind === "review" && event.review.status !== "completed") {
@@ -2849,7 +2866,15 @@ function upcomingReminders() {
   });
 
   reminders.sort((a, b) => a.rank - b.rank || a.days - b.days || a.propertyName.localeCompare(b.propertyName));
-  return reminders.map((reminder, index) => ({ ...reminder, id: `${reminder.type}-${reminder.dueDate}-${index}` }));
+  const uniqueReminders = [];
+  const seenReminders = new Set();
+  reminders.forEach((reminder) => {
+    const key = `${reminder.type}-${reminder.propertyName}-${reminder.title}-${reminder.dueDate}`;
+    if (seenReminders.has(key)) return;
+    seenReminders.add(key);
+    uniqueReminders.push(reminder);
+  });
+  return uniqueReminders.map((reminder, index) => ({ ...reminder, id: `${reminder.type}-${reminder.dueDate}-${index}` }));
 }
 
 function updateNotificationPanel(reminders) {
@@ -3644,7 +3669,7 @@ function marketingFormFields(kind) {
   };
 }
 
-function dateInputValue(value) {
+function dateFieldValue(value) {
   return value ? String(value).slice(0, 10) : "";
 }
 
@@ -3711,8 +3736,8 @@ function fillMarketingForm(kind, card) {
   fields.amount.value = card.amount_pence ? (Number(card.amount_pence) / 100).toFixed(0) : "";
   fields.paymentLink.value = card.payment_link_url || "";
   fields.paymentStatus.value = card.payment_status || (card.billing_type === "free" ? "free" : "unpaid");
-  fields.startDate.value = dateInputValue(card.starts_at);
-  fields.endDate.value = dateInputValue(card.paid_until);
+  fields.startDate.value = dateFieldValue(card.starts_at);
+  fields.endDate.value = dateFieldValue(card.paid_until);
   fields.renewalAmount.value = card.renewal_amount_pence ? (Number(card.renewal_amount_pence) / 100).toFixed(0) : "";
   fields.renewalLink.value = card.renewal_payment_link_url || "";
   fields.memo.value = card.internal_memo || "";
