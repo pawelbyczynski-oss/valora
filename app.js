@@ -232,6 +232,7 @@ const premium = {
   adminSendEmailPreview: document.querySelector("#adminSendEmailPreview"),
   adminSendEmailPreviewBox: document.querySelector("#adminSendEmailPreviewBox"),
   adminSendEmailMessage: document.querySelector("#adminSendEmailMessage"),
+  adminEmailLogList: document.querySelector("#adminEmailLogList"),
   adminPricingForm: document.querySelector("#adminPricingForm"),
   adminPremiumDisplayPrice: document.querySelector("#adminPremiumDisplayPrice"),
   adminPremiumPricePence: document.querySelector("#adminPremiumPricePence"),
@@ -3655,6 +3656,31 @@ function renderAdminPromos(promos = []) {
   );
 }
 
+function renderEmailSendLogs(logs = []) {
+  if (!premium.adminEmailLogList) return;
+
+  if (!logs.length) {
+    premium.adminEmailLogList.innerHTML = `<div class="admin-row muted-row">No email sends yet</div>`;
+    return;
+  }
+
+  premium.adminEmailLogList.replaceChildren(
+    ...logs.map((log) => {
+      const row = document.createElement("div");
+      row.className = `admin-row email-log-row status-${escapeHtml(log.status || "unknown")}`;
+      const detail = log.error_message || log.subject || "-";
+      row.innerHTML = `
+        <div><span>When</span><strong>${escapeHtml(log.created || "-")}</strong></div>
+        <div><span>Recipient</span><strong>${escapeHtml(log.recipient_email || "-")}</strong></div>
+        <div><span>Scope</span><strong>${escapeHtml(log.recipient_scope || "single")}</strong></div>
+        <div><span>Status</span><strong>${escapeHtml(log.status || "-")}</strong></div>
+        <div class="wide-admin-cell"><span>Subject / error</span><strong>${escapeHtml(detail)}</strong></div>
+      `;
+      return row;
+    }),
+  );
+}
+
 function marketingFormFields(kind) {
   const prefix = kind === "sponsor" ? "adminSponsor" : "adminPartner";
   return {
@@ -4082,6 +4108,7 @@ async function loadAdminOverview() {
   renderAdminMarketingRows("partner", data.marketing_cards?.filter((card) => card.kind === "partner") || []);
   renderAdminMarketingRows("sponsor", data.marketing_cards?.filter((card) => card.kind === "sponsor") || []);
   renderEmailTemplates(data.email_templates || []);
+  renderEmailSendLogs(data.email_send_logs || []);
   applyPlanSettings(data.plan_settings || {});
   fillPricingForm(planSettings);
   return true;
@@ -4264,6 +4291,7 @@ async function sendTemplateTestEmail() {
   });
   premium.adminEmailTemplateMessage.textContent =
     error || !data?.success ? error?.message || data?.message || "Could not send test email." : "Test email sent.";
+  if (data?.success) await loadAdminOverview();
 }
 
 async function sendAdminEmail() {
@@ -4289,6 +4317,7 @@ async function sendAdminEmail() {
   });
   premium.adminSendEmailMessage.textContent =
     error || !data?.success ? error?.message || data?.message || "Could not send email." : `Email queued/sent to ${data.sent || 0} recipient(s).`;
+  if (data?.success) await loadAdminOverview();
 }
 
 async function savePricingSettings() {

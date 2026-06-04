@@ -216,6 +216,11 @@ Deno.serve(async (request) => {
         .from("email_templates")
         .select("*")
         .order("name", { ascending: true });
+      const { data: emailSendLogs } = await supabaseAdmin
+        .from("email_send_logs")
+        .select("recipient_email,recipient_scope,subject,status,error_message,created_at")
+        .order("created_at", { ascending: false })
+        .limit(20);
       const { data: planSettings } = await supabaseAdmin
         .from("app_settings")
         .select("setting_value")
@@ -269,6 +274,14 @@ Deno.serve(async (request) => {
         promo_codes: promoCodes || [],
         marketing_cards: marketingCards || [],
         email_templates: emailTemplates || [],
+        email_send_logs: (emailSendLogs || []).map((log) => ({
+          recipient_email: log.recipient_email,
+          recipient_scope: log.recipient_scope,
+          subject: log.subject,
+          status: log.status,
+          error_message: log.error_message,
+          created: eventLabel(log.created_at),
+        })),
         plan_settings: planSettings?.setting_value || {},
         recent_users: (recentProfiles || []).map((profile) => {
           const subscription = subscriptionByUser.get(profile.id);

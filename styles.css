@@ -1526,6 +1526,22 @@ select {
   min-width: 0;
 }
 
+.admin-row .wide-admin-cell {
+  grid-column: 1 / -1;
+}
+
+.email-log-row.status-sent {
+  border-left: 4px solid var(--teal);
+}
+
+.email-log-row.status-failed {
+  border-left: 4px solid var(--danger);
+}
+
+.compact-heading {
+  margin-top: 18px;
+}
+
 .marketing-admin-form textarea {
   min-height: 78px;
   resize: vertical;
