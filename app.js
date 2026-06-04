@@ -1254,6 +1254,26 @@ function currentTenancyRent(tenancy) {
   return tenancyRentForDate(tenancy, new Date().toISOString().slice(0, 10));
 }
 
+function tenancyRange(tenancy) {
+  const start = dateFromInput(tenancy.startDate);
+  const end = dateFromInput(tenancy.endDate);
+  return {
+    start: start ? start.getTime() : null,
+    end: end ? end.getTime() : Number.POSITIVE_INFINITY,
+  };
+}
+
+function overlappingTenancy(property, candidateTenancy) {
+  const candidate = tenancyRange(candidateTenancy);
+  if (candidate.start === null) return null;
+  return (property.tenancies || []).find((tenancy) => {
+    if (tenancy.id === candidateTenancy.id) return false;
+    const existing = tenancyRange(tenancy);
+    if (existing.start === null) return false;
+    return candidate.start <= existing.end && candidate.end >= existing.start;
+  }) || null;
+}
+
 function tenancyRentDueDates(property, tenancy) {
   const startDate = dateFromInput(tenancy.startDate);
   if (!startDate) return [];
@@ -7357,6 +7377,12 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
       documents: files,
     };
     tenancy = normalizeTenancyRecord(tenancy);
+    const conflict = overlappingTenancy(property, tenancy);
+    if (conflict) {
+      premium.tenancyMessage.textContent =
+        `These dates overlap with ${conflict.tenantName || "another tenancy"} (${formatDate(conflict.startDate)} to ${formatDate(conflict.endDate)}). End the existing tenancy first or choose different dates.`;
+      return;
+    }
 
     if (editingTenancyId) {
       const index = (property.tenancies || []).findIndex((item) => item.id === editingTenancyId);
