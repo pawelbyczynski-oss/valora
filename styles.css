@@ -1558,6 +1558,7 @@ select {
   display: grid;
   gap: 8px;
   align-content: start;
+  grid-column: 1 / -1;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
@@ -1574,10 +1575,22 @@ select {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: fit-content;
   min-height: auto;
   padding: 0;
   border: 0;
   background: transparent;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.checkbox-group input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  min-height: auto;
+  padding: 0;
+  accent-color: var(--green);
 }
 
 .marketing-admin-row {
