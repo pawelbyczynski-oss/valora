@@ -678,8 +678,8 @@ select {
 .calculator-partners {
   grid-column: 1 / -1;
   display: grid;
-  gap: 14px;
-  padding: 20px;
+  gap: 18px;
+  padding: 20px 24px 22px;
 }
 
 .calculator-partners[hidden] {
@@ -694,6 +694,12 @@ select {
 .sponsor-slot[hidden],
 .partners-heading[hidden] {
   display: none;
+}
+
+.partners-heading {
+  max-width: 760px;
+  margin: 0 auto;
+  text-align: center;
 }
 
 .marketing-card {
@@ -711,12 +717,13 @@ select {
   max-width: 760px;
   grid-template-columns: minmax(0, 0.32fr) minmax(0, 1fr);
   align-items: center;
+  padding: 14px;
 }
 
 .marketing-card-media {
   display: grid;
   place-items: center;
-  min-height: 96px;
+  min-height: 90px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
@@ -766,7 +773,7 @@ select {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 300px));
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .premium-shell {
