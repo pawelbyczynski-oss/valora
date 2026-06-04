@@ -3767,7 +3767,7 @@ function renderAdminMarketingRows(kind, rows = []) {
 }
 
 function marketingCardMarkup(card, sponsor = false) {
-  const image = card.logo_url || card.asset_url;
+  const image = sponsor ? card.asset_url || card.logo_url : card.logo_url || card.asset_url;
   const badge = sponsor ? "Sponsored" : card.category || "Partner";
   const title = card.headline || card.name;
   const description = card.description || card.category || "";
