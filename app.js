@@ -204,6 +204,7 @@ const premium = {
   adminSponsorList: document.querySelector("#adminSponsorList"),
   adminSponsorMessage: document.querySelector("#adminSponsorMessage"),
   adminEmailTemplateForm: document.querySelector("#adminEmailTemplateForm"),
+  adminEmailTemplateEditor: document.querySelector("#adminEmailTemplateEditor"),
   adminEmailTemplateId: document.querySelector("#adminEmailTemplateId"),
   adminEmailTemplateSelect: document.querySelector("#adminEmailTemplateSelect"),
   adminEmailTemplateKey: document.querySelector("#adminEmailTemplateKey"),
@@ -3866,6 +3867,14 @@ function defaultTemplateVariables() {
     property_reference: premium.adminSendEmailProperty?.value || "Flat 1 / Hawkhill",
     rent_amount: "£1,000",
     due_date: new Date().toISOString().slice(0, 10),
+    effective_date: new Date().toISOString().slice(0, 10),
+    change_summary: "We clarified how PropertyPanel works and how your data is handled.",
+    terms_url: "https://valora-property-os.vercel.app/terms.html",
+    privacy_url: "https://valora-property-os.vercel.app/privacy.html",
+    feature_name: "Portfolio calendar",
+    feature_summary: "You can now see rent, mortgage, tenancy and document dates in one clear calendar.",
+    available_from: new Date().toISOString().slice(0, 10),
+    app_url: "https://valora-property-os.vercel.app",
     plan_name: selectedPlan === "pro" ? "Pro" : "Premium",
     document_name: "Gas safety certificate",
     tenant_name: "Tenant",
@@ -3917,7 +3926,10 @@ function renderEmailTemplates(templates = []) {
   const options = templates.map((template) =>
     `<option value="${escapeHtml(template.template_key)}">${escapeHtml(template.name)}</option>`,
   ).join("");
-  if (premium.adminEmailTemplateSelect) premium.adminEmailTemplateSelect.innerHTML = options;
+  if (premium.adminEmailTemplateSelect) {
+    premium.adminEmailTemplateSelect.innerHTML = `<option value="">Choose a template...</option>${options}`;
+    premium.adminEmailTemplateSelect.value = "";
+  }
   if (premium.adminSendEmailTemplate) premium.adminSendEmailTemplate.innerHTML = `<option value="">Custom email</option>${options}`;
   renderAdminTable(premium.adminEmailTemplateList, templates, [
     ["Template", "name"],
@@ -3925,12 +3937,18 @@ function renderEmailTemplates(templates = []) {
     ["From", "from_email"],
     ["Active", "active"],
   ]);
-  if (templates.length) selectEmailTemplate(templates[0].template_key);
+  if (premium.adminEmailTemplateEditor) premium.adminEmailTemplateEditor.hidden = true;
+  if (premium.adminEmailTemplateDescription) {
+    premium.adminEmailTemplateDescription.textContent = templates.length
+      ? "Choose a template from the list, or create a new one."
+      : "No templates found. Create a new one.";
+  }
 }
 
 function selectEmailTemplate(templateKey) {
   const template = emailTemplates.find((item) => item.template_key === templateKey);
   if (!template || !premium.adminEmailTemplateForm) return;
+  if (premium.adminEmailTemplateEditor) premium.adminEmailTemplateEditor.hidden = false;
   premium.adminEmailTemplateId.value = template.id || "";
   premium.adminEmailTemplateKey.value = template.template_key || "";
   premium.adminEmailTemplateSelect.value = template.template_key;
@@ -3944,6 +3962,8 @@ function selectEmailTemplate(templateKey) {
 }
 
 function newEmailTemplate() {
+  if (premium.adminEmailTemplateEditor) premium.adminEmailTemplateEditor.hidden = false;
+  if (premium.adminEmailTemplateSelect) premium.adminEmailTemplateSelect.value = "";
   premium.adminEmailTemplateId.value = "";
   premium.adminEmailTemplateKey.value = "";
   premium.adminEmailTemplateDescription.textContent = "Create a new reusable template.";
@@ -4190,6 +4210,14 @@ async function saveEmailTemplate() {
   if (!supabaseClient) return;
   const from = splitFromAddress(premium.adminEmailTemplateFrom.value);
   const templateKey = premium.adminEmailTemplateKey.value.trim() || premium.adminEmailTemplateSelect.value;
+  if (!templateKey) {
+    premium.adminEmailTemplateMessage.textContent = "Choose a template or enter a template key.";
+    return;
+  }
+  if (!premium.adminEmailTemplateSubject.value.trim() || !premium.adminEmailTemplateBody.value.trim()) {
+    premium.adminEmailTemplateMessage.textContent = "Subject and body are required.";
+    return;
+  }
   premium.adminEmailTemplateMessage.textContent = "Saving template...";
   const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
     body: {

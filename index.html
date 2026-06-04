@@ -1208,45 +1208,49 @@
               <select id="adminEmailTemplateSelect"></select>
               <small class="field-hint" id="adminEmailTemplateDescription">Choose a template to edit.</small>
             </label>
-            <label>
-              <span>Template key</span>
-              <input id="adminEmailTemplateKey" placeholder="welcome_email" />
-              <small class="field-hint">Use lowercase letters, numbers and underscores for new templates.</small>
-            </label>
-            <label>
-              <span>From</span>
-              <input id="adminEmailTemplateFrom" placeholder="PropertyPanel <noreply@propertypanel.co.uk>" />
-            </label>
-            <label>
-              <span>Subject</span>
-              <input id="adminEmailTemplateSubject" required />
-            </label>
-            <label>
-              <span>Active</span>
-              <select id="adminEmailTemplateActive">
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
-              </select>
-            </label>
-            <label class="wide-field">
-              <span>HTML body</span>
-              <textarea id="adminEmailTemplateBody" rows="10" required></textarea>
-              <small class="field-hint" id="adminEmailTemplateVariables">Variables appear here.</small>
-            </label>
-            <div class="email-template-preview wide-field">
-              <span>Preview</span>
-              <div id="adminEmailTemplatePreview"></div>
-            </div>
-            <label>
-              <span>Send test to</span>
-              <input id="adminEmailTemplateTestTo" type="email" placeholder="you@propertypanel.co.uk" />
-            </label>
             <div class="admin-form-actions">
-              <button class="tax-button" type="submit">Save template</button>
               <button class="secondary-button" id="adminEmailTemplateNew" type="button">New template</button>
-              <button class="secondary-button" id="adminEmailTemplateTest" type="button">Send test</button>
             </div>
-            <p class="field-hint" id="adminEmailTemplateMessage">Use variables like {{first_name}}, {{property_reference}} and {{due_date}}.</p>
+            <div class="email-template-editor" id="adminEmailTemplateEditor" hidden>
+              <label>
+                <span>Template key</span>
+                <input id="adminEmailTemplateKey" placeholder="welcome_email" />
+                <small class="field-hint">Use lowercase letters, numbers and underscores for new templates.</small>
+              </label>
+              <label>
+                <span>From</span>
+                <input id="adminEmailTemplateFrom" placeholder="PropertyPanel <noreply@propertypanel.co.uk>" />
+              </label>
+              <label>
+                <span>Subject</span>
+                <input id="adminEmailTemplateSubject" required />
+              </label>
+              <label>
+                <span>Active</span>
+                <select id="adminEmailTemplateActive">
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </select>
+              </label>
+              <label class="wide-field">
+                <span>HTML body</span>
+                <textarea id="adminEmailTemplateBody" rows="10" required></textarea>
+                <small class="field-hint" id="adminEmailTemplateVariables">Variables appear here.</small>
+              </label>
+              <div class="email-template-preview wide-field">
+                <span>Preview</span>
+                <div id="adminEmailTemplatePreview"></div>
+              </div>
+              <label>
+                <span>Send test to</span>
+                <input id="adminEmailTemplateTestTo" type="email" placeholder="you@propertypanel.co.uk" />
+              </label>
+              <div class="admin-form-actions">
+                <button class="tax-button" type="submit">Save template</button>
+                <button class="secondary-button" id="adminEmailTemplateTest" type="button">Send test</button>
+              </div>
+              <p class="field-hint" id="adminEmailTemplateMessage">Use variables like {{first_name}}, {{property_reference}} and {{due_date}}.</p>
+            </div>
           </form>
           <div class="admin-table" id="adminEmailTemplateList"></div>
         </section>

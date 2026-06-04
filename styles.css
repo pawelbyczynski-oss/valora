@@ -1540,6 +1540,17 @@ select {
   resize: vertical;
 }
 
+.email-template-editor {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.email-template-editor .wide-field {
+  grid-column: 1 / -1;
+}
+
 .email-template-preview {
   display: grid;
   gap: 8px;
@@ -3354,6 +3365,7 @@ li {
   .landlord-report-metrics,
   .admin-metrics,
   .admin-form,
+  .email-template-editor,
   .admin-row,
   .marketing-admin-row,
   .promo-table .admin-row,
