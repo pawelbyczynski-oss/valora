@@ -737,7 +737,7 @@ select {
 }
 
 .sponsor-card .marketing-card-media {
-  min-height: 180px;
+  min-height: 90px;
 }
 
 .sponsor-card .marketing-card-media img {
