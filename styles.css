@@ -150,6 +150,21 @@ select {
   border-radius: 12px;
 }
 
+.brand-home-button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.brand-home-button:hover .brand-name,
+.brand-home-button:focus-visible .brand-name {
+  color: var(--mint);
+}
+
 .nav-actions {
   display: flex;
   gap: 8px;

@@ -21,13 +21,13 @@
       <p>Loading your workspace...</p>
     </div>
     <nav class="app-nav" aria-label="PropertyPanel navigation">
-      <div class="brand-lockup compact-brand">
+      <button class="brand-lockup compact-brand brand-home-button" id="brandHomeButton" type="button" aria-label="Open PropertyPanel home">
         <img src="property-panel-logo.svg" alt="PropertyPanel logo" />
         <div>
           <p class="brand-name">PropertyPanel</p>
           <p class="brand-line">Your property, organised.</p>
         </div>
-      </div>
+      </button>
       <div class="nav-actions">
         <button class="nav-button active" type="button" data-view="homeView">Calculator</button>
         <button class="nav-button" type="button" data-view="premiumView">Plans</button>
@@ -1787,7 +1787,7 @@
             </label>
             <label>
               <span>Tenant phone</span>
-              <input id="detailTenantPhone" placeholder="Phone number" />
+              <input id="detailTenantPhone" inputmode="tel" maxlength="24" placeholder="Phone number" />
             </label>
             <label>
               <span>Tenant email</span>
@@ -1813,7 +1813,7 @@
             </label>
             <label>
               <span>Guarantor phone</span>
-              <input id="detailGuarantorPhone" placeholder="Phone number" />
+              <input id="detailGuarantorPhone" inputmode="tel" maxlength="24" placeholder="Phone number" />
             </label>
             <label>
               <span>Guarantor email</span>

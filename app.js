@@ -54,6 +54,7 @@ const premium = {
   appLoadingScreen: document.querySelector("#appLoadingScreen"),
   navButtons: document.querySelectorAll(".nav-button"),
   sidebarItems: document.querySelectorAll("[data-sidebar-target]"),
+  brandHomeButton: document.querySelector("#brandHomeButton"),
   navAuthButton: document.querySelector("#navAuthButton"),
   premiumHero: document.querySelector(".premium-hero"),
   showLogin: document.querySelector("#showLogin"),
@@ -690,6 +691,15 @@ function installStrictPropertyNumberInputs() {
   });
 }
 
+function installContactInputLimits() {
+  [premium.detailTenantPhone, premium.detailGuarantorPhone].forEach((input) => {
+    input?.addEventListener("input", () => {
+      const cleaned = sanitizePhoneValue(input.value);
+      if (input.value !== cleaned) input.value = cleaned;
+    });
+  });
+}
+
 function daysUntil(dateString) {
   const today = new Date();
   const target = new Date(`${dateString}T12:00:00`);
@@ -1111,7 +1121,7 @@ function parsePropertyNotes(notes) {
 }
 
 function contactFromTenant(tenant) {
-  return [tenant.phone, tenant.email].filter(Boolean).join(" / ");
+  return [sanitizePhoneValue(tenant.phone), tenant.email].filter(Boolean).join(" / ");
 }
 
 function primaryTenant(tenancy) {
@@ -1152,6 +1162,22 @@ function normalizeTenantRecord(tenant = {}) {
     email: tenant.email || "",
     previousAddress: tenant.previousAddress || "",
   };
+}
+
+function sanitizePhoneValue(value = "") {
+  return String(value || "")
+    .replace(/[^\d+\-()\s]/g, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 24)
+    .trimStart();
+}
+
+function sortTenanciesChronologically(tenancies = []) {
+  return [...tenancies].sort((a, b) => {
+    const startCompare = String(a.startDate || "").localeCompare(String(b.startDate || ""));
+    if (startCompare) return startCompare;
+    return String(a.endDate || "").localeCompare(String(b.endDate || ""));
+  });
 }
 
 function normalizeTenancyRecord(tenancy = {}) {
@@ -1345,6 +1371,10 @@ function transactionTenancyId(transaction) {
 function tenancyRentTransactions(tenancyId) {
   return transactions
     .filter((transaction) => transactionTenancyId(transaction) === tenancyId)
+    .map((transaction) => {
+      if (!transaction.status) transaction.status = "draft";
+      return transaction;
+    })
     .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 }
 
@@ -1370,10 +1400,11 @@ function tenancyRange(tenancy) {
 function overlappingTenancy(property, candidateTenancy) {
   const candidate = tenancyRange(candidateTenancy);
   if (candidate.start === null) return null;
-  return (property.tenancies || []).find((tenancy) => {
+  return sortTenanciesChronologically(property.tenancies || []).find((tenancy) => {
     if (tenancy.id === candidateTenancy.id) return false;
     const existing = tenancyRange(tenancy);
     if (existing.start === null) return false;
+    if (!tenancy.tenantName && !Number(tenancy.rent || 0) && !tenancy.endDate) return false;
     return candidate.start <= existing.end && candidate.end >= existing.start;
   }) || null;
 }
@@ -1438,7 +1469,7 @@ async function syncTenancyRentSchedule(property, tenancy) {
     const scheduledTransaction = buildTenancyRentTransaction(property, tenancy, dueDate, existingTransaction);
     const canRefreshExisting =
       existingTransaction &&
-      existingTransaction.status !== "approved" &&
+      (existingTransaction.status || "draft") !== "approved" &&
       existingTransaction.date >= new Date().toISOString().slice(0, 10);
     if (canRefreshExisting) {
       Object.assign(existingTransaction, scheduledTransaction);
@@ -1452,7 +1483,7 @@ async function syncTenancyRentSchedule(property, tenancy) {
 
   const today = new Date().toISOString().slice(0, 10);
   const transactionsToDelete = existingTransactions.filter(
-    (transaction) => !dueDateSet.has(transaction.date) && transaction.status !== "approved" && transaction.date >= today,
+    (transaction) => !dueDateSet.has(transaction.date) && (transaction.status || "draft") !== "approved" && transaction.date >= today,
   );
   for (const transaction of transactionsToDelete) {
     await deleteTransactionFromSupabase(transaction.id);
@@ -1466,7 +1497,7 @@ async function syncTenancyRentSchedule(property, tenancy) {
 async function deleteTenancyRentSchedule(tenancyId) {
   const today = new Date().toISOString().slice(0, 10);
   const linkedTransactions = tenancyRentTransactions(tenancyId).filter(
-    (transaction) => transaction.status !== "approved" && transaction.date >= today,
+    (transaction) => (transaction.status || "draft") !== "approved" && transaction.date >= today,
   );
   for (const transaction of linkedTransactions) {
     await deleteTransactionFromSupabase(transaction.id);
@@ -2514,7 +2545,7 @@ function updateDetailOperatorFieldsVisibility() {
 function tenantFromFormFields() {
   return normalizeTenantRecord({
     name: premium.detailTenantName.value.trim(),
-    phone: premium.detailTenantPhone.value.trim(),
+    phone: sanitizePhoneValue(premium.detailTenantPhone.value),
     email: premium.detailTenantEmail.value.trim(),
     previousAddress: premium.detailTenantPreviousAddress.value.trim(),
   });
@@ -2716,7 +2747,7 @@ function renderPropertyDetail() {
   `;
 
   premium.tenancyHistoryList.replaceChildren(
-    ...((property.tenancies || []).map((tenancy) => {
+    ...(sortTenanciesChronologically(property.tenancies || []).map((tenancy) => {
       const row = document.createElement("div");
       row.className = "detail-row";
       const tenants = (tenancy.tenants || []).length ? tenancy.tenants : [primaryTenant(tenancy)];
@@ -2748,17 +2779,20 @@ function renderPropertyDetail() {
             <span>Rent payment schedule</span>
             ${rentTransactions
               .map(
-                (transaction) => `
+                (transaction) => {
+                  const transactionStatus = transaction.status || "draft";
+                  return `
                   <div class="tenancy-rent-row">
                     <strong>${formatDate(transaction.date)}</strong>
-                    <span>${money.format(transaction.amount)} · ${escapeHtml(transaction.status)}</span>
+                    <span>${money.format(transaction.amount)} · ${escapeHtml(transactionStatus)}</span>
                     <div class="detail-actions">
-                      ${transaction.status !== "approved" ? `<button class="tax-button small-button" type="button" data-approve-tenancy-rent="${transaction.id}">Mark paid</button>` : ""}
+                      ${transactionStatus !== "approved" ? `<button class="tax-button small-button" type="button" data-approve-tenancy-rent="${transaction.id}">Mark paid</button>` : ""}
                       <button class="secondary-button small-button" type="button" data-edit-tenancy-rent="${transaction.id}">Edit</button>
                       <button class="secondary-button small-button danger-button" type="button" data-delete-tenancy-rent="${transaction.id}">Delete</button>
                     </div>
                   </div>
-                `,
+                `;
+                },
               )
               .join("")}
           </div>
@@ -3364,6 +3398,15 @@ function switchView(viewId) {
   premium.views.forEach((view) => view.classList.toggle("active", view.id === viewId));
   premium.navButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === viewId));
   saveUiState({ viewId });
+}
+
+function openHomeView() {
+  premium.propertyModal.hidden = true;
+  premium.propertyDetailView.hidden = true;
+  premium.propertyDetailPanel.hidden = true;
+  premium.dashboardPanel.hidden = true;
+  switchView("homeView");
+  saveUiState({ viewId: "homeView" });
 }
 
 function updateDashboardWelcome(displayName = "") {
@@ -6852,6 +6895,8 @@ premium.navButtons.forEach((button) => {
   });
 });
 
+premium.brandHomeButton?.addEventListener("click", openHomeView);
+
 premium.sidebarItems.forEach((button) => {
   button.addEventListener("click", async () => {
     premium.sidebarItems.forEach((item) => item.classList.toggle("active", item === button));
@@ -7233,6 +7278,7 @@ premium.deletePortfolioData.addEventListener("click", deletePortfolioData);
 premium.deleteAccount?.addEventListener("click", deleteAccount);
 premium.accountImportForm?.addEventListener("submit", importAccountData);
 installStrictPropertyNumberInputs();
+installContactInputLimits();
 
 premium.openPropertyModal.addEventListener("click", () => {
   openPropertyForm();
@@ -7736,11 +7782,11 @@ premium.tenancyHistoryList.addEventListener("click", async (event) => {
     const leadTenant = tenants[0] || normalizeTenantRecord();
     tenancyTenantDrafts = tenants.slice(1).map(normalizeTenantRecord);
     premium.detailTenantName.value = leadTenant.name || "";
-    premium.detailTenantPhone.value = leadTenant.phone || "";
+    premium.detailTenantPhone.value = sanitizePhoneValue(leadTenant.phone || "");
     premium.detailTenantEmail.value = leadTenant.email || "";
     premium.detailTenantPreviousAddress.value = leadTenant.previousAddress || "";
     premium.detailGuarantorName.value = tenancy.guarantor?.name || "";
-    premium.detailGuarantorPhone.value = tenancy.guarantor?.phone || "";
+    premium.detailGuarantorPhone.value = sanitizePhoneValue(tenancy.guarantor?.phone || "");
     premium.detailGuarantorEmail.value = tenancy.guarantor?.email || "";
     document.querySelector("#detailTenancyStart").value = tenancy.startDate || "";
     document.querySelector("#detailTenancyEnd").value = tenancy.endDate || "";
@@ -7832,9 +7878,17 @@ premium.tenancyHistoryList.addEventListener("submit", async (event) => {
   if (!property || !tenancy) return;
 
   const effectiveDate = form.elements.effectiveDate.value;
-  const rent = Number(form.elements.monthlyRent.value) || 0;
-  if (!effectiveDate || !rent) {
-    premium.tenancyMessage.textContent = "Choose the effective date and enter the new monthly rent.";
+  let rent = 0;
+  clearFieldError(form.elements.monthlyRent);
+  if (!effectiveDate) {
+    premium.tenancyMessage.textContent = "Choose the effective date for the rent change.";
+    return;
+  }
+  try {
+    rent = decimalInputValue(form.elements.monthlyRent, "Monthly rent", { required: true, min: 0.01 });
+  } catch (error) {
+    showFieldError(form.elements.monthlyRent, error.message);
+    premium.tenancyMessage.textContent = error.message;
     return;
   }
 
@@ -7968,7 +8022,7 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
       tenants,
       guarantor: {
         name: premium.detailGuarantorName.value.trim(),
-        phone: premium.detailGuarantorPhone.value.trim(),
+        phone: sanitizePhoneValue(premium.detailGuarantorPhone.value),
         email: premium.detailGuarantorEmail.value.trim(),
       },
       startDate: validatedTenancy.startDate,
@@ -7981,6 +8035,7 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
     if (conflict) {
       premium.tenancyMessage.textContent =
         `These dates overlap with ${conflict.tenantName || "another tenancy"} (${formatDate(conflict.startDate)} to ${formatDate(conflict.endDate)}). End the existing tenancy first or choose different dates.`;
+      setButtonBusy(submitButton, false);
       return;
     }
 
