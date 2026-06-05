@@ -3274,6 +3274,46 @@ select[aria-invalid="true"] {
   box-shadow: var(--shadow);
 }
 
+.property-modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(820px, 100%);
+  height: min(760px, calc(100vh - 36px));
+  max-height: calc(100vh - 36px);
+  overflow: hidden;
+  padding: 0;
+}
+
+.property-modal .modal-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin-bottom: 0;
+  padding: 20px 20px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.property-modal .property-form {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  padding: 18px 20px 20px;
+  scrollbar-gutter: stable;
+}
+
+.property-modal .property-form::-webkit-scrollbar {
+  width: 10px;
+}
+
+.property-modal .property-form::-webkit-scrollbar-thumb {
+  border: 3px solid var(--panel);
+  border-radius: 999px;
+  background: rgba(102, 112, 133, 0.42);
+}
+
 .modal-head {
   display: flex;
   align-items: start;
