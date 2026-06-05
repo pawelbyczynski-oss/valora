@@ -2676,8 +2676,35 @@ select {
 }
 
 .danger-button {
-  border-color: rgba(216, 63, 63, 0.42);
+  border: 1px solid rgba(216, 38, 38, 0.42);
+  background: #fffafa;
   color: var(--red);
+  box-shadow: none;
+}
+
+.danger-button:hover,
+.danger-button:focus-visible {
+  border-color: rgba(216, 38, 38, 0.78);
+  background: #fff1f1;
+  color: #b91c1c;
+}
+
+.danger-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+:root[data-theme="dark"] .danger-button {
+  border-color: rgba(248, 113, 113, 0.42);
+  background: rgba(127, 29, 29, 0.18);
+  color: var(--red);
+}
+
+:root[data-theme="dark"] .danger-button:hover,
+:root[data-theme="dark"] .danger-button:focus-visible {
+  border-color: rgba(248, 113, 113, 0.72);
+  background: rgba(127, 29, 29, 0.32);
+  color: #fecaca;
 }
 
 .topbar {
