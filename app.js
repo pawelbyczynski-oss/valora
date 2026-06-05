@@ -664,12 +664,15 @@ function readPropertyDecimal(selector, label, options = {}) {
 }
 
 function installStrictPropertyNumberInputs() {
-  premium.propertyForm?.querySelectorAll("input, select").forEach((input) => {
+  [premium.propertyForm, premium.tenancyForm].forEach((form) => form?.querySelectorAll("input, select").forEach((input) => {
     input.addEventListener("input", () => clearFieldError(input));
     input.addEventListener("change", () => clearFieldError(input));
-  });
-  const numericInputs = premium.propertyForm?.querySelectorAll("input[type='number']");
-  numericInputs?.forEach((input) => {
+  }));
+  const numericInputs = [
+    ...(premium.propertyForm?.querySelectorAll("input[type='number']") || []),
+    ...(premium.tenancyForm?.querySelectorAll("input[type='number']") || []),
+  ];
+  numericInputs.forEach((input) => {
     input.addEventListener("keydown", (event) => {
       if (["e", "E", "+", "-"].includes(event.key)) {
         event.preventDefault();
@@ -2561,8 +2564,51 @@ function resetTenancyForm() {
   editingTenancyId = null;
   tenancyTenantDrafts = [];
   premium.tenancyForm.reset();
+  premium.tenancyForm.querySelectorAll("[aria-invalid='true']").forEach(clearFieldError);
+  premium.tenancyForm.querySelectorAll(".field-error").forEach((item) => item.remove());
   renderTenantDrafts();
   premium.tenancyForm.querySelector("button[type='submit']").textContent = "Save tenancy record";
+}
+
+function validateTenancyFormFields() {
+  const tenantName = premium.detailTenantName.value.trim();
+  const startDate = document.querySelector("#detailTenancyStart").value;
+  const endDate = document.querySelector("#detailTenancyEnd").value;
+  const rentInput = document.querySelector("#detailTenancyRent");
+
+  [
+    premium.detailTenantName,
+    document.querySelector("#detailTenancyStart"),
+    document.querySelector("#detailTenancyEnd"),
+    rentInput,
+  ].forEach(clearFieldError);
+
+  let rent = 0;
+  try {
+    rent = decimalInputValue(rentInput, "Monthly rent", { required: true, min: 0.01 });
+  } catch (error) {
+    showFieldError(rentInput, error.message);
+    throw error;
+  }
+
+  if (!tenantName) {
+    showFieldError(premium.detailTenantName, "Tenant name is required.");
+    throw new Error("Tenant name is required.");
+  }
+  if (!startDate) {
+    showFieldError(document.querySelector("#detailTenancyStart"), "Tenancy start date is required.");
+    throw new Error("Tenancy start date is required.");
+  }
+  if (!endDate) {
+    showFieldError(document.querySelector("#detailTenancyEnd"), "Move-out date is required.");
+    throw new Error("Move-out date is required.");
+  }
+  if (new Date(`${endDate}T12:00:00`) < new Date(`${startDate}T12:00:00`)) {
+    showFieldError(document.querySelector("#detailTenancyEnd"), "Move-out date must be after the start date.");
+    throw new Error("Move-out date must be after the tenancy start date.");
+  }
+
+  return { tenantName, startDate, endDate, rent };
 }
 
 function resetRemortgageForm() {
@@ -7896,6 +7942,16 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
   const property = activeProperty();
   if (!property) return;
   const submitButton = premium.tenancyForm.querySelector("button[type='submit']");
+
+  let validatedTenancy;
+  try {
+    validatedTenancy = validateTenancyFormFields();
+  } catch (error) {
+    premium.tenancyMessage.textContent = error?.message || "Check the highlighted tenancy fields.";
+    premium.tenancyForm.querySelector("[aria-invalid='true']")?.focus();
+    return;
+  }
+
   setButtonBusy(submitButton, true, editingTenancyId ? "Updating..." : "Saving...");
   premium.tenancyMessage.textContent = editingTenancyId
     ? "Updating tenancy and rent payment schedule..."
@@ -7915,9 +7971,9 @@ premium.tenancyForm.addEventListener("submit", async (event) => {
         phone: premium.detailGuarantorPhone.value.trim(),
         email: premium.detailGuarantorEmail.value.trim(),
       },
-      startDate: document.querySelector("#detailTenancyStart").value,
-      endDate: document.querySelector("#detailTenancyEnd").value,
-      rent: Number(document.querySelector("#detailTenancyRent").value) || 0,
+      startDate: validatedTenancy.startDate,
+      endDate: validatedTenancy.endDate,
+      rent: validatedTenancy.rent,
       documents: files,
     };
     tenancy = normalizeTenancyRecord(tenancy);

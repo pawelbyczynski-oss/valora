@@ -1783,7 +1783,7 @@
           <form class="property-form compact-form" id="tenancyForm">
             <label>
               <span>Tenant name</span>
-              <input id="detailTenantName" placeholder="Tenant name" />
+              <input id="detailTenantName" placeholder="Tenant name" required />
             </label>
             <label>
               <span>Tenant phone</span>
@@ -1821,15 +1821,15 @@
             </label>
             <label>
               <span>Tenancy start</span>
-              <input id="detailTenancyStart" type="date" />
+              <input id="detailTenancyStart" type="date" required />
             </label>
             <label>
               <span>Move-out date</span>
-              <input id="detailTenancyEnd" type="date" />
+              <input id="detailTenancyEnd" type="date" required />
             </label>
             <label>
               <span>Monthly rent</span>
-              <input id="detailTenancyRent" type="number" step="25" />
+              <input id="detailTenancyRent" type="number" min="0.01" step="25" required />
             </label>
             <label>
               <span>Contract files</span>

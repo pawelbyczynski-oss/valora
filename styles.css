@@ -2315,7 +2315,7 @@ select {
 
 .rent-change-row {
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) minmax(90px, auto) auto;
+  grid-template-columns: minmax(120px, 1fr) minmax(80px, auto) minmax(76px, auto);
   gap: 8px;
   align-items: center;
   padding-top: 6px;
@@ -2717,12 +2717,16 @@ select {
 
 .detail-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: end;
+  min-width: 0;
 }
 
 .detail-actions .small-button {
+  flex: 0 1 auto;
   min-height: 36px;
+  max-width: 100%;
   padding: 0 10px;
 }
 
@@ -3651,6 +3655,24 @@ li {
 
   .tenancy-rent-row {
     grid-template-columns: 1fr;
+  }
+
+  .detail-actions,
+  .tenancy-rent-row .detail-actions {
+    justify-content: flex-start;
+  }
+
+  .detail-actions .small-button,
+  .tenancy-rent-row .detail-actions .small-button {
+    flex: 1 1 120px;
+  }
+
+  .rent-change-row {
+    grid-template-columns: 1fr;
+  }
+
+  .rent-change-row .small-button {
+    width: 100%;
   }
 
   .tenancy-rent-change-form {
