@@ -970,6 +970,7 @@ select {
 :root[data-theme="dark"] .promo-form,
 :root[data-theme="dark"] .account-password-form,
 :root[data-theme="dark"] .account-privacy-panel,
+:root[data-theme="dark"] .account-import-panel,
 :root[data-theme="dark"] .dashboard-workspace,
 :root[data-theme="dark"] .dashboard-stats article,
 :root[data-theme="dark"] .overview-main,
@@ -1035,7 +1036,8 @@ select {
 .email-login,
 .promo-form,
 .account-password-form,
-.account-privacy-panel {
+.account-privacy-panel,
+.account-import-panel {
   display: grid;
   gap: 12px;
   padding: 14px;
@@ -1044,7 +1046,8 @@ select {
   background: #ffffff;
 }
 
-.account-privacy-panel {
+.account-privacy-panel,
+.account-import-panel {
   margin-top: 12px;
 }
 
@@ -1052,6 +1055,17 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.account-import-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.account-import-form .secondary-button,
+.account-import-form .field-hint {
+  grid-column: 1 / -1;
 }
 
 .auth-tabs {
@@ -3309,6 +3323,10 @@ li {
   }
 
   .help-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-import-form {
     grid-template-columns: 1fr;
   }
 }

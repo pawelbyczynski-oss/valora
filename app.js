@@ -84,6 +84,10 @@ const premium = {
   deletePortfolioData: document.querySelector("#deletePortfolioData"),
   deleteAccount: document.querySelector("#deleteAccount"),
   privacyMessage: document.querySelector("#privacyMessage"),
+  accountImportForm: document.querySelector("#accountImportForm"),
+  accountImportType: document.querySelector("#accountImportType"),
+  accountImportFile: document.querySelector("#accountImportFile"),
+  accountImportMessage: document.querySelector("#accountImportMessage"),
   dashboardPanel: document.querySelector("#dashboardPanel"),
   openPropertyModal: document.querySelector("#openPropertyModal"),
   logoutButton: document.querySelector("#logoutButton"),
@@ -3154,6 +3158,55 @@ function parseCsvRows(text) {
   });
 }
 
+function normalizeHeaderName(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function csvPositionMap(headers = []) {
+  const positions = {};
+  headers.forEach((header, index) => {
+    positions[normalizeHeaderName(header)] = index;
+  });
+  return positions;
+}
+
+function csvValue(row, positions, names, fallback = "") {
+  for (const name of names) {
+    const index = positions[normalizeHeaderName(name)];
+    if (index !== undefined && row[index] !== undefined && String(row[index]).trim() !== "") return String(row[index]).trim();
+  }
+  return fallback;
+}
+
+function csvNumber(row, positions, names) {
+  const value = csvValue(row, positions, names);
+  return Number(String(value).replace(/[^0-9.-]+/g, "")) || 0;
+}
+
+function csvDate(row, positions, names) {
+  const value = csvValue(row, positions, names);
+  if (!value) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
+}
+
+function csvRegion(value) {
+  return String(value || "").toLowerCase().includes("scot") ? "Scotland" : "England";
+}
+
+function csvLetType(value) {
+  return String(value || "").toLowerCase().includes("short") ? "Short-term let" : "Long-term let";
+}
+
+function importOwnershipModel(value) {
+  const text = String(value || "").toLowerCase();
+  if (text.includes("rent-to-rent") || text.includes("rent to rent") || text.includes("rent2rent")) return "Rent-to-rent";
+  if (text.includes("r2r")) return "Rent-to-rent";
+  if (text.includes("managed") || text.includes("management")) return "Managed";
+  return "Owned";
+}
+
 function switchView(viewId) {
   premium.views.forEach((view) => view.classList.toggle("active", view.id === viewId));
   premium.navButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === viewId));
@@ -5484,6 +5537,217 @@ async function deleteAccount() {
   }
 }
 
+async function importPropertyRecord(propertyInput) {
+  const importedTenancies = Array.isArray(propertyInput.tenancies) ? propertyInput.tenancies.map(normalizeTenancyRecord) : [];
+  const importedRemortgages = Array.isArray(propertyInput.remortgages) ? propertyInput.remortgages.map(normalizeRemortgageRecord) : [];
+  const ownershipModel = importOwnershipModel(propertyInput.ownershipModel || propertyInput.ownership_model || propertyInput.ownership || "Owned");
+  if (ownershipModel !== "Owned" && !hasProAccess()) {
+    throw new Error("Rent-to-rent and managed property imports require PropertyPanel Pro.");
+  }
+  const property = normalizePropertyRecord({
+    name: propertyInput.name || propertyInput.displayName || propertyInput.addressLine1 || propertyInput.postcode || "Imported property",
+    addressLine1: propertyInput.addressLine1 || propertyInput.address_line_1 || "",
+    addressLine2: propertyInput.addressLine2 || propertyInput.address_line_2 || "",
+    town: propertyInput.town || propertyInput.city || "",
+    postcode: String(propertyInput.postcode || "").toUpperCase(),
+    region: propertyInput.region || "England",
+    letType: propertyInput.letType || "Long-term let",
+    ownershipModel,
+    landlordName: propertyInput.landlordName || "",
+    guaranteedRent: Number(propertyInput.guaranteedRent || 0),
+    maintenanceModel: propertyInput.maintenanceModel || "Landlord charged for repairs",
+    maintenanceFee: Number(propertyInput.maintenanceFee || 0),
+    purchaseDate: propertyInput.purchaseDate || "",
+    purchasePrice: Number(propertyInput.purchasePrice || 0),
+    currentValue: Number(propertyInput.currentValue || 0),
+    deposit: Number(propertyInput.deposit || 0),
+    mortgageBalance: Number(propertyInput.mortgageBalance || 0),
+    mortgageProductType: propertyInput.mortgageProductType || "Fixed",
+    rate: Number(propertyInput.rate || 0),
+    mortgageExpiry: propertyInput.mortgageExpiry || "",
+    rent: Number(propertyInput.rent || 0),
+    expenses: Number(propertyInput.expenses || 0),
+    tenantName: propertyInput.tenantName || "",
+    tenantContact: propertyInput.tenantContact || "",
+    rentDueDay: Math.min(Math.max(Number(propertyInput.rentDueDay || 1), 1), 31),
+    rentReminder: propertyInput.rentReminder || "Off",
+    landlordRegistration: propertyInput.landlordRegistration || "",
+    documents: propertyInput.documents || "",
+    tenancies: importedTenancies,
+    remortgages: importedRemortgages,
+  });
+  const savedId = await savePropertyToSupabase(property);
+  if (savedId) property.id = savedId;
+  for (const tenancy of property.tenancies) {
+    tenancy.id = createId("tenancy");
+    const savedTenancyId = await saveTenancyToSupabase(property, tenancy);
+    if (savedTenancyId) tenancy.id = savedTenancyId;
+    tenancy.rentChanges = await Promise.all(
+      (tenancy.rentChanges || []).map(async (change) => {
+        const savedChange = await saveTenancyRentChangeToSupabase(property, tenancy, change);
+        return savedChange || change;
+      }),
+    );
+  }
+  for (const remortgage of property.remortgages) {
+    remortgage.id = createId("remortgage");
+    const savedRemortgageId = await saveRemortgageToSupabase(property, remortgage);
+    if (savedRemortgageId) remortgage.id = savedRemortgageId;
+  }
+  properties = [property, ...properties];
+  return property;
+}
+
+async function importTransactionRecord(transactionInput, propertyIdMap = new Map()) {
+  const sourcePropertyId = transactionInput.propertyId || "";
+  const mappedPropertyId = propertyIdMap.get(sourcePropertyId) || sourcePropertyId;
+  const transaction = normalizeTransactionRecord({
+    propertyId: properties.some((property) => property.id === mappedPropertyId) ? mappedPropertyId : "",
+    date: transactionInput.date || new Date().toISOString().slice(0, 10),
+    amount: Number(transactionInput.amount || 0),
+    type: transactionInput.type === "expense" ? "expense" : "income",
+    category: transactionInput.category || "Imported",
+    taxTreatment: transactionInput.taxTreatment || "review",
+    source: "manual",
+    status: transactionInput.status === "approved" ? "approved" : "draft",
+    notes: transactionInput.notes || "Imported record",
+  });
+  if (!transaction.amount) return null;
+  const savedId = await saveTransactionToSupabase(transaction);
+  if (savedId) transaction.id = savedId;
+  transactions = [transaction, ...transactions];
+  return transaction;
+}
+
+async function importPropertyPanelJson(file) {
+  const payload = JSON.parse(await file.text());
+  const importedProperties = Array.isArray(payload.properties) ? payload.properties : [];
+  const importedTransactions = Array.isArray(payload.transactions) ? payload.transactions : [];
+  const propertyIdMap = new Map();
+  let propertyCount = 0;
+  let transactionCount = 0;
+
+  for (const importedProperty of importedProperties) {
+    if (isPremiumAtPropertyLimit()) break;
+    const originalId = importedProperty.id || "";
+    const property = await importPropertyRecord(importedProperty);
+    if (originalId) propertyIdMap.set(originalId, property.id);
+    propertyCount += 1;
+  }
+
+  for (const importedTransaction of importedTransactions) {
+    const transaction = await importTransactionRecord(importedTransaction, propertyIdMap);
+    if (transaction) transactionCount += 1;
+  }
+
+  return { propertyCount, transactionCount };
+}
+
+async function importPropertiesCsv(file) {
+  const [headers, ...rows] = parseCsvRows(await file.text());
+  const positions = csvPositionMap(headers);
+  let propertyCount = 0;
+
+  for (const row of rows) {
+    if (isPremiumAtPropertyLimit()) break;
+    const name = csvValue(row, positions, ["name", "property", "property_name", "display_name"]);
+    const addressLine1 = csvValue(row, positions, ["address_line_1", "address1", "address", "address_line"]);
+    const postcode = csvValue(row, positions, ["postcode", "post_code", "zip"]);
+    if (!name && !addressLine1 && !postcode) continue;
+    await importPropertyRecord({
+      name: name || addressLine1 || postcode,
+      addressLine1,
+      addressLine2: csvValue(row, positions, ["address_line_2", "address2"]),
+      town: csvValue(row, positions, ["town", "city"]),
+      postcode,
+      region: csvRegion(csvValue(row, positions, ["region", "country", "jurisdiction"])),
+      letType: csvLetType(csvValue(row, positions, ["let_type", "type"])),
+      ownershipModel: importOwnershipModel(csvValue(row, positions, ["ownership_model", "ownership"], "Owned")),
+      purchaseDate: csvDate(row, positions, ["purchase_date", "bought_date"]),
+      purchasePrice: csvNumber(row, positions, ["purchase_price", "purchase", "bought_for"]),
+      currentValue: csvNumber(row, positions, ["current_value", "valuation", "value"]),
+      deposit: csvNumber(row, positions, ["deposit", "deposit_paid"]),
+      mortgageBalance: csvNumber(row, positions, ["mortgage_balance", "mortgage", "debt"]),
+      mortgageProductType: csvValue(row, positions, ["mortgage_product", "mortgage_product_type"], "Fixed"),
+      rate: csvNumber(row, positions, ["rate", "mortgage_rate", "interest_rate"]),
+      mortgageExpiry: csvDate(row, positions, ["mortgage_expiry", "mortgage_expiry_date", "product_end_date"]),
+      rent: csvNumber(row, positions, ["rent", "monthly_rent", "rent_amount"]),
+      expenses: csvNumber(row, positions, ["expenses", "operating_expenses", "monthly_expenses"]),
+      tenantName: csvValue(row, positions, ["tenant", "tenant_name"]),
+      tenantContact: csvValue(row, positions, ["tenant_email", "tenant_phone", "tenant_contact"]),
+      rentDueDay: Number(csvValue(row, positions, ["rent_due_day", "due_day"], "1")) || 1,
+      rentReminder: csvValue(row, positions, ["rent_reminder"], "Off"),
+      landlordRegistration: csvValue(row, positions, ["landlord_registration", "landlord_registration_number"]),
+    });
+    propertyCount += 1;
+  }
+
+  return { propertyCount, transactionCount: 0 };
+}
+
+async function importTransactionsCsv(file) {
+  const [headers, ...rows] = parseCsvRows(await file.text());
+  const positions = csvPositionMap(headers);
+  let transactionCount = 0;
+
+  for (const row of rows) {
+    const propertyName = csvValue(row, positions, ["property", "property_name", "name"]);
+    const property = properties.find((item) => item.name.toLowerCase() === propertyName.toLowerCase()) || properties[0];
+    const date = csvDate(row, positions, ["date", "transaction_date", "paid_date"]);
+    const amount = csvNumber(row, positions, ["amount", "value", "total"]);
+    if (!date || !amount) continue;
+    const transaction = await importTransactionRecord({
+      propertyId: property?.id || "",
+      date,
+      type: String(csvValue(row, positions, ["type", "transaction_type"])).toLowerCase() === "income" ? "income" : "expense",
+      amount: Math.abs(amount),
+      category: csvValue(row, positions, ["category", "description"], "Imported"),
+      taxTreatment: "review",
+      status: "draft",
+      notes: csvValue(row, positions, ["notes", "memo", "reference"], "Imported CSV transaction"),
+    });
+    if (transaction) transactionCount += 1;
+  }
+
+  return { propertyCount: 0, transactionCount };
+}
+
+async function importAccountData(event) {
+  event.preventDefault();
+  if (!hasPremiumAccess()) return showSubscriptionRequired();
+  const file = premium.accountImportFile.files?.[0];
+  if (!file) {
+    premium.accountImportMessage.textContent = "Choose a JSON or CSV file to import.";
+    return;
+  }
+  if (currentPlanCode() === "premium" && properties.length >= PREMIUM_PROPERTY_LIMIT && premium.accountImportType.value !== "transactions_csv") {
+    showProUpgrade(premiumLimitMessage());
+    return;
+  }
+
+  const button = premium.accountImportForm.querySelector("button[type='submit']");
+  setButtonBusy(button, true, "Importing...");
+  premium.accountImportMessage.textContent = "Importing data...";
+
+  try {
+    const result = premium.accountImportType.value === "propertypanel_json"
+      ? await importPropertyPanelJson(file)
+      : premium.accountImportType.value === "properties_csv"
+        ? await importPropertiesCsv(file)
+        : await importTransactionsCsv(file);
+    localStorage.setItem(PROPERTY_STORAGE_KEY, JSON.stringify(properties));
+    localStorage.setItem(TRANSACTION_STORAGE_KEY, JSON.stringify(transactions));
+    premium.accountImportForm.reset();
+    renderPremiumDashboard();
+    premium.accountImportMessage.textContent =
+      `Imported ${result.propertyCount} propert${result.propertyCount === 1 ? "y" : "ies"} and ${result.transactionCount} transaction${result.transactionCount === 1 ? "" : "s"}.`;
+  } catch (error) {
+    premium.accountImportMessage.textContent = error?.message || "Could not import this file.";
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
 function switchSection(buttons, panels, activeKey, buttonAttr, panelAttr) {
   buttons.forEach((button) => {
     button.classList.toggle("active", button.dataset[buttonAttr] === activeKey);
@@ -6573,7 +6837,7 @@ premium.transactionCsvForm?.addEventListener("submit", async (event) => {
   const file = premium.transactionCsvFile.files?.[0];
   if (!file) return;
   const [headers, ...rows] = parseCsvRows(await file.text());
-  const positions = Object.fromEntries(headers.map((header, index) => [header.toLowerCase().replaceAll(" ", "_"), index]));
+  const positions = csvPositionMap(headers);
   const required = ["date", "amount", "category"];
   if (required.some((header) => positions[header] === undefined)) {
     premium.transactionCsvMessage.textContent = "CSV must include date, amount and category columns.";
@@ -6581,16 +6845,18 @@ premium.transactionCsvForm?.addEventListener("submit", async (event) => {
   }
   let imported = 0;
   for (const row of rows) {
-    const propertyName = row[positions.property] || "";
+    const propertyName = csvValue(row, positions, ["property", "property_name", "name"]);
     const property = properties.find((item) => item.name.toLowerCase() === propertyName.toLowerCase()) || properties[0];
-    if (!property || !row[positions.date] || !Number(row[positions.amount])) continue;
+    const date = csvDate(row, positions, ["date", "transaction_date", "paid_date"]);
+    const amount = csvNumber(row, positions, ["amount", "value", "total"]);
+    if (!property || !date || !amount) continue;
     const transaction = normalizeTransactionRecord({
       propertyId: property.id,
-      date: row[positions.date],
-      type: String(row[positions.type] || "").toLowerCase() === "income" ? "income" : "expense",
-      amount: Math.abs(Number(row[positions.amount])),
-      category: row[positions.category],
-      notes: positions.notes === undefined ? "" : row[positions.notes],
+      date,
+      type: String(csvValue(row, positions, ["type", "transaction_type"])).toLowerCase() === "income" ? "income" : "expense",
+      amount: Math.abs(amount),
+      category: csvValue(row, positions, ["category", "description"], "Uncategorised"),
+      notes: csvValue(row, positions, ["notes", "memo", "reference"]),
       source: "manual",
       status: "draft",
       taxTreatment: "review",
@@ -6740,6 +7006,7 @@ premium.accountPasswordForm.addEventListener("submit", async (event) => {
 premium.exportAccountData.addEventListener("click", exportAccountData);
 premium.deletePortfolioData.addEventListener("click", deletePortfolioData);
 premium.deleteAccount?.addEventListener("click", deleteAccount);
+premium.accountImportForm?.addEventListener("submit", importAccountData);
 
 premium.openPropertyModal.addEventListener("click", () => {
   openPropertyForm();

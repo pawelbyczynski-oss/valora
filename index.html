@@ -871,6 +871,29 @@
               </div>
               <p class="field-hint" id="privacyMessage">Deleting portfolio data removes properties, documents and transactions. Deleting the account also removes login access. Billing, invoice and legal records may still be retained where required.</p>
             </div>
+            <div class="account-import-panel">
+              <div>
+                <p class="eyebrow">Import</p>
+                <h3>Move data into PropertyPanel</h3>
+                <p class="field-hint">Import a PropertyPanel JSON export, a property CSV, or a transaction CSV from another system. Imported transactions stay as drafts until reviewed.</p>
+              </div>
+              <form class="account-import-form" id="accountImportForm">
+                <label>
+                  <span>Import type</span>
+                  <select id="accountImportType">
+                    <option value="propertypanel_json">PropertyPanel JSON export</option>
+                    <option value="properties_csv">Properties CSV</option>
+                    <option value="transactions_csv">Transactions CSV</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Import file</span>
+                  <input id="accountImportFile" type="file" accept=".json,.csv,application/json,text/csv" />
+                </label>
+                <button class="secondary-button" type="submit">Import data</button>
+                <p class="field-hint" id="accountImportMessage">CSV property headers can include name, address, town, postcode, current value, mortgage balance, rent and region.</p>
+              </form>
+            </div>
           </section>
 
           <section class="panel-card dashboard-panel help-panel" data-dashboard-panel="help">
@@ -965,6 +988,16 @@
                   <li>Use <strong>Landlord report</strong> for rent-to-rent / managed property reporting.</li>
                   <li>Select the date range and choose which sections to include.</li>
                   <li>Use <strong>Transactions</strong> for accountant CSV exports and portfolio summaries.</li>
+                </ol>
+              </details>
+              <details>
+                <summary>Can I import data from another system?</summary>
+                <ol>
+                  <li>Open <strong>Account</strong>.</li>
+                  <li>Use <strong>Import</strong> under Data & privacy.</li>
+                  <li>Choose PropertyPanel JSON, Properties CSV or Transactions CSV.</li>
+                  <li>CSV imports support common headers such as name, address, postcode, current value, mortgage balance, rent, date, amount and category.</li>
+                  <li>Imported transactions are saved as drafts so you can review them before using them in reports.</li>
                 </ol>
               </details>
               <details>
