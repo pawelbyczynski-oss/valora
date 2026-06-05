@@ -78,6 +78,28 @@ async function sendResendEmail(to: string, from: string, subject: string, html: 
   if (!response.ok) throw new Error(`Resend ${response.status}: ${await response.text()}`);
 }
 
+async function listStoragePaths(supabaseAdmin: ReturnType<typeof createClient>, bucket: string, prefix: string): Promise<string[]> {
+  const { data, error } = await supabaseAdmin.storage.from(bucket).list(prefix, { limit: 1000 });
+  if (error) throw error;
+  const paths: string[] = [];
+  for (const item of data || []) {
+    const path = `${prefix}/${item.name}`;
+    if (item.metadata === null) {
+      paths.push(...await listStoragePaths(supabaseAdmin, bucket, path));
+    } else {
+      paths.push(path);
+    }
+  }
+  return paths;
+}
+
+async function deleteUserRows(supabaseAdmin: ReturnType<typeof createClient>, table: string, userId: string) {
+  const { error } = await supabaseAdmin.from(table).delete().eq("user_id", userId);
+  if (!error) return;
+  const missingTable = error.code === "42P01" || error.code === "PGRST205" || String(error.message || "").includes("Could not find the table");
+  if (!missingTable) throw error;
+}
+
 Deno.serve(async (request) => {
   const corsHeaders = corsHeadersFor(request);
   const reply = (body: unknown, status = 200) => jsonResponse(body, status, corsHeaders);
@@ -158,6 +180,33 @@ Deno.serve(async (request) => {
         free_months: promo.free_months,
         message: "Promo accepted",
       });
+    }
+
+    if (action === "delete-account") {
+      if (body?.confirm !== "DELETE") return reply({ success: false, message: "Deletion confirmation is required." }, 400);
+
+      const storagePaths = await listStoragePaths(supabaseAdmin, "property-documents", user.id);
+      if (storagePaths.length) {
+        const { error: storageError } = await supabaseAdmin.storage.from("property-documents").remove(storagePaths);
+        if (storageError) throw storageError;
+      }
+
+      await deleteUserRows(supabaseAdmin, "tenancy_rent_changes", user.id);
+      await deleteUserRows(supabaseAdmin, "calendar_feed_tokens", user.id);
+      await deleteUserRows(supabaseAdmin, "recurring_expenses", user.id);
+      await deleteUserRows(supabaseAdmin, "compliance_items", user.id);
+      await deleteUserRows(supabaseAdmin, "arrears_cases", user.id);
+      await deleteUserRows(supabaseAdmin, "property_transactions", user.id);
+      await deleteUserRows(supabaseAdmin, "documents", user.id);
+      await deleteUserRows(supabaseAdmin, "reminders", user.id);
+      await deleteUserRows(supabaseAdmin, "properties", user.id);
+      await deleteUserRows(supabaseAdmin, "promo_redemptions", user.id);
+      await deleteUserRows(supabaseAdmin, "analytics_events", user.id);
+
+      const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
+      if (authDeleteError) throw authDeleteError;
+
+      return reply({ success: true });
     }
 
     if (!isAdmin) return reply({ error: "Not authorized" }, 403);

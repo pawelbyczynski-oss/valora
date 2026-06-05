@@ -82,6 +82,7 @@ const premium = {
   accountPasswordMessage: document.querySelector("#accountPasswordMessage"),
   exportAccountData: document.querySelector("#exportAccountData"),
   deletePortfolioData: document.querySelector("#deletePortfolioData"),
+  deleteAccount: document.querySelector("#deleteAccount"),
   privacyMessage: document.querySelector("#privacyMessage"),
   dashboardPanel: document.querySelector("#dashboardPanel"),
   openPropertyModal: document.querySelector("#openPropertyModal"),
@@ -5437,6 +5438,52 @@ async function deletePortfolioData() {
   }
 }
 
+async function deleteAccount() {
+  const firstConfirm = window.confirm(
+    "Delete your PropertyPanel account? This removes login access and deletes portfolio records. Billing and legal records may still be retained where required.",
+  );
+  if (!firstConfirm) return;
+
+  const typedConfirm = window.prompt('Type DELETE to permanently delete this account.');
+  if (typedConfirm !== "DELETE") {
+    premium.privacyMessage.textContent = "Account deletion cancelled.";
+    return;
+  }
+
+  const button = premium.deleteAccount;
+  setButtonBusy(button, true, "Deleting...");
+  premium.privacyMessage.textContent = "Deleting account...";
+
+  try {
+    if (!supabaseClient) throw new Error("Supabase is not configured.");
+    const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+      body: { action: "delete-account", confirm: "DELETE" },
+    });
+    if (error || !data?.success) {
+      throw new Error(error?.message || data?.message || "Could not delete account.");
+    }
+
+    clearPremiumDataForLockedAccount();
+    localStorage.removeItem(ACTIVE_PROPERTY_STORAGE_KEY);
+    localStorage.removeItem(UI_STATE_STORAGE_KEY);
+    await supabaseClient.auth.signOut();
+    currentUser = null;
+    currentSubscription = null;
+    promoAccess = false;
+    updateNavAuthButton(false);
+    premium.dashboardPanel.hidden = true;
+    premium.propertyDetailPanel.hidden = true;
+    premium.adminNav.hidden = true;
+    premium.emailLoginForm.hidden = false;
+    premium.authMessage.textContent = "Account deleted.";
+    switchView("premiumView");
+  } catch (error) {
+    premium.privacyMessage.textContent = error?.message || "Could not delete account.";
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
 function switchSection(buttons, panels, activeKey, buttonAttr, panelAttr) {
   buttons.forEach((button) => {
     button.classList.toggle("active", button.dataset[buttonAttr] === activeKey);
@@ -6692,6 +6739,7 @@ premium.accountPasswordForm.addEventListener("submit", async (event) => {
 
 premium.exportAccountData.addEventListener("click", exportAccountData);
 premium.deletePortfolioData.addEventListener("click", deletePortfolioData);
+premium.deleteAccount?.addEventListener("click", deleteAccount);
 
 premium.openPropertyModal.addEventListener("click", () => {
   openPropertyForm();
