@@ -610,6 +610,28 @@ function formatUkPostcode(value) {
   return normalized.length > 3 ? `${normalized.slice(0, -3)} ${normalized.slice(-3)}` : normalized;
 }
 
+function compactComparableText(value = "") {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function propertyDuplicateMatch(candidateProperty, existingProperty) {
+  if (!candidateProperty || !existingProperty || candidateProperty.id === existingProperty.id) return false;
+  const candidateAddress = compactComparableText(candidateProperty.addressLine1);
+  const existingAddress = compactComparableText(existingProperty.addressLine1);
+  const candidatePostcode = formatUkPostcode(candidateProperty.postcode);
+  const existingPostcode = formatUkPostcode(existingProperty.postcode);
+  if (candidateAddress && existingAddress && candidatePostcode && existingPostcode) {
+    return candidateAddress === existingAddress && candidatePostcode === existingPostcode;
+  }
+  const candidateName = compactComparableText(candidateProperty.name);
+  const existingName = compactComparableText(existingProperty.name);
+  return Boolean(candidateName && existingName && candidateName === existingName && candidatePostcode && candidatePostcode === existingPostcode);
+}
+
+function duplicateProperty(property) {
+  return properties.find((existingProperty) => propertyDuplicateMatch(property, existingProperty)) || null;
+}
+
 function clearFieldError(input) {
   if (!input) return;
   input.removeAttribute("aria-invalid");
@@ -1405,6 +1427,27 @@ function overlappingTenancy(property, candidateTenancy) {
     const existing = tenancyRange(tenancy);
     if (existing.start === null) return false;
     if (!tenancy.tenantName && !Number(tenancy.rent || 0) && !tenancy.endDate) return false;
+    return candidate.start <= existing.end && candidate.end >= existing.start;
+  }) || null;
+}
+
+function remortgageRange(remortgage) {
+  const start = dateFromInput(remortgage.startDate);
+  const end = dateFromInput(remortgage.expiryDate);
+  return {
+    start: start ? start.getTime() : null,
+    end: end ? end.getTime() : Number.POSITIVE_INFINITY,
+  };
+}
+
+function overlappingRemortgage(property, candidateRemortgage) {
+  const candidate = remortgageRange(candidateRemortgage);
+  if (candidate.start === null) return null;
+  return (property.remortgages || []).find((remortgage) => {
+    if (remortgage.id === candidateRemortgage.id) return false;
+    const existing = remortgageRange(remortgage);
+    if (existing.start === null) return false;
+    if (!remortgage.expiryDate && !Number(remortgage.balance || 0) && !Number(remortgage.rate || 0)) return false;
     return candidate.start <= existing.end && candidate.end >= existing.start;
   }) || null;
 }
@@ -8104,6 +8147,12 @@ premium.remortgageForm.addEventListener("submit", async (event) => {
       equityRelease: Number(document.querySelector("#detailEquityRelease").value) || 0,
       notes: document.querySelector("#detailMortgageNotes").value,
     };
+    const conflict = overlappingRemortgage(property, remortgage);
+    if (conflict) {
+      premium.remortgageMessage.textContent =
+        `These mortgage dates overlap with ${formatDate(conflict.startDate)} to ${formatDate(conflict.expiryDate)}. Edit the existing mortgage first or choose different dates.`;
+      return;
+    }
 
     if (editingRemortgageId) {
       const index = (property.remortgages || []).findIndex((item) => item.id === editingRemortgageId);
@@ -8147,6 +8196,16 @@ premium.propertyForm.addEventListener("submit", async (event) => {
     property = propertyPayloadFromForm(existingProperty);
   } catch (error) {
     if (premium.propertyFormMessage) premium.propertyFormMessage.textContent = error?.message || "Check the highlighted fields.";
+    premium.propertyForm.querySelector("[aria-invalid='true']")?.focus();
+    return;
+  }
+
+  const matchingProperty = duplicateProperty(property);
+  if (matchingProperty) {
+    const message = `This property already exists in your portfolio: ${propertyAddressLabel(matchingProperty)}.`;
+    showFieldError(document.querySelector("#propertyAddress1"), message);
+    showFieldError(document.querySelector("#propertyPostcode"), "This postcode and address are already saved.");
+    if (premium.propertyFormMessage) premium.propertyFormMessage.textContent = message;
     premium.propertyForm.querySelector("[aria-invalid='true']")?.focus();
     return;
   }
