@@ -8,7 +8,7 @@ const stripe = new Stripe(stripeSecretKey ?? "", {
 
 function corsHeadersFor(request: Request) {
   const origin = request.headers.get("Origin") || "";
-  const allowedOrigins = (Deno.env.get("APP_ALLOWED_ORIGINS") || Deno.env.get("APP_BASE_URL") || "https://valora-property-os.vercel.app")
+  const allowedOrigins = (Deno.env.get("APP_ALLOWED_ORIGINS") || Deno.env.get("APP_BASE_URL") || "https://propertypanel.co.uk")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);

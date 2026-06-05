@@ -5,7 +5,7 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
 );
 
-const APP_BASE_URL = Deno.env.get("APP_BASE_URL") ?? "https://valora-property-os.vercel.app";
+const APP_BASE_URL = Deno.env.get("APP_BASE_URL") ?? "https://propertypanel.co.uk";
 const REMINDER_FROM_EMAIL =
   Deno.env.get("REMINDER_FROM_EMAIL") ?? "PropertyPanel Reminder <reminder@propertypanel.co.uk>";
 const SPONSOR_ADMIN_EMAIL = Deno.env.get("SPONSOR_ADMIN_EMAIL") ?? "contact@propertypanel.co.uk";
