@@ -98,6 +98,7 @@ const premium = {
   closePropertyModal: document.querySelector("#closePropertyModal"),
   propertyModal: document.querySelector("#propertyModal"),
   propertyForm: document.querySelector("#propertyForm"),
+  propertyFormMessage: document.querySelector("#propertyFormMessage"),
   propertySearch: document.querySelector("#propertySearch"),
   propertyList: document.querySelector("#propertyList"),
   propertyDetailView: document.querySelector("#propertyDetailView"),
@@ -595,6 +596,95 @@ function moneyFromPence(pence) {
 
 function valueOf(input) {
   return Number(input.value) || 0;
+}
+
+function isValidUkPostcode(value) {
+  const normalized = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+  return /^(GIR0AA|[A-Z]{1,2}\d[A-Z\d]?\d[A-Z]{2})$/.test(normalized);
+}
+
+function formatUkPostcode(value) {
+  const normalized = String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+  if (!normalized) return "";
+  return normalized.length > 3 ? `${normalized.slice(0, -3)} ${normalized.slice(-3)}` : normalized;
+}
+
+function clearFieldError(input) {
+  if (!input) return;
+  input.removeAttribute("aria-invalid");
+  input.closest("label")?.querySelector(".field-error")?.remove();
+}
+
+function showFieldError(input, message) {
+  if (!input) return;
+  input.setAttribute("aria-invalid", "true");
+  const label = input.closest("label");
+  if (!label) return;
+  let error = label.querySelector(".field-error");
+  if (!error) {
+    error = document.createElement("small");
+    error.className = "field-error";
+    label.append(error);
+  }
+  error.textContent = message;
+}
+
+function decimalInputValue(input, label, { required = false, min = 0, max = Infinity, integer = false } = {}) {
+  const raw = String(input?.value || "").trim();
+  if (!raw) {
+    if (required) throw new Error(`${label} is required.`);
+    return 0;
+  }
+
+  const normalized = raw.replace(",", ".");
+  const pattern = integer ? /^\d+$/ : /^\d+(\.\d+)?$/;
+  if (!pattern.test(normalized)) {
+    throw new Error(`${label} must be a valid ${integer ? "whole number" : "number"}.`);
+  }
+
+  const number = Number(normalized);
+  if (!Number.isFinite(number) || number < min || number > max) {
+    const maxText = Number.isFinite(max) ? ` and no more than ${max}` : "";
+    throw new Error(`${label} must be at least ${min}${maxText}.`);
+  }
+
+  return integer ? Math.round(number) : number;
+}
+
+function readPropertyDecimal(selector, label, options = {}) {
+  const input = document.querySelector(selector);
+  try {
+    const value = decimalInputValue(input, label, options);
+    clearFieldError(input);
+    return value;
+  } catch (error) {
+    showFieldError(input, error.message);
+    throw error;
+  }
+}
+
+function installStrictPropertyNumberInputs() {
+  premium.propertyForm?.querySelectorAll("input, select").forEach((input) => {
+    input.addEventListener("input", () => clearFieldError(input));
+    input.addEventListener("change", () => clearFieldError(input));
+  });
+  const numericInputs = premium.propertyForm?.querySelectorAll("input[type='number']");
+  numericInputs?.forEach((input) => {
+    input.addEventListener("keydown", (event) => {
+      if (["e", "E", "+", "-"].includes(event.key)) {
+        event.preventDefault();
+      }
+    });
+    input.addEventListener("paste", (event) => {
+      const text = event.clipboardData?.getData("text") || "";
+      const isInteger = input.step === "1" || input.inputMode === "numeric";
+      const pattern = isInteger ? /^\d*$/ : /^\d*([.,]\d*)?$/;
+      if (!pattern.test(text.trim())) {
+        event.preventDefault();
+        showFieldError(input, "Use numbers only. Do not use e, + or -.");
+      }
+    });
+  });
 }
 
 function daysUntil(dateString) {
@@ -2298,6 +2388,11 @@ function updateOperatorFieldsVisibility() {
 function resetPropertyForm() {
   editingPropertyId = null;
   premium.propertyForm.reset();
+  premium.propertyForm.querySelectorAll("[aria-invalid='true']").forEach(clearFieldError);
+  premium.propertyForm.querySelectorAll(".field-error").forEach((item) => item.remove());
+  if (premium.propertyFormMessage) {
+    premium.propertyFormMessage.textContent = "Fill the required address fields, then save the property.";
+  }
   document.querySelector("#propertyRentDueDay").value = "1";
   document.querySelector("#propertyRentReminder").value = "On";
   document.querySelector("#propertyOwnershipModel").value = "Owned";
@@ -2314,7 +2409,15 @@ function propertyPayloadFromForm(existingProperty = null) {
   const addressLine1 = document.querySelector("#propertyAddress1").value.trim();
   const addressLine2 = document.querySelector("#propertyAddress2").value.trim();
   const town = document.querySelector("#propertyTown").value.trim();
-  const postcode = document.querySelector("#propertyPostcode").value.trim().toUpperCase();
+  const postcodeInput = document.querySelector("#propertyPostcode");
+  const postcode = formatUkPostcode(postcodeInput.value);
+  postcodeInput.value = postcode;
+  if (!isValidUkPostcode(postcode)) {
+    const message = "Enter a valid UK postcode, for example EH7 6LA or BS8 2AA.";
+    showFieldError(postcodeInput, message);
+    throw new Error(message);
+  }
+  clearFieldError(postcodeInput);
   const ownershipModel = document.querySelector("#propertyOwnershipModel").value;
   const usesOperatorFields = ownershipModel !== "Owned";
 
@@ -2330,22 +2433,22 @@ function propertyPayloadFromForm(existingProperty = null) {
     letType: document.querySelector("#propertyLetType").value,
     ownershipModel,
     landlordName: usesOperatorFields ? document.querySelector("#propertyLandlordName").value.trim() : existingProperty?.landlordName || "",
-    guaranteedRent: usesOperatorFields ? Number(document.querySelector("#propertyGuaranteedRent").value) || 0 : 0,
+    guaranteedRent: usesOperatorFields ? readPropertyDecimal("#propertyGuaranteedRent", "Guaranteed rent") : 0,
     maintenanceModel: usesOperatorFields ? document.querySelector("#propertyMaintenanceModel").value : "Landlord charged for repairs",
-    maintenanceFee: usesOperatorFields ? Number(document.querySelector("#propertyMaintenanceFee").value) || 0 : 0,
+    maintenanceFee: usesOperatorFields ? readPropertyDecimal("#propertyMaintenanceFee", "Monthly maintenance fee") : 0,
     purchaseDate: document.querySelector("#propertyPurchaseDate").value,
-    purchasePrice: Number(document.querySelector("#propertyPurchasePrice").value) || 0,
-    currentValue: Number(document.querySelector("#propertyCurrentValue").value) || 0,
-    deposit: Number(document.querySelector("#propertyDeposit").value) || 0,
-    mortgageBalance: Number(document.querySelector("#propertyMortgage").value) || 0,
+    purchasePrice: readPropertyDecimal("#propertyPurchasePrice", "Purchase price"),
+    currentValue: readPropertyDecimal("#propertyCurrentValue", "Current value"),
+    deposit: readPropertyDecimal("#propertyDeposit", "Deposit paid"),
+    mortgageBalance: readPropertyDecimal("#propertyMortgage", "Mortgage balance"),
     mortgageProductType: document.querySelector("#propertyMortgageProduct").value,
-    rate: Number(document.querySelector("#propertyRate").value) || 0,
+    rate: readPropertyDecimal("#propertyRate", "Mortgage rate", { max: 100 }),
     mortgageExpiry: document.querySelector("#propertyMortgageExpiry").value,
-    rent: Number(document.querySelector("#propertyRent").value) || 0,
-    expenses: Number(document.querySelector("#propertyExpenses").value) || 0,
+    rent: readPropertyDecimal("#propertyRent", "Monthly rent"),
+    expenses: readPropertyDecimal("#propertyExpenses", "Operating expenses"),
     tenantName: existingProperty?.tenantName || "",
     tenantContact: existingProperty?.tenantContact || "",
-    rentDueDay: Math.min(Math.max(Number(document.querySelector("#propertyRentDueDay").value) || 1, 1), 31),
+    rentDueDay: readPropertyDecimal("#propertyRentDueDay", "Rent due day", { required: true, min: 1, max: 31, integer: true }),
     rentReminder: document.querySelector("#propertyRentReminder").value,
     landlordRegistration: document.querySelector("#landlordRegistration").value,
     documents: existingProperty?.documents || "",
@@ -6668,7 +6771,6 @@ outputs.taxModal.addEventListener("click", (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     outputs.taxModal.hidden = true;
-    premium.propertyModal.hidden = true;
   }
 });
 
@@ -7084,6 +7186,7 @@ premium.exportAccountData.addEventListener("click", exportAccountData);
 premium.deletePortfolioData.addEventListener("click", deletePortfolioData);
 premium.deleteAccount?.addEventListener("click", deleteAccount);
 premium.accountImportForm?.addEventListener("submit", importAccountData);
+installStrictPropertyNumberInputs();
 
 premium.openPropertyModal.addEventListener("click", () => {
   openPropertyForm();
@@ -7091,14 +7194,6 @@ premium.openPropertyModal.addEventListener("click", () => {
 
 premium.closePropertyModal.addEventListener("click", () => {
   premium.propertyModal.hidden = true;
-  resetPropertyForm();
-});
-
-premium.propertyModal.addEventListener("click", (event) => {
-  if (event.target === premium.propertyModal) {
-    premium.propertyModal.hidden = true;
-    resetPropertyForm();
-  }
 });
 
 premium.detailAddProperty.addEventListener("click", () => {
@@ -7935,7 +8030,15 @@ premium.propertyForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  const property = propertyPayloadFromForm(existingProperty);
+  let property;
+  try {
+    if (premium.propertyFormMessage) premium.propertyFormMessage.textContent = "";
+    property = propertyPayloadFromForm(existingProperty);
+  } catch (error) {
+    if (premium.propertyFormMessage) premium.propertyFormMessage.textContent = error?.message || "Check the highlighted fields.";
+    premium.propertyForm.querySelector("[aria-invalid='true']")?.focus();
+    return;
+  }
 
   if (property.ownershipModel !== "Owned" && !hasProAccess()) {
     showProUpgrade("Rent-to-rent and managed property workflows are included in PropertyPanel Pro.");
@@ -7943,6 +8046,7 @@ premium.propertyForm.addEventListener("submit", async (event) => {
   }
 
   setButtonBusy(submitButton, true, existingProperty ? "Updating..." : "Saving...");
+  if (premium.propertyFormMessage) premium.propertyFormMessage.textContent = existingProperty ? "Updating property..." : "Saving property...";
 
   if (existingProperty) {
     try {
@@ -7960,7 +8064,7 @@ premium.propertyForm.addEventListener("submit", async (event) => {
       switchPropertyDetailTab("overview");
       premium.deletePropertyMessage.textContent = "Property saved and refreshed.";
     } catch (error) {
-      premium.deletePropertyMessage.textContent = error?.message || "Could not save property.";
+      if (premium.propertyFormMessage) premium.propertyFormMessage.textContent = error?.message || "Could not save property.";
     } finally {
       setButtonBusy(submitButton, false);
     }
@@ -8003,7 +8107,7 @@ premium.propertyForm.addEventListener("submit", async (event) => {
     renderPropertyDetail();
     switchPropertyDetailTab("overview");
   } catch (error) {
-    premium.deletePropertyMessage.textContent = error?.message || "Could not save property.";
+    if (premium.propertyFormMessage) premium.propertyFormMessage.textContent = error?.message || "Could not save property.";
   } finally {
     setButtonBusy(submitButton, false);
   }
