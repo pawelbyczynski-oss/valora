@@ -78,6 +78,10 @@ const premium = {
   resetMessage: document.querySelector("#resetMessage"),
   themeToggle: document.querySelector("#themeToggle"),
   accountPasswordForm: document.querySelector("#accountPasswordForm"),
+  accountProfileForm: document.querySelector("#accountProfileForm"),
+  accountDisplayName: document.querySelector("#accountDisplayName"),
+  accountProfileMessage: document.querySelector("#accountProfileMessage"),
+  dashboardWelcomeTitle: document.querySelector("#dashboardWelcomeTitle"),
   accountPassword: document.querySelector("#accountPassword"),
   accountPasswordMessage: document.querySelector("#accountPasswordMessage"),
   exportAccountData: document.querySelector("#exportAccountData"),
@@ -2300,7 +2304,7 @@ function resetPropertyForm() {
   document.querySelector("#propertyLandlordName").value = "";
   document.querySelector("#propertyMortgageProduct").value = "Fixed";
   document.querySelector("#propertyModal .eyebrow").textContent = "Add property";
-  document.querySelector("#propertyModalTitle").textContent = "Save a premium portfolio record";
+  document.querySelector("#propertyModalTitle").textContent = "Save a portfolio record";
   premium.propertyForm.querySelector("button[type='submit']").textContent = "Save property";
   updateOperatorFieldsVisibility();
 }
@@ -3213,6 +3217,40 @@ function switchView(viewId) {
   saveUiState({ viewId });
 }
 
+function updateDashboardWelcome(displayName = "") {
+  if (!premium.dashboardWelcomeTitle) return;
+  const name = String(displayName || "").trim();
+  premium.dashboardWelcomeTitle.textContent = name ? `Welcome back, ${name}` : "Welcome back";
+}
+
+function fallbackAccountName(user = currentUser) {
+  const metadataName = user?.user_metadata?.full_name || user?.user_metadata?.name || "";
+  if (metadataName) return metadataName;
+  return user?.email ? user.email.split("@")[0] : "";
+}
+
+async function loadAccountProfile() {
+  if (!currentUser) {
+    updateDashboardWelcome("");
+    if (premium.accountDisplayName) premium.accountDisplayName.value = "";
+    return;
+  }
+
+  let displayName = fallbackAccountName(currentUser);
+
+  if (supabaseClient) {
+    const { data } = await supabaseClient
+      .from("profiles")
+      .select("full_name")
+      .eq("id", currentUser.id)
+      .maybeSingle();
+    if (data?.full_name) displayName = data.full_name;
+  }
+
+  if (premium.accountDisplayName) premium.accountDisplayName.value = displayName || "";
+  updateDashboardWelcome(displayName);
+}
+
 function updateNavAuthButton(isSignedIn) {
   if (!premium.navAuthButton) return;
   premium.navAuthButton.textContent = isSignedIn ? "Log out" : "Sign in";
@@ -3324,7 +3362,7 @@ function isPremiumAtPropertyLimit() {
 }
 
 function premiumLimitMessage() {
-  return `Premium includes up to ${PREMIUM_PROPERTY_LIMIT} properties. Upgrade to Pro for unlimited properties, reminders, quarterly accountant packs and landlord reports.`;
+  return `Standard includes up to ${PREMIUM_PROPERTY_LIMIT} properties. Upgrade to Pro for unlimited properties, reminders, quarterly accountant packs and landlord reports.`;
 }
 
 function showProUpgrade(message = "This workflow is included in PropertyPanel Pro.") {
@@ -3344,7 +3382,7 @@ function clearPremiumDataForLockedAccount() {
   localStorage.setItem(DOCUMENT_STORAGE_KEY, JSON.stringify(documents));
 }
 
-function showSubscriptionRequired(message = "Sign in is working. Choose Premium or Pro to unlock the portfolio dashboard.") {
+function showSubscriptionRequired(message = "Sign in is working. Choose Standard or Pro to unlock the portfolio dashboard.") {
   premium.dashboardPanel.hidden = true;
   premium.propertyDetailPanel.hidden = true;
   premium.propertyModal.hidden = true;
@@ -3376,7 +3414,7 @@ function renderInvoices(invoices = []) {
 }
 
 function selectedPlanLabel() {
-  return selectedPlan === "pro" ? "Pro" : "Premium";
+  return selectedPlan === "pro" ? "Pro" : "Standard";
 }
 
 function selectedPlanPrice() {
@@ -3388,7 +3426,7 @@ function selectedPlanDescription() {
   const price = selectedPlanPrice();
   return selectedPlan === "pro"
     ? `Pro is selected at ${price} with unlimited properties, reminders, quarterly accountant packs, landlord reports and the complete operations workflow.`
-    : `Premium is selected at ${price} with up to ${PREMIUM_PROPERTY_LIMIT} properties, rent tracking, document checklist, bank CSV drafts and lender exports.`;
+    : `Standard is selected at ${price} with up to ${PREMIUM_PROPERTY_LIMIT} properties, rent tracking, document checklist, bank CSV drafts and lender exports.`;
 }
 
 function setSelectedPlan(plan) {
@@ -3449,7 +3487,7 @@ function renderSubscriptionFallback() {
     premium.subscriptionRenewal.textContent = "Not required";
     premium.subscriptionPaid.textContent = "£0";
     premium.subscriptionSince.textContent = "Admin";
-    premium.subscriptionNote.textContent = "Admin accounts have complimentary premium access.";
+    premium.subscriptionNote.textContent = "Admin accounts have complimentary portfolio access.";
     premium.manageBilling.textContent = "Billing not required";
     premium.manageBilling.disabled = true;
     return;
@@ -3523,7 +3561,7 @@ async function loadSubscriptionSummary() {
   premium.subscriptionRenewal.textContent = formatDate(subscription.current_period_end);
   premium.subscriptionPaid.textContent = moneyFromPence(subscription.total_paid_pence);
   premium.subscriptionSince.textContent = formatDate(subscription.created_at);
-  const planLabel = currentPlanCode() === "pro" ? "PropertyPanel Pro" : "PropertyPanel Premium";
+  const planLabel = currentPlanCode() === "pro" ? "PropertyPanel Pro" : "PropertyPanel Standard";
   premium.subscriptionNote.textContent = `${planLabel}: ${moneyFromPence(subscription.amount_monthly_pence || 499)} / month. Manage card details, invoices and cancellation in Stripe Customer Portal.`;
   premium.manageBilling.textContent = "Manage subscription";
   premium.manageBilling.disabled = false;
@@ -3589,7 +3627,7 @@ async function startStripeCheckout(plan = selectedPlan) {
   premium.manageBilling.disabled = true;
   const checkoutPlan = plan === "pro" ? "pro" : "premium";
   const checkoutPrice = `${(checkoutPlan === "pro" ? planSettings.pro : planSettings.premium).display_price || (checkoutPlan === "pro" ? "£9.99" : "£4.99")}/month`;
-  premium.subscriptionNote.textContent = `Opening Stripe Checkout for ${checkoutPlan === "pro" ? "Pro" : "Premium"} - ${checkoutPrice}...`;
+  premium.subscriptionNote.textContent = `Opening Stripe Checkout for ${checkoutPlan === "pro" ? "Pro" : "Standard"} - ${checkoutPrice}...`;
 
   const { data, error } = await supabaseClient.functions.invoke(CHECKOUT_FUNCTION, {
     body: { plan: checkoutPlan },
@@ -3955,7 +3993,7 @@ function defaultTemplateVariables() {
     feature_summary: "You can now see rent, mortgage, tenancy and document dates in one clear calendar.",
     available_from: new Date().toISOString().slice(0, 10),
     app_url: "https://propertypanel.co.uk",
-    plan_name: selectedPlan === "pro" ? "Pro" : "Premium",
+    plan_name: selectedPlan === "pro" ? "Pro" : "Standard",
     document_name: "Gas safety certificate",
     tenant_name: "Tenant",
     digest_items: "Rent due, mortgage review and document expiry.",
@@ -3995,7 +4033,7 @@ function applyPlanSettings(settings = {}) {
   const comparisonHeader = document.querySelector(".comparison-table div:first-child");
   if (comparisonHeader) {
     const headers = comparisonHeader.querySelectorAll("strong");
-    if (headers[0]) headers[0].textContent = `Premium ${premiumPrice}`;
+    if (headers[0]) headers[0].textContent = `Standard ${premiumPrice}`;
     if (headers[1]) headers[1].textContent = `Pro ${proPrice}`;
   }
   if (document.querySelector("#selectedPlanTitle")) setSelectedPlan(selectedPlan);
@@ -4377,7 +4415,7 @@ async function sendAdminEmail() {
 async function savePricingSettings() {
   const settings = {
     premium: {
-      name: "Premium",
+      name: "Standard",
       display_price: premium.adminPremiumDisplayPrice.value.trim() || "£4.99",
       price_monthly_pence: Number(premium.adminPremiumPricePence.value) || 499,
       stripe_price_id: premium.adminPremiumStripePriceId.value.trim(),
@@ -5377,6 +5415,41 @@ async function updateDashboardPassword() {
   }
 }
 
+async function updateAccountProfile(event) {
+  event.preventDefault();
+  if (!currentUser || !supabaseClient) {
+    premium.accountProfileMessage.textContent = "Sign in before updating your profile.";
+    return;
+  }
+
+  const displayName = premium.accountDisplayName.value.trim();
+  const button = premium.accountProfileForm.querySelector("button[type='submit']");
+  setButtonBusy(button, true, "Saving...");
+  premium.accountProfileMessage.textContent = "Saving profile...";
+
+  try {
+    const { error: profileError } = await supabaseClient.from("profiles").update({
+      email: currentUser.email,
+      full_name: displayName || null,
+      updated_at: new Date().toISOString(),
+    }).eq("id", currentUser.id);
+    if (profileError) throw profileError;
+
+    const { error: userError } = await supabaseClient.auth.updateUser({
+      data: { full_name: displayName || null },
+    });
+    if (userError) throw userError;
+
+    currentUser = { ...currentUser, user_metadata: { ...currentUser.user_metadata, full_name: displayName || null } };
+    updateDashboardWelcome(displayName);
+    premium.accountProfileMessage.textContent = "Profile saved.";
+  } catch (error) {
+    premium.accountProfileMessage.textContent = error?.message || "Could not save profile.";
+  } finally {
+    setButtonBusy(button, false);
+  }
+}
+
 function buildAccountExportPayload(userId = null) {
   return {
     exportedAt: new Date().toISOString(),
@@ -5796,6 +5869,8 @@ async function logoutUser() {
   premium.authMessage.textContent = "Signed out.";
   setAuthMode("signin");
   updateNavAuthButton(false);
+  updateDashboardWelcome("");
+  if (premium.accountDisplayName) premium.accountDisplayName.value = "";
   switchView("homeView");
 }
 
@@ -5831,6 +5906,7 @@ async function initAuth() {
   if (session?.user) {
     currentUser = session.user;
     updateNavAuthButton(true);
+    await loadAccountProfile();
     if (checkoutStatus === "success") {
       premium.subscriptionNote.textContent = "Payment completed. Syncing your subscription...";
       await syncSubscriptionFromStripe(checkoutSessionId);
@@ -5857,7 +5933,7 @@ async function initAuth() {
       showSubscriptionRequired(
         checkoutStatus === "success"
           ? "Payment completed, but Stripe has not confirmed an active subscription yet. Try refresh in a moment or check the Stripe webhook."
-          : "Your account is signed in, but the portfolio dashboard needs an active Premium or Pro subscription.",
+          : "Your account is signed in, but the portfolio dashboard needs an active Standard or Pro subscription.",
       );
       if (checkoutStatus === "success") {
         setTimeout(async () => {
@@ -5959,7 +6035,7 @@ async function redeemPromoCode(code, messageTarget = premium.promoMessage) {
 
   promoAccess = true;
   localStorage.setItem(PROMO_STORAGE_KEY, "true");
-  messageTarget.textContent = "Promo accepted. Premium access unlocked.";
+  messageTarget.textContent = "Promo accepted. Portfolio access unlocked.";
   await trackEvent("promo_redeemed", { code: normalizedCode, mode: "supabase" });
   loadSubscriptionSummary();
   openDashboard();
@@ -7003,6 +7079,7 @@ premium.accountPasswordForm.addEventListener("submit", async (event) => {
   await updateDashboardPassword();
 });
 
+premium.accountProfileForm?.addEventListener("submit", updateAccountProfile);
 premium.exportAccountData.addEventListener("click", exportAccountData);
 premium.deletePortfolioData.addEventListener("click", deletePortfolioData);
 premium.deleteAccount?.addEventListener("click", deleteAccount);

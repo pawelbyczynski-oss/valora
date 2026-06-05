@@ -653,6 +653,29 @@ select {
   gap: 12px;
 }
 
+.site-intro {
+  display: grid;
+  gap: 10px;
+  max-width: 860px;
+  margin: 0 0 18px;
+}
+
+.site-intro h1 {
+  max-width: 820px;
+  margin: 0;
+  font-size: clamp(2rem, 4.2vw, 4.2rem);
+  line-height: 0.98;
+}
+
+.site-intro p:last-child {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
 .calculator-panel,
 .results-panel,
 .calculator-partners,
@@ -968,6 +991,7 @@ select {
 :root[data-theme="dark"] .secondary-button,
 :root[data-theme="dark"] .email-login,
 :root[data-theme="dark"] .promo-form,
+:root[data-theme="dark"] .account-profile-form,
 :root[data-theme="dark"] .account-password-form,
 :root[data-theme="dark"] .account-privacy-panel,
 :root[data-theme="dark"] .account-import-panel,
@@ -1007,8 +1031,21 @@ select {
 :root[data-theme="dark"] li,
 :root[data-theme="dark"] .legal-page,
 :root[data-theme="dark"] .legal-page p,
-:root[data-theme="dark"] .legal-page li {
+:root[data-theme="dark"] .legal-page li,
+:root[data-theme="dark"] .help-grid p,
+:root[data-theme="dark"] .help-grid ol,
+:root[data-theme="dark"] .help-grid li {
   color: var(--muted);
+}
+
+:root[data-theme="dark"] .help-grid details {
+  background: var(--panel-strong);
+}
+
+:root[data-theme="dark"] .help-grid summary,
+:root[data-theme="dark"] .legal-page h1,
+:root[data-theme="dark"] .legal-page h2 {
+  color: var(--ink);
 }
 
 :root[data-theme="dark"] input,
@@ -1035,6 +1072,7 @@ select {
 
 .email-login,
 .promo-form,
+.account-profile-form,
 .account-password-form,
 .account-privacy-panel,
 .account-import-panel {
@@ -1048,6 +1086,10 @@ select {
 
 .account-privacy-panel,
 .account-import-panel {
+  margin-top: 12px;
+}
+
+.compact-heading {
   margin-top: 12px;
 }
 
@@ -2084,6 +2126,29 @@ select {
   color: var(--muted) !important;
 }
 
+@media (prefers-color-scheme: dark) {
+  body:has(.legal-page) {
+    color: #f8fafc;
+    background:
+      linear-gradient(180deg, rgba(20, 184, 166, 0.12), transparent 360px),
+      #0f172a;
+  }
+
+  .legal-page {
+    color: #94a3b8;
+  }
+
+  .legal-page h1,
+  .legal-page h2 {
+    color: #f8fafc;
+  }
+
+  .legal-page p,
+  .legal-page li {
+    color: #94a3b8;
+  }
+}
+
 .property-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2929,7 +2994,7 @@ label {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
-  color: #405861;
+  color: #1f2933;
   box-shadow: var(--shadow);
   font-size: 0.8rem;
   font-weight: 650;
@@ -3101,8 +3166,8 @@ select:focus {
   padding: 9px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--ink);
-  color: #ffffff;
+  background: #ffffff;
+  color: #1f2933;
   font-size: 0.74rem;
   font-weight: 650;
   line-height: 1.35;
@@ -3112,6 +3177,13 @@ select:focus {
   pointer-events: none;
   transform: translate(-50%, 4px);
   transition: opacity 140ms ease, transform 140ms ease;
+}
+
+:root[data-theme="dark"] .tooltip,
+:root[data-theme="dark"] .metric-help::after {
+  border-color: #d8dee6;
+  background: #f8fafc;
+  color: #1f2933;
 }
 
 .metric-help:hover::after,

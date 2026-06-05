@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PropertyPanel | Property Management</title>
-    <link rel="stylesheet" href="styles.css?v=20260602-calendar-subscription" />
+    <link rel="stylesheet" href="styles.css?v=20260605-feedback-polish" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   </head>
@@ -30,7 +30,7 @@
       </div>
       <div class="nav-actions">
         <button class="nav-button active" type="button" data-view="homeView">Calculator</button>
-        <button class="nav-button" type="button" data-view="premiumView">Premium</button>
+        <button class="nav-button" type="button" data-view="premiumView">Plans</button>
         <button class="nav-button" id="navPortfolioButton" type="button" data-nav-action="portfolio">Portfolio</button>
         <button class="nav-button notification-button" id="notificationButton" type="button" aria-expanded="false" aria-controls="notificationPanel" title="Reminders">
           <span aria-hidden="true">🔔</span>
@@ -203,16 +203,15 @@
           </aside>
         </section>
 
+        <section class="site-intro" aria-labelledby="siteIntroTitle">
+          <p class="eyebrow">UK landlord calculator and portfolio tracker</p>
+          <h1 id="siteIntroTitle">Work out a property deal, then keep the portfolio organised.</h1>
+          <p>PropertyPanel helps UK landlords calculate buy-to-let returns, track rents, documents, mortgage dates and generate cleaner portfolio reports from one workspace.</p>
+        </section>
+
         <div class="deal-workspace">
       <section class="calculator-panel" aria-labelledby="app-title">
         <div class="topbar">
-          <div class="brand-lockup">
-            <img src="property-panel-logo.svg" alt="PropertyPanel logo" />
-            <div>
-              <p class="brand-name">PropertyPanel</p>
-              <p class="brand-line">Your property, organised.</p>
-            </div>
-          </div>
           <div class="headline">
             <p class="eyebrow">UK Buy-to-Let</p>
             <h1 id="app-title">Evaluate every property with investor-grade clarity.</h1>
@@ -435,7 +434,7 @@
       </section>
     </main>
 
-    <section class="premium-shell app-view" id="premiumView" aria-label="PropertyPanel Premium">
+    <section class="premium-shell app-view" id="premiumView" aria-label="PropertyPanel plans">
       <div class="premium-hero">
         <div>
           <p class="eyebrow">PropertyPanel plans</p>
@@ -447,7 +446,7 @@
       <section class="plan-grid" aria-label="PropertyPanel plans">
         <article class="plan-card">
           <div>
-            <p class="eyebrow">Premium</p>
+            <p class="eyebrow">Standard</p>
             <h2>Portfolio tracker</h2>
             <strong class="plan-price">£4.99</strong>
             <p class="hero-copy">For small landlords with up to 5 properties who want simple tracking, reminders and clean records.</p>
@@ -461,7 +460,7 @@
             <li>Basic document vault and checklist</li>
             <li>Export lender PDF, portfolio PDF and transaction CSV</li>
           </ul>
-          <button class="tax-button plan-cta" type="button" data-plan="premium">Start Premium</button>
+          <button class="tax-button plan-cta" type="button" data-plan="premium">Start Standard</button>
         </article>
 
         <article class="plan-card featured-plan">
@@ -473,7 +472,7 @@
             <p class="hero-copy">For serious investors, rent-to-rent operators and managed portfolios that need monthly reporting.</p>
           </div>
           <ul class="plan-features">
-            <li>Everything in Premium</li>
+            <li>Everything in Standard</li>
             <li>Unlimited properties</li>
             <li>Rent-to-rent / managed property mode</li>
             <li>Email reminders and weekly action digest</li>
@@ -497,7 +496,7 @@
           <h2>Clear reasons to upgrade</h2>
         </div>
         <div class="comparison-table">
-          <div><span>Feature</span><strong>Premium £4.99</strong><strong>Pro £9.99</strong></div>
+          <div><span>Feature</span><strong>Standard £4.99</strong><strong>Pro £9.99</strong></div>
           <div><span>Property portfolio</span><strong>Up to 5</strong><strong>Unlimited</strong></div>
           <div><span>Rent-to-rent / managed property</span><strong>-</strong><strong>Included</strong></div>
           <div><span>Tenancy and mortgage tracking</span><strong>Included</strong><strong>Included</strong></div>
@@ -573,14 +572,14 @@
         <div class="dashboard-head dashboard-welcome">
           <div>
             <p class="eyebrow">Portfolio dashboard</p>
-            <h2>Welcome back, Pawel</h2>
+            <h2 id="dashboardWelcomeTitle">Welcome back</h2>
           </div>
           <div class="dashboard-actions">
             <button class="tax-button small-button" id="openPropertyModal" type="button">Add property</button>
           </div>
         </div>
 
-        <div class="section-tabs" aria-label="Premium sections">
+        <div class="section-tabs" aria-label="Portfolio sections">
           <button class="section-tab active" type="button" data-dashboard-tab="overview"><span class="tab-icon">□</span>Overview</button>
           <button class="section-tab" type="button" data-dashboard-tab="properties"><span class="tab-icon">⌂</span>Properties</button>
           <button class="section-tab" type="button" data-dashboard-tab="transactions"><span class="tab-icon">£</span>Transactions</button>
@@ -848,6 +847,18 @@
           <section class="panel-card dashboard-panel" data-dashboard-panel="account">
             <div class="section-heading">
               <p class="eyebrow">Account</p>
+              <h2>Your details</h2>
+            </div>
+            <form class="account-profile-form" id="accountProfileForm">
+              <label>
+                <span>Display name</span>
+                <input id="accountDisplayName" type="text" maxlength="80" placeholder="Your name" autocomplete="name" />
+              </label>
+              <button class="secondary-button" type="submit">Save profile</button>
+              <p class="field-hint" id="accountProfileMessage">This name is only used inside your PropertyPanel account.</p>
+            </form>
+            <div class="section-heading compact-heading">
+              <p class="eyebrow">Account</p>
               <h2>Security</h2>
             </div>
             <form class="account-password-form" id="accountPasswordForm">
@@ -1008,11 +1019,11 @@
                   <li>Stripe Customer Portal will open.</li>
                   <li>From there you can update card details, view invoices or cancel the subscription.</li>
                 </ol>
-                <p>If you cancel at the end of the billing period, your access continues until the paid period ends. After the subscription becomes inactive, portfolio features are locked until Premium or Pro is active again.</p>
+                <p>If you cancel at the end of the billing period, your access continues until the paid period ends. After the subscription becomes inactive, portfolio features are locked until Standard or Pro is active again.</p>
               </details>
               <details>
                 <summary>What can I do if my subscription is not active?</summary>
-                <p>You can still use the calculator and choose a Premium or Pro plan. Portfolio features need an active subscription. Your billing history stays in Stripe and your account security controls remain separate from property records.</p>
+                <p>You can still use the calculator and choose a Standard or Pro plan. Portfolio features need an active subscription. Your billing history stays in Stripe and your account security controls remain separate from property records.</p>
               </details>
             </div>
           </section>
@@ -1053,7 +1064,7 @@
         <article><span>Calc 7 days</span><strong id="adminCalculatorWeek">0</strong></article>
         <article><span>Calc 30 days</span><strong id="adminCalculatorMonth">0</strong></article>
         <article><span>Calc 12 months</span><strong id="adminCalculatorYear">0</strong></article>
-        <article><span>Premium views</span><strong id="adminPremiumViews">0</strong></article>
+        <article><span>Plans page views</span><strong id="adminPremiumViews">0</strong></article>
         <article><span>PDF exports</span><strong id="adminPdfExports">0</strong></article>
         <article><span>Promo redemptions</span><strong id="adminPromos">0</strong></article>
       </div>
@@ -1411,9 +1422,9 @@
               <span>Recipient scope</span>
               <select id="adminSendEmailScope">
                 <option value="single">Single recipient</option>
-                <option value="premium">Premium users</option>
+                <option value="premium">Standard users</option>
                 <option value="pro">Pro users</option>
-                <option value="paid">Premium and Pro users</option>
+                <option value="paid">Standard and Pro users</option>
               </select>
               <small class="field-hint">Broadcast scopes require confirmation and are logged.</small>
             </label>
@@ -1471,15 +1482,15 @@
           </div>
           <form class="admin-form" id="adminPricingForm">
             <label>
-              <span>Premium display price</span>
+              <span>Standard display price</span>
               <input id="adminPremiumDisplayPrice" placeholder="£4.99" />
             </label>
             <label>
-              <span>Premium monthly price (pence)</span>
+              <span>Standard monthly price (pence)</span>
               <input id="adminPremiumPricePence" type="number" min="0" step="1" />
             </label>
             <label class="wide-field">
-              <span>Premium Stripe price ID</span>
+              <span>Standard Stripe price ID</span>
               <input id="adminPremiumStripePriceId" placeholder="price_..." />
             </label>
             <label>
@@ -1496,7 +1507,7 @@
             </label>
             <p class="field-hint wide-field">Stripe prices cannot be edited directly. Create a new Stripe Price, paste the new price_ ID here, and new checkouts will use it.</p>
             <button class="tax-button" type="submit">Save pricing</button>
-            <p class="field-hint" id="adminPricingMessage">Premium page and checkout will use these settings when available.</p>
+            <p class="field-hint" id="adminPricingMessage">Plans page and checkout will use these settings when available.</p>
           </form>
         </section>
 
@@ -1534,7 +1545,7 @@
         <div class="modal-head">
           <div>
             <p class="eyebrow">Add property</p>
-            <h2 id="propertyModalTitle">Save a premium portfolio record</h2>
+            <h2 id="propertyModalTitle">Save a portfolio record</h2>
           </div>
           <button class="close-button" id="closePropertyModal" type="button" aria-label="Close property form">×</button>
         </div>
