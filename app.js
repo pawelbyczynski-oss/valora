@@ -2407,8 +2407,8 @@ function renderRentCalendar() {
     const date = dateInputValue(new Date(monthStart.getFullYear(), monthStart.getMonth(), day, 12));
     const dayEvents = eventsByDate.get(date) || [];
     const activeEvents = dayEvents.filter((event) =>
-      (event.kind !== "rent" || event.transaction.status !== "approved") &&
-      (event.kind !== "review" || event.review.status !== "completed"));
+      (event.kind !== "rent" || event.transaction?.status !== "approved") &&
+      (event.kind !== "review" || event.review?.status !== "completed"));
     const dots = [...new Set(activeEvents.map((event) => event.kind))]
       .slice(0, 4)
       .map((kind) => `<i class="calendar-dot dot-${kind}"></i>`)
