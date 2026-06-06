@@ -1944,6 +1944,13 @@ select {
   line-height: 1.35;
 }
 
+.reminder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
 .reminder-item time {
   color: var(--gold);
   font-size: 0.76rem;

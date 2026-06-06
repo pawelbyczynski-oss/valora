@@ -549,6 +549,10 @@
             <span>Email address</span>
             <input id="loginEmail" type="email" placeholder="you@example.com" required />
           </label>
+          <label id="loginNameWrap">
+            <span>Full name</span>
+            <input id="loginDisplayName" type="text" maxlength="80" placeholder="Your name" autocomplete="name" />
+          </label>
           <label id="loginPasswordWrap">
             <span>Password</span>
             <input id="loginPassword" type="password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*\d).{8,}" placeholder="Minimum 8 characters" autocomplete="current-password" required />

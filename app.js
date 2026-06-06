@@ -68,6 +68,8 @@ const premium = {
   adminNav: document.querySelector(".admin-nav"),
   emailLoginForm: document.querySelector("#emailLoginForm"),
   loginEmail: document.querySelector("#loginEmail"),
+  loginNameWrap: document.querySelector("#loginNameWrap"),
+  loginDisplayName: document.querySelector("#loginDisplayName"),
   loginPasswordWrap: document.querySelector("#loginPasswordWrap"),
   loginPassword: document.querySelector("#loginPassword"),
   authModeButtons: document.querySelectorAll("[data-auth-mode]"),
@@ -3007,6 +3009,7 @@ function addReminderRecord(reminders, { type, property, title, detail, dueDate, 
     stageLabel: stage.label,
     rank: stage.rank,
     days,
+    propertyId: property?.id || "",
     propertyName: property?.name || "",
     title,
     detail,
@@ -3032,7 +3035,18 @@ function renderReminderItem(reminder) {
   calendarButton.type = "button";
   calendarButton.dataset.calendarReminder = reminder.id;
   calendarButton.textContent = "Add to calendar";
-  copy.append(title, detail, calendarButton);
+  const actions = document.createElement("div");
+  actions.className = "reminder-actions";
+  actions.append(calendarButton);
+  if (reminder.type === "Rent") {
+    const paidButton = document.createElement("button");
+    paidButton.className = "inline-link reminder-calendar";
+    paidButton.type = "button";
+    paidButton.dataset.reminderMarkRentPaid = reminder.id;
+    paidButton.textContent = reminder.transaction?.id ? "Mark paid" : "Record paid";
+    actions.append(paidButton);
+  }
+  copy.append(title, detail, actions);
 
   const due = document.createElement("time");
   due.dateTime = reminder.dueDate;
@@ -3060,6 +3074,13 @@ function upcomingReminders() {
 
     if (property.rentReminder === "On") {
       const dueDate = nextRentDueDate(property.rentDueDay);
+      const dueDateString = dateInputValue(dueDate);
+      const transaction = transactions.find((item) =>
+        item.propertyId === property.id &&
+        item.date === dueDateString &&
+        item.type === "income" &&
+        (transactionTenancyId(item) || String(item.category || "").toLowerCase().includes("rent")));
+      if (transaction?.status === "approved") return;
       const rentDays = daysUntilDate(dueDate);
       reminders.push({
         type: "Rent",
@@ -3071,7 +3092,9 @@ function upcomingReminders() {
         title: `${property.name} rent payment`,
         detail: `${duePhrase(rentDays)}. Check ${money.format(property.rent)} payment.`,
         amount: property.rent,
-        dueDate: dateInputValue(dueDate),
+        dueDate: dueDateString,
+        propertyId: property.id,
+        transaction,
       });
     }
 
@@ -3166,6 +3189,50 @@ function renderReminders() {
     const item = document.createElement("li");
     item.textContent = "No urgent reminders. Mortgage, rent, tenancy and certificate alerts will appear here when dates are close.";
     premium.reminderList.replaceChildren(item);
+  }
+}
+
+async function markReminderRentPaid(reminder, button = null) {
+  if (!reminder || reminder.type !== "Rent") return;
+  const property = properties.find((item) => item.id === reminder.propertyId);
+  if (!property) {
+    window.alert("Could not find the property for this rent reminder.");
+    return;
+  }
+
+  setButtonBusy(button, true, "Saving...");
+  try {
+    let transaction = reminder.transaction?.id
+      ? transactions.find((item) => item.id === reminder.transaction.id)
+      : null;
+
+    if (transaction) {
+      transaction.status = "approved";
+      transaction.taxTreatment = "revenue";
+      await updateTransactionInSupabase(transaction);
+    } else {
+      transaction = normalizeTransactionRecord({
+        id: createId("transaction"),
+        propertyId: property.id,
+        date: reminder.dueDate,
+        amount: Number(reminder.amount || property.rent || 0),
+        type: "income",
+        category: "Rent received",
+        taxTreatment: "revenue",
+        source: "manual",
+        status: "approved",
+        notes: `${property.name} rent marked paid from reminder`,
+      });
+      const savedId = await saveTransactionToSupabase(transaction);
+      if (savedId) transaction.id = savedId;
+      transactions = [transaction, ...transactions];
+    }
+
+    renderPremiumDashboard();
+    if (!premium.notificationPanel.hidden) updateNotificationPanel(upcomingReminders());
+  } catch (error) {
+    window.alert(error?.message || "Could not mark this rent as paid.");
+    setButtonBusy(button, false);
   }
 }
 
@@ -3461,7 +3528,7 @@ function updateDashboardWelcome(displayName = "") {
 function fallbackAccountName(user = currentUser) {
   const metadataName = user?.user_metadata?.full_name || user?.user_metadata?.name || "";
   if (metadataName) return metadataName;
-  return user?.email ? user.email.split("@")[0] : "";
+  return "";
 }
 
 async function loadAccountProfile() {
@@ -5504,6 +5571,9 @@ function setAuthMode(mode) {
   });
 
   const needsPassword = mode !== "forgot";
+  const needsDisplayName = mode === "signup";
+  premium.loginNameWrap.hidden = !needsDisplayName;
+  premium.loginDisplayName.required = needsDisplayName;
   premium.loginPasswordWrap.hidden = !needsPassword;
   premium.loginPassword.required = needsPassword;
   premium.loginPassword.autocomplete = mode === "signup" ? "new-password" : "current-password";
@@ -5533,9 +5603,16 @@ async function handleEmailAuth() {
 
   const email = premium.loginEmail.value.trim();
   const password = premium.loginPassword.value;
+  const displayName = premium.loginDisplayName.value.trim();
   premium.emailAuthSubmit.disabled = true;
 
   if (authMode === "signup") {
+    if (!displayName) {
+      premium.emailAuthSubmit.disabled = false;
+      premium.authMessage.textContent = "Enter your full name so PropertyPanel can personalise your account.";
+      premium.loginDisplayName.focus();
+      return;
+    }
     if (!passwordMeetsRequirements(password)) {
       premium.emailAuthSubmit.disabled = false;
       premium.authMessage.textContent = PASSWORD_REQUIREMENTS;
@@ -5548,6 +5625,7 @@ async function handleEmailAuth() {
       password,
       options: {
         emailRedirectTo: getAuthRedirectUrl(),
+        data: { full_name: displayName },
       },
     });
 
@@ -8303,6 +8381,13 @@ premium.closeNotificationPanel?.addEventListener("click", () => {
 });
 
 document.addEventListener("click", (event) => {
+  const markPaidButton = event.target.closest("[data-reminder-mark-rent-paid]");
+  if (markPaidButton) {
+    const reminder = upcomingReminders().find((item) => item.id === markPaidButton.dataset.reminderMarkRentPaid);
+    markReminderRentPaid(reminder, markPaidButton);
+    return;
+  }
+
   const calendarButton = event.target.closest("[data-calendar-reminder]");
   if (!calendarButton) return;
   const reminder = upcomingReminders().find((item) => item.id === calendarButton.dataset.calendarReminder);
