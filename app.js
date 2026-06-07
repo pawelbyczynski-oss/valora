@@ -3230,6 +3230,8 @@ async function markReminderRentPaid(reminder, button = null) {
     }
 
     renderPremiumDashboard();
+    renderTransactions();
+    if (activePropertyId) renderPropertyDetail();
     const reminders = upcomingReminders();
     updateNotificationPanel(reminders);
     if (notificationWasOpen) {
