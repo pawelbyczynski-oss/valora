@@ -4309,8 +4309,9 @@ function replaceTemplateVariables(content, variables = {}) {
 }
 
 function defaultTemplateVariables() {
+  const profileName = fallbackAccountName(currentUser);
   return {
-    first_name: premium.adminSendEmailFirstName?.value || "Pawel",
+    first_name: premium.adminSendEmailFirstName?.value || profileName.firstName || "Customer",
     email: premium.adminSendEmailTo?.value || "customer@example.com",
     property_reference: premium.adminSendEmailProperty?.value || "Flat 1 / Hawkhill",
     rent_amount: "£1,000",

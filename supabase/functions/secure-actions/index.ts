@@ -61,6 +61,10 @@ function renderVariables(content: string, variables: Record<string, unknown>) {
   });
 }
 
+function firstNameFromProfile(profile: { full_name?: string | null } | null | undefined) {
+  return textValue(profile?.full_name || "", 180).split(/\s+/).filter(Boolean)[0] || "";
+}
+
 function fromAddress(value: { from_name?: unknown; from_email?: unknown }) {
   const name = textValue(value?.from_name || "PropertyPanel", 120);
   const email = textValue(value?.from_email || "noreply@propertypanel.co.uk", 180);
@@ -482,16 +486,24 @@ Deno.serve(async (request) => {
           });
         const userIds = [...new Set(eligibleSubscriptions.map((subscription) => subscription.user_id).filter(Boolean))];
         const { data: profiles, error: profileError } = userIds.length
-          ? await supabaseAdmin.from("profiles").select("id,email").in("id", userIds)
+          ? await supabaseAdmin.from("profiles").select("id,email,full_name").in("id", userIds)
           : { data: [], error: null };
         if (profileError) throw profileError;
-        const emailByUser = new Map((profiles || []).map((profile) => [profile.id, profile.email]));
+        const profileByUser = new Map((profiles || []).map((profile) => [profile.id, profile]));
         recipients = eligibleSubscriptions
           .map((subscription) => {
-            const email = emailByUser.get(subscription.user_id);
+            const profile = profileByUser.get(subscription.user_id);
+            const email = profile?.email;
             if (!email) return null;
             const planName = subscription.plan_code === "pro" || Number(subscription.amount_monthly_pence || 0) >= 999 ? "Pro" : "Premium";
-            return { email, variables: { ...variables, plan_name: planName } };
+            return {
+              email,
+              variables: {
+                ...variables,
+                first_name: firstNameFromProfile(profile) || (variables as Record<string, unknown>).first_name,
+                plan_name: planName,
+              },
+            };
           })
           .filter(Boolean) as { email: string; variables?: Record<string, unknown> }[];
       }
