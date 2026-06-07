@@ -549,10 +549,16 @@
             <span>Email address</span>
             <input id="loginEmail" type="email" placeholder="you@example.com" required />
           </label>
-          <label id="loginNameWrap">
-            <span>Full name</span>
-            <input id="loginDisplayName" type="text" maxlength="80" placeholder="Your name" autocomplete="name" />
-          </label>
+          <div class="form-grid two-column" id="loginNameWrap">
+            <label>
+              <span>First name</span>
+              <input id="loginFirstName" type="text" maxlength="40" placeholder="First name" autocomplete="given-name" />
+            </label>
+            <label>
+              <span>Last name</span>
+              <input id="loginLastName" type="text" maxlength="40" placeholder="Last name" autocomplete="family-name" />
+            </label>
+          </div>
           <label id="loginPasswordWrap">
             <span>Password</span>
             <input id="loginPassword" type="password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*\d).{8,}" placeholder="Minimum 8 characters" autocomplete="current-password" required />
@@ -854,12 +860,18 @@
               <h2>Your details</h2>
             </div>
             <form class="account-profile-form" id="accountProfileForm">
-              <label>
-                <span>Display name</span>
-                <input id="accountDisplayName" type="text" maxlength="80" placeholder="Your name" autocomplete="name" />
-              </label>
+              <div class="form-grid two-column">
+                <label>
+                  <span>First name</span>
+                  <input id="accountFirstName" type="text" maxlength="40" placeholder="First name" autocomplete="given-name" />
+                </label>
+                <label>
+                  <span>Last name</span>
+                  <input id="accountLastName" type="text" maxlength="40" placeholder="Last name" autocomplete="family-name" />
+                </label>
+              </div>
               <button class="secondary-button" type="submit">Save profile</button>
-              <p class="field-hint" id="accountProfileMessage">This name is only used inside your PropertyPanel account.</p>
+              <p class="field-hint" id="accountProfileMessage">Your first name is used for the dashboard welcome message.</p>
             </form>
             <div class="section-heading compact-heading">
               <p class="eyebrow">Account</p>

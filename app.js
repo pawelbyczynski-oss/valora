@@ -69,7 +69,8 @@ const premium = {
   emailLoginForm: document.querySelector("#emailLoginForm"),
   loginEmail: document.querySelector("#loginEmail"),
   loginNameWrap: document.querySelector("#loginNameWrap"),
-  loginDisplayName: document.querySelector("#loginDisplayName"),
+  loginFirstName: document.querySelector("#loginFirstName"),
+  loginLastName: document.querySelector("#loginLastName"),
   loginPasswordWrap: document.querySelector("#loginPasswordWrap"),
   loginPassword: document.querySelector("#loginPassword"),
   authModeButtons: document.querySelectorAll("[data-auth-mode]"),
@@ -82,7 +83,8 @@ const premium = {
   themeToggle: document.querySelector("#themeToggle"),
   accountPasswordForm: document.querySelector("#accountPasswordForm"),
   accountProfileForm: document.querySelector("#accountProfileForm"),
-  accountDisplayName: document.querySelector("#accountDisplayName"),
+  accountFirstName: document.querySelector("#accountFirstName"),
+  accountLastName: document.querySelector("#accountLastName"),
   accountProfileMessage: document.querySelector("#accountProfileMessage"),
   dashboardWelcomeTitle: document.querySelector("#dashboardWelcomeTitle"),
   accountPassword: document.querySelector("#accountPassword"),
@@ -3527,26 +3529,43 @@ function openHomeView() {
   saveUiState({ viewId: "homeView" });
 }
 
-function updateDashboardWelcome(displayName = "") {
+function splitProfileName(fullName = "") {
+  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] || "",
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+function buildFullName(firstName = "", lastName = "") {
+  return [firstName, lastName].map((value) => String(value || "").trim()).filter(Boolean).join(" ");
+}
+
+function updateDashboardWelcome(firstName = "") {
   if (!premium.dashboardWelcomeTitle) return;
-  const name = String(displayName || "").trim();
+  const name = String(firstName || "").trim();
   premium.dashboardWelcomeTitle.textContent = name ? `Welcome back, ${name}` : "Welcome back";
 }
 
 function fallbackAccountName(user = currentUser) {
-  const metadataName = user?.user_metadata?.full_name || user?.user_metadata?.name || "";
-  if (metadataName) return metadataName;
-  return "";
+  const metadata = user?.user_metadata || {};
+  const fullName = metadata.full_name || metadata.name || "";
+  const splitName = splitProfileName(fullName);
+  return {
+    firstName: metadata.first_name || metadata.given_name || splitName.firstName || "",
+    lastName: metadata.last_name || metadata.family_name || splitName.lastName || "",
+  };
 }
 
 async function loadAccountProfile() {
   if (!currentUser) {
     updateDashboardWelcome("");
-    if (premium.accountDisplayName) premium.accountDisplayName.value = "";
+    if (premium.accountFirstName) premium.accountFirstName.value = "";
+    if (premium.accountLastName) premium.accountLastName.value = "";
     return;
   }
 
-  let displayName = fallbackAccountName(currentUser);
+  let profileName = fallbackAccountName(currentUser);
 
   if (supabaseClient) {
     const { data } = await supabaseClient
@@ -3554,11 +3573,12 @@ async function loadAccountProfile() {
       .select("full_name")
       .eq("id", currentUser.id)
       .maybeSingle();
-    if (data?.full_name) displayName = data.full_name;
+    if (data?.full_name) profileName = splitProfileName(data.full_name);
   }
 
-  if (premium.accountDisplayName) premium.accountDisplayName.value = displayName || "";
-  updateDashboardWelcome(displayName);
+  if (premium.accountFirstName) premium.accountFirstName.value = profileName.firstName || "";
+  if (premium.accountLastName) premium.accountLastName.value = profileName.lastName || "";
+  updateDashboardWelcome(profileName.firstName);
 }
 
 function updateNavAuthButton(isSignedIn) {
@@ -5581,7 +5601,8 @@ function setAuthMode(mode) {
   const needsPassword = mode !== "forgot";
   const needsDisplayName = mode === "signup";
   premium.loginNameWrap.hidden = !needsDisplayName;
-  premium.loginDisplayName.required = needsDisplayName;
+  premium.loginFirstName.required = needsDisplayName;
+  premium.loginLastName.required = needsDisplayName;
   premium.loginPasswordWrap.hidden = !needsPassword;
   premium.loginPassword.required = needsPassword;
   premium.loginPassword.autocomplete = mode === "signup" ? "new-password" : "current-password";
@@ -5611,14 +5632,16 @@ async function handleEmailAuth() {
 
   const email = premium.loginEmail.value.trim();
   const password = premium.loginPassword.value;
-  const displayName = premium.loginDisplayName.value.trim();
+  const firstName = premium.loginFirstName.value.trim();
+  const lastName = premium.loginLastName.value.trim();
+  const fullName = buildFullName(firstName, lastName);
   premium.emailAuthSubmit.disabled = true;
 
   if (authMode === "signup") {
-    if (!displayName) {
+    if (!firstName || !lastName) {
       premium.emailAuthSubmit.disabled = false;
-      premium.authMessage.textContent = "Enter your full name so PropertyPanel can personalise your account.";
-      premium.loginDisplayName.focus();
+      premium.authMessage.textContent = "Enter your first name and last name so PropertyPanel can personalise your account.";
+      (firstName ? premium.loginLastName : premium.loginFirstName).focus();
       return;
     }
     if (!passwordMeetsRequirements(password)) {
@@ -5633,7 +5656,7 @@ async function handleEmailAuth() {
       password,
       options: {
         emailRedirectTo: getAuthRedirectUrl(),
-        data: { full_name: displayName },
+        data: { first_name: firstName, last_name: lastName, full_name: fullName },
       },
     });
 
@@ -5743,7 +5766,9 @@ async function updateAccountProfile(event) {
     return;
   }
 
-  const displayName = premium.accountDisplayName.value.trim();
+  const firstName = premium.accountFirstName.value.trim();
+  const lastName = premium.accountLastName.value.trim();
+  const fullName = buildFullName(firstName, lastName);
   const button = premium.accountProfileForm.querySelector("button[type='submit']");
   setButtonBusy(button, true, "Saving...");
   premium.accountProfileMessage.textContent = "Saving profile...";
@@ -5751,18 +5776,30 @@ async function updateAccountProfile(event) {
   try {
     const { error: profileError } = await supabaseClient.from("profiles").update({
       email: currentUser.email,
-      full_name: displayName || null,
+      full_name: fullName || null,
       updated_at: new Date().toISOString(),
     }).eq("id", currentUser.id);
     if (profileError) throw profileError;
 
     const { error: userError } = await supabaseClient.auth.updateUser({
-      data: { full_name: displayName || null },
+      data: {
+        first_name: firstName || null,
+        last_name: lastName || null,
+        full_name: fullName || null,
+      },
     });
     if (userError) throw userError;
 
-    currentUser = { ...currentUser, user_metadata: { ...currentUser.user_metadata, full_name: displayName || null } };
-    updateDashboardWelcome(displayName);
+    currentUser = {
+      ...currentUser,
+      user_metadata: {
+        ...currentUser.user_metadata,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        full_name: fullName || null,
+      },
+    };
+    updateDashboardWelcome(firstName);
     premium.accountProfileMessage.textContent = "Profile saved.";
   } catch (error) {
     premium.accountProfileMessage.textContent = error?.message || "Could not save profile.";
@@ -6191,7 +6228,8 @@ async function logoutUser() {
   setAuthMode("signin");
   updateNavAuthButton(false);
   updateDashboardWelcome("");
-  if (premium.accountDisplayName) premium.accountDisplayName.value = "";
+  if (premium.accountFirstName) premium.accountFirstName.value = "";
+  if (premium.accountLastName) premium.accountLastName.value = "";
   switchView("homeView");
 }
 

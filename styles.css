@@ -1120,6 +1120,15 @@ select {
   gap: 12px;
 }
 
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.form-grid.two-column {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .account-import-form .secondary-button,
 .account-import-form .field-hint {
   grid-column: 1 / -1;
@@ -3535,6 +3544,10 @@ li {
   }
 
   .account-import-form {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid.two-column {
     grid-template-columns: 1fr;
   }
 }
