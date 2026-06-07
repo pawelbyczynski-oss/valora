@@ -3200,6 +3200,7 @@ async function markReminderRentPaid(reminder, button = null) {
     return;
   }
 
+  const notificationWasOpen = premium.notificationPanel && !premium.notificationPanel.hidden;
   setButtonBusy(button, true, "Saving...");
   try {
     let transaction = reminder.transaction?.id
@@ -3229,7 +3230,12 @@ async function markReminderRentPaid(reminder, button = null) {
     }
 
     renderPremiumDashboard();
-    if (!premium.notificationPanel.hidden) updateNotificationPanel(upcomingReminders());
+    const reminders = upcomingReminders();
+    updateNotificationPanel(reminders);
+    if (notificationWasOpen) {
+      premium.notificationPanel.hidden = false;
+      premium.notificationButton?.setAttribute("aria-expanded", "true");
+    }
   } catch (error) {
     window.alert(error?.message || "Could not mark this rent as paid.");
     setButtonBusy(button, false);
