@@ -8441,6 +8441,14 @@ document.addEventListener("click", (event) => {
   if (reminder) downloadReminderCalendar(reminder);
 });
 
+if ("serviceWorker" in navigator && ["https:", "http:"].includes(window.location.protocol)) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/service-worker.js").catch(() => {
+      // PWA support is optional; the app should keep working if registration fails.
+    });
+  });
+}
+
 renderTaxBands("higher");
 initTheme();
 switchSection(premium.dashboardTabButtons, premium.dashboardPanels, "overview", "dashboardTab", "dashboardPanel");
