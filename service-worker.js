@@ -1,10 +1,9 @@
-const CACHE_NAME = "propertypanel-pwa-v20260610-2";
+const CACHE_NAME = "propertypanel-pwa-v20260610-3";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/styles.css?v=20260605-feedback-polish",
-  "/config.js?v=20260522",
-  "/app.js?v=20260602-calendar-subscription",
+  "/app.js?v=20260610-push-state",
   "/property-panel-logo.svg",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
@@ -46,6 +45,15 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() => caches.match("/index.html")),
+    );
+    return;
+  }
+
+  if (url.pathname === "/config.js") {
+    event.respondWith(
+      fetch(request, { cache: "no-store" })
+        .then((response) => response)
+        .catch(() => caches.match(request)),
     );
     return;
   }
