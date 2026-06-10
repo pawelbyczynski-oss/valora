@@ -5828,15 +5828,30 @@ function pushSupported() {
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
+function isIosDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function isStandaloneApp() {
+  return window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+}
+
+function pushUnsupportedMessage() {
+  if (isIosDevice() && !isStandaloneApp()) {
+    return "On iPhone, add PropertyPanel to the Home Screen and open it as an app before enabling push reminders.";
+  }
+  return "This browser does not support web push notifications. Try the installed app/PWA or a browser with push support.";
+}
+
 function setPushMessage(message) {
   if (premium.pushNotificationMessage) premium.pushNotificationMessage.textContent = message;
 }
 
-function setPushButtonState(enabled) {
+function setPushButtonState(enabled, label = null) {
   if (!premium.enablePushNotifications) return;
   premium.enablePushNotifications.classList.toggle("is-enabled", enabled);
   premium.enablePushNotifications.setAttribute("aria-pressed", enabled ? "true" : "false");
-  premium.enablePushNotifications.textContent = enabled ? "Push notifications enabled" : "Enable push notifications";
+  premium.enablePushNotifications.textContent = label || (enabled ? "Push notifications enabled" : "Enable push notifications");
 }
 
 async function currentPushSubscription() {
@@ -5851,16 +5866,16 @@ async function refreshPushNotificationState() {
   const supported = pushSupported();
   const hasKey = Boolean(VAPID_PUBLIC_KEY);
   const hasPaidPlan = hasPremiumAccess();
-  premium.enablePushNotifications.disabled = !supported || !hasKey || !hasPaidPlan;
+  premium.enablePushNotifications.disabled = false;
   premium.disablePushNotifications.disabled = !supported;
 
   if (!supported) {
-    setPushButtonState(false);
-    setPushMessage("This browser does not support web push notifications.");
+    setPushButtonState(false, "Check push support");
+    setPushMessage(pushUnsupportedMessage());
     return;
   }
   if (!hasKey) {
-    setPushButtonState(false);
+    setPushButtonState(false, "Check push setup");
     setPushMessage("Push notifications are ready in the app, but the VAPID public key still needs to be configured.");
     return;
   }
@@ -5870,8 +5885,7 @@ async function refreshPushNotificationState() {
     return;
   }
   if (Notification.permission === "denied") {
-    premium.enablePushNotifications.disabled = true;
-    setPushButtonState(false);
+    setPushButtonState(false, "Notifications blocked");
     setPushMessage("Notifications are blocked in this browser. Enable them in browser settings to use push reminders.");
     return;
   }
@@ -5911,7 +5925,7 @@ async function enablePushNotifications() {
     return;
   }
   if (!pushSupported()) {
-    setPushMessage("This browser does not support web push notifications.");
+    setPushMessage(pushUnsupportedMessage());
     return;
   }
   if (!VAPID_PUBLIC_KEY) {
