@@ -185,6 +185,12 @@ select {
   font-weight: 800;
 }
 
+.secondary-button.is-enabled {
+  border-color: rgba(22, 163, 74, 0.42);
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.14), rgba(15, 118, 110, 0.12));
+  color: var(--success);
+}
+
 .nav-button {
   min-height: 40px;
   padding: 0 14px;
@@ -1008,6 +1014,7 @@ select {
 :root[data-theme="dark"] .promo-form,
 :root[data-theme="dark"] .account-profile-form,
 :root[data-theme="dark"] .account-password-form,
+:root[data-theme="dark"] .account-notification-panel,
 :root[data-theme="dark"] .account-privacy-panel,
 :root[data-theme="dark"] .account-import-panel,
 :root[data-theme="dark"] .dashboard-workspace,

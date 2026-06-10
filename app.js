@@ -5832,6 +5832,13 @@ function setPushMessage(message) {
   if (premium.pushNotificationMessage) premium.pushNotificationMessage.textContent = message;
 }
 
+function setPushButtonState(enabled) {
+  if (!premium.enablePushNotifications) return;
+  premium.enablePushNotifications.classList.toggle("is-enabled", enabled);
+  premium.enablePushNotifications.setAttribute("aria-pressed", enabled ? "true" : "false");
+  premium.enablePushNotifications.textContent = enabled ? "Push notifications enabled" : "Enable push notifications";
+}
+
 async function currentPushSubscription() {
   if (!pushSupported()) return null;
   const registration = await navigator.serviceWorker.ready;
@@ -5848,19 +5855,23 @@ async function refreshPushNotificationState() {
   premium.disablePushNotifications.disabled = !supported;
 
   if (!supported) {
+    setPushButtonState(false);
     setPushMessage("This browser does not support web push notifications.");
     return;
   }
   if (!hasKey) {
+    setPushButtonState(false);
     setPushMessage("Push notifications are ready in the app, but the VAPID public key still needs to be configured.");
     return;
   }
   if (!hasPaidPlan) {
+    setPushButtonState(false);
     setPushMessage("Push reminders are included in Standard and Pro.");
     return;
   }
   if (Notification.permission === "denied") {
     premium.enablePushNotifications.disabled = true;
+    setPushButtonState(false);
     setPushMessage("Notifications are blocked in this browser. Enable them in browser settings to use push reminders.");
     return;
   }
@@ -5868,6 +5879,7 @@ async function refreshPushNotificationState() {
   const subscription = await currentPushSubscription();
   premium.enablePushNotifications.disabled = Boolean(subscription);
   premium.disablePushNotifications.disabled = !subscription;
+  setPushButtonState(Boolean(subscription));
   setPushMessage(subscription
     ? "Push reminders are enabled on this device."
     : "Push reminders are available. Enable them on this device to receive browser notifications.");
@@ -5908,6 +5920,7 @@ async function enablePushNotifications() {
   }
 
   const button = premium.enablePushNotifications;
+  setPushMessage("Asking this browser for notification permission...");
   setButtonBusy(button, true, "Enabling...");
   try {
     const permission = await Notification.requestPermission();
@@ -5922,12 +5935,13 @@ async function enablePushNotifications() {
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     });
     await savePushSubscription(subscription);
+    setPushButtonState(true);
     setPushMessage("Push reminders are enabled on this device.");
   } catch (error) {
     setPushMessage(error?.message || "Could not enable push notifications.");
   } finally {
     setButtonBusy(button, false);
-    refreshPushNotificationState();
+    await refreshPushNotificationState();
   }
 }
 
@@ -5947,12 +5961,13 @@ async function disablePushNotifications() {
           .eq("endpoint", endpoint);
       }
     }
+    setPushButtonState(false);
     setPushMessage("Push reminders are disabled on this device.");
   } catch (error) {
     setPushMessage(error?.message || "Could not disable push notifications.");
   } finally {
     setButtonBusy(button, false);
-    refreshPushNotificationState();
+    await refreshPushNotificationState();
   }
 }
 
