@@ -86,6 +86,9 @@ const premium = {
   accountFirstName: document.querySelector("#accountFirstName"),
   accountLastName: document.querySelector("#accountLastName"),
   accountProfileMessage: document.querySelector("#accountProfileMessage"),
+  enablePushNotifications: document.querySelector("#enablePushNotifications"),
+  disablePushNotifications: document.querySelector("#disablePushNotifications"),
+  pushNotificationMessage: document.querySelector("#pushNotificationMessage"),
   dashboardWelcomeTitle: document.querySelector("#dashboardWelcomeTitle"),
   accountPassword: document.querySelector("#accountPassword"),
   accountPasswordMessage: document.querySelector("#accountPasswordMessage"),
@@ -371,6 +374,7 @@ const premium = {
 const appConfig = window.PROPERTY_PANEL_CONFIG || {};
 const SUPABASE_URL = appConfig.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = appConfig.SUPABASE_ANON_KEY || "";
+const VAPID_PUBLIC_KEY = appConfig.VAPID_PUBLIC_KEY || "";
 const CHECKOUT_FUNCTION = "create-checkout-session";
 const PORTAL_FUNCTION = "create-billing-portal-session";
 const SYNC_SUBSCRIPTION_FUNCTION = "sync-subscription";
@@ -3562,6 +3566,7 @@ async function loadAccountProfile() {
     updateDashboardWelcome("");
     if (premium.accountFirstName) premium.accountFirstName.value = "";
     if (premium.accountLastName) premium.accountLastName.value = "";
+    refreshPushNotificationState();
     return;
   }
 
@@ -3579,6 +3584,7 @@ async function loadAccountProfile() {
   if (premium.accountFirstName) premium.accountFirstName.value = profileName.firstName || "";
   if (premium.accountLastName) premium.accountLastName.value = profileName.lastName || "";
   updateDashboardWelcome(profileName.firstName);
+  refreshPushNotificationState();
 }
 
 function updateNavAuthButton(isSignedIn) {
@@ -5809,6 +5815,147 @@ async function updateAccountProfile(event) {
   }
 }
 
+function urlBase64ToUint8Array(value) {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = `${value}${padding}`.replaceAll("-", "+").replaceAll("_", "/");
+  const raw = window.atob(base64);
+  const output = new Uint8Array(raw.length);
+  for (let index = 0; index < raw.length; index += 1) output[index] = raw.charCodeAt(index);
+  return output;
+}
+
+function pushSupported() {
+  return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+function setPushMessage(message) {
+  if (premium.pushNotificationMessage) premium.pushNotificationMessage.textContent = message;
+}
+
+async function currentPushSubscription() {
+  if (!pushSupported()) return null;
+  const registration = await navigator.serviceWorker.ready;
+  return registration.pushManager.getSubscription();
+}
+
+async function refreshPushNotificationState() {
+  if (!premium.enablePushNotifications || !premium.disablePushNotifications) return;
+
+  const supported = pushSupported();
+  const hasKey = Boolean(VAPID_PUBLIC_KEY);
+  const isPro = hasProAccess();
+  premium.enablePushNotifications.disabled = !supported || !hasKey || !isPro;
+  premium.disablePushNotifications.disabled = !supported;
+
+  if (!supported) {
+    setPushMessage("This browser does not support web push notifications.");
+    return;
+  }
+  if (!hasKey) {
+    setPushMessage("Push notifications are ready in the app, but the VAPID public key still needs to be configured.");
+    return;
+  }
+  if (!isPro) {
+    setPushMessage("Push reminders are included in Pro.");
+    return;
+  }
+  if (Notification.permission === "denied") {
+    premium.enablePushNotifications.disabled = true;
+    setPushMessage("Notifications are blocked in this browser. Enable them in browser settings to use push reminders.");
+    return;
+  }
+
+  const subscription = await currentPushSubscription();
+  premium.enablePushNotifications.disabled = Boolean(subscription);
+  premium.disablePushNotifications.disabled = !subscription;
+  setPushMessage(subscription
+    ? "Push reminders are enabled on this device."
+    : "Push reminders are available. Enable them on this device to receive browser notifications.");
+}
+
+async function savePushSubscription(subscription) {
+  if (!currentUser || !supabaseClient || !subscription) return;
+  const payload = subscription.toJSON();
+  const { error } = await supabaseClient.from("push_subscriptions").upsert({
+    user_id: currentUser.id,
+    endpoint: payload.endpoint,
+    p256dh: payload.keys?.p256dh || "",
+    auth: payload.keys?.auth || "",
+    user_agent: navigator.userAgent,
+    enabled: true,
+    last_error: null,
+  }, { onConflict: "endpoint" });
+  if (error) throw error;
+}
+
+async function enablePushNotifications() {
+  if (!currentUser || !supabaseClient) {
+    setPushMessage("Sign in before enabling push reminders.");
+    return;
+  }
+  if (!hasProAccess()) {
+    showProUpgrade("Push reminders are included in PropertyPanel Pro.");
+    setPushMessage("Upgrade to Pro to enable push reminders.");
+    return;
+  }
+  if (!pushSupported()) {
+    setPushMessage("This browser does not support web push notifications.");
+    return;
+  }
+  if (!VAPID_PUBLIC_KEY) {
+    setPushMessage("Push key is not configured yet. Add VAPID_PUBLIC_KEY before enabling push reminders.");
+    return;
+  }
+
+  const button = premium.enablePushNotifications;
+  setButtonBusy(button, true, "Enabling...");
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      setPushMessage("Notification permission was not granted.");
+      return;
+    }
+    const registration = await navigator.serviceWorker.ready;
+    const existing = await registration.pushManager.getSubscription();
+    const subscription = existing || await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+    await savePushSubscription(subscription);
+    setPushMessage("Push reminders are enabled on this device.");
+  } catch (error) {
+    setPushMessage(error?.message || "Could not enable push notifications.");
+  } finally {
+    setButtonBusy(button, false);
+    refreshPushNotificationState();
+  }
+}
+
+async function disablePushNotifications() {
+  const button = premium.disablePushNotifications;
+  setButtonBusy(button, true, "Disabling...");
+  try {
+    const subscription = await currentPushSubscription();
+    if (subscription) {
+      const endpoint = subscription.endpoint;
+      await subscription.unsubscribe();
+      if (supabaseClient && currentUser) {
+        await supabaseClient
+          .from("push_subscriptions")
+          .update({ enabled: false })
+          .eq("user_id", currentUser.id)
+          .eq("endpoint", endpoint);
+      }
+    }
+    setPushMessage("Push reminders are disabled on this device.");
+  } catch (error) {
+    setPushMessage(error?.message || "Could not disable push notifications.");
+  } finally {
+    setButtonBusy(button, false);
+    refreshPushNotificationState();
+  }
+}
+
 function buildAccountExportPayload(userId = null) {
   return {
     exportedAt: new Date().toISOString(),
@@ -6231,6 +6378,7 @@ async function logoutUser() {
   updateDashboardWelcome("");
   if (premium.accountFirstName) premium.accountFirstName.value = "";
   if (premium.accountLastName) premium.accountLastName.value = "";
+  refreshPushNotificationState();
   switchView("homeView");
 }
 
@@ -7441,6 +7589,8 @@ premium.accountPasswordForm.addEventListener("submit", async (event) => {
 });
 
 premium.accountProfileForm?.addEventListener("submit", updateAccountProfile);
+premium.enablePushNotifications?.addEventListener("click", enablePushNotifications);
+premium.disablePushNotifications?.addEventListener("click", disablePushNotifications);
 premium.exportAccountData.addEventListener("click", exportAccountData);
 premium.deletePortfolioData.addEventListener("click", deletePortfolioData);
 premium.deleteAccount?.addEventListener("click", deleteAccount);

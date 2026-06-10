@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import webpush from "npm:web-push@3.6.7";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL") ?? "",
@@ -9,8 +10,15 @@ const APP_BASE_URL = Deno.env.get("APP_BASE_URL") ?? "https://propertypanel.co.u
 const REMINDER_FROM_EMAIL =
   Deno.env.get("REMINDER_FROM_EMAIL") ?? "PropertyPanel Reminder <reminder@propertypanel.co.uk>";
 const SPONSOR_ADMIN_EMAIL = Deno.env.get("SPONSOR_ADMIN_EMAIL") ?? "contact@propertypanel.co.uk";
+const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") ?? "";
+const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") ?? "";
+const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:contact@propertypanel.co.uk";
 const EXPIRY_LEAD_DAYS = [90, 30, 7];
 const RENT_LEAD_DAYS = [7, 1, 0];
+
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
 
 type Profile = {
   id: string;
@@ -105,6 +113,14 @@ function emailHtml(reminder: Record<string, unknown>) {
 
 function smsText(reminder: Record<string, unknown>) {
   return `PropertyPanel Reminder: ${String(reminder.title)} is due ${leadLabel(Number(reminder.lead_days || 0))} (${String(reminder.event_date)}).`;
+}
+
+function pushPayload(reminder: Record<string, unknown>) {
+  return JSON.stringify({
+    title: `PropertyPanel: ${String(reminder.title)}`,
+    body: `Due ${leadLabel(Number(reminder.lead_days || 0))} (${String(reminder.event_date)}).`,
+    url: APP_BASE_URL,
+  });
 }
 
 function digestEmailHtml(reminders: Record<string, unknown>[]) {
@@ -274,7 +290,8 @@ async function syncGeneratedReminders() {
     .in("user_id", proUserIds)
     .eq("source_kind", "generated")
     .is("sent_at", null)
-    .is("sms_sent_at", null);
+    .is("sms_sent_at", null)
+    .is("push_sent_at", null);
   if (deleteError) throw deleteError;
 
   if (candidates.length) {
@@ -510,6 +527,50 @@ async function sendSms(reminder: Record<string, unknown>, mobilePhone: string) {
   return true;
 }
 
+async function sendPush(reminder: Record<string, unknown>, userId: string) {
+  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return { sent: 0, attempted: false, error: "VAPID keys are not configured." };
+
+  const { data: subscriptions, error } = await supabase
+    .from("push_subscriptions")
+    .select("id,endpoint,p256dh,auth")
+    .eq("user_id", userId)
+    .eq("enabled", true);
+  if (error) throw error;
+
+  if (!subscriptions?.length) return { sent: 0, attempted: true, error: null };
+
+  let sent = 0;
+  let lastError = "";
+  for (const subscription of subscriptions) {
+    try {
+      await webpush.sendNotification({
+        endpoint: subscription.endpoint,
+        keys: {
+          p256dh: subscription.p256dh,
+          auth: subscription.auth,
+        },
+      }, pushPayload(reminder));
+      await supabase.from("push_subscriptions").update({
+        last_success_at: new Date().toISOString(),
+        last_failure_at: null,
+        last_error: null,
+      }).eq("id", subscription.id);
+      sent += 1;
+    } catch (error) {
+      const statusCode = Number((error as { statusCode?: number })?.statusCode || 0);
+      const message = error instanceof Error ? error.message : String(error);
+      lastError = message;
+      await supabase.from("push_subscriptions").update({
+        enabled: statusCode === 404 || statusCode === 410 ? false : true,
+        last_failure_at: new Date().toISOString(),
+        last_error: message,
+      }).eq("id", subscription.id);
+    }
+  }
+
+  return { sent, attempted: true, error: sent ? null : lastError || "No push subscription delivered." };
+}
+
 Deno.serve(async (request) => {
   if (request.method !== "POST") return Response.json({ error: "Method not allowed" }, { status: 405 });
   const cronSecret = Deno.env.get("REMINDER_CRON_SECRET");
@@ -523,14 +584,15 @@ Deno.serve(async (request) => {
     const today = dateValue(new Date());
     const { data: reminders, error } = await supabase
       .from("reminders")
-      .select("id,title,event_date,lead_days,email_enabled,sms_enabled,sent_at,sms_sent_at,profiles(email,mobile_phone,sms_reminders_enabled)")
+      .select("id,user_id,title,event_date,lead_days,email_enabled,sms_enabled,push_enabled,sent_at,sms_sent_at,push_sent_at,profiles(email,mobile_phone,sms_reminders_enabled)")
       .lte("due_date", today)
       .is("completed_at", null)
-      .or("sent_at.is.null,sms_sent_at.is.null");
+      .or("sent_at.is.null,sms_sent_at.is.null,push_sent_at.is.null");
     if (error) throw error;
 
     let emailsSent = 0;
     let smsSent = 0;
+    let pushSent = 0;
     let failed = 0;
     for (const reminder of reminders ?? []) {
       const profile = reminder.profiles as { email?: string; mobile_phone?: string; sms_reminders_enabled?: boolean } | null;
@@ -571,6 +633,26 @@ Deno.serve(async (request) => {
           failed += 1;
         }
       }
+
+      if (reminder.push_enabled && !reminder.push_sent_at) {
+        try {
+          const delivered = await sendPush(reminder, String(reminder.user_id));
+          if (delivered.attempted) {
+            await supabase.from("reminders").update({
+              push_sent_at: new Date().toISOString(),
+              push_attempted_at: new Date().toISOString(),
+              last_push_error: delivered.error,
+            }).eq("id", reminder.id);
+          }
+          pushSent += delivered.sent;
+        } catch (sendError) {
+          await supabase.from("reminders").update({
+            push_attempted_at: new Date().toISOString(),
+            last_push_error: sendError instanceof Error ? sendError.message : String(sendError),
+          }).eq("id", reminder.id);
+          failed += 1;
+        }
+      }
     }
     const digestsSent = await sendWeeklyDigests(today);
     const marketing = await sendMarketingRenewalReminders(today);
@@ -582,6 +664,7 @@ Deno.serve(async (request) => {
       emailsSent,
       digestsSent,
       smsSent,
+      pushSent,
       failed: failed + marketing.marketingFailed,
     });
   } catch (error) {

@@ -1089,6 +1089,7 @@ select {
 .promo-form,
 .account-profile-form,
 .account-password-form,
+.account-notification-panel,
 .account-privacy-panel,
 .account-import-panel {
   display: grid;
@@ -1100,6 +1101,7 @@ select {
 }
 
 .account-privacy-panel,
+.account-notification-panel,
 .account-import-panel {
   margin-top: 12px;
 }

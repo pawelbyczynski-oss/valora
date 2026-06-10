@@ -3,6 +3,7 @@ const { writeFileSync } = require("node:fs");
 const config = {
   SUPABASE_URL: process.env.SUPABASE_URL || "",
   SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || "",
+  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY || "",
 };
 
 writeFileSync(

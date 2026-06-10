@@ -1,4 +1,5 @@
 window.PROPERTY_PANEL_CONFIG = {
   "SUPABASE_URL": "https://ghcwjuckcgqdnmjwmjcj.supabase.co",
-  "SUPABASE_ANON_KEY": "sb_publishable_Epuk0nLQ9MuXty0eRm5KAw_QXRrsod5"
+  "SUPABASE_ANON_KEY": "sb_publishable_Epuk0nLQ9MuXty0eRm5KAw_QXRrsod5",
+  "VAPID_PUBLIC_KEY": ""
 };
