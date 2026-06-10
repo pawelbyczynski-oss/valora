@@ -188,19 +188,19 @@ async function syncGeneratedReminders() {
     .or(`current_period_end.is.null,current_period_end.gt.${new Date().toISOString()}`);
   if (subscriptionError) throw subscriptionError;
 
-  const proUserIds = [...new Set(
+  const paidUserIds = [...new Set(
     (subscriptionRows ?? [])
-      .filter((subscription) => subscription.plan_code === "pro" || Number(subscription.amount_monthly_pence || 0) >= 999)
-      .map((subscription) => subscription.user_id),
+      .map((subscription) => subscription.user_id)
+      .filter(Boolean),
   )];
-  if (!proUserIds.length) return { proUsers: 0, generated: 0 };
+  if (!paidUserIds.length) return { paidUsers: 0, generated: 0 };
 
   const [{ data: profiles, error: profileError }, { data: properties, error: propertyError }] = await Promise.all([
-    supabase.from("profiles").select("id,email,mobile_phone,sms_reminders_enabled,weekly_digest_sent_for_week").in("id", proUserIds),
+    supabase.from("profiles").select("id,email,mobile_phone,sms_reminders_enabled,weekly_digest_sent_for_week").in("id", paidUserIds),
     supabase
       .from("properties")
       .select("id,user_id,name,mortgage_expiry_date,rent_due_day,rent_reminder_enabled")
-      .in("user_id", proUserIds),
+      .in("user_id", paidUserIds),
   ]);
   if (profileError) throw profileError;
   if (propertyError) throw propertyError;
@@ -287,7 +287,7 @@ async function syncGeneratedReminders() {
   const { error: deleteError } = await supabase
     .from("reminders")
     .delete()
-    .in("user_id", proUserIds)
+    .in("user_id", paidUserIds)
     .eq("source_kind", "generated")
     .is("sent_at", null)
     .is("sms_sent_at", null)
@@ -300,7 +300,7 @@ async function syncGeneratedReminders() {
       .upsert(candidates, { onConflict: "reminder_key", ignoreDuplicates: true });
     if (upsertError) throw upsertError;
   }
-  return { proUsers: proUserIds.length, generated: candidates.length };
+  return { paidUsers: paidUserIds.length, generated: candidates.length };
 }
 
 function marketingRenewalAdminHtml(card: Record<string, unknown>) {

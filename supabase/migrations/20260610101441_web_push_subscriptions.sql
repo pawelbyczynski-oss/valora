@@ -23,8 +23,8 @@ alter table public.push_subscriptions force row level security;
 drop policy if exists "Users can manage own push subscriptions" on public.push_subscriptions;
 create policy "Users can manage own push subscriptions"
 on public.push_subscriptions for all
-using (auth.uid() = user_id and public.has_pro_access_for_user(auth.uid()))
-with check (auth.uid() = user_id and public.has_pro_access_for_user(auth.uid()));
+using (auth.uid() = user_id and public.has_premium_access())
+with check (auth.uid() = user_id and public.has_premium_access());
 
 create index if not exists push_subscriptions_user_enabled_idx
 on public.push_subscriptions(user_id)
@@ -39,3 +39,50 @@ add column if not exists last_push_error text;
 create index if not exists reminders_pending_push_idx
 on public.reminders(due_date)
 where completed_at is null and push_enabled = true and push_sent_at is null;
+
+drop policy if exists "Users can add own plan properties" on public.properties;
+create policy "Users can add own plan properties"
+on public.properties for insert
+with check (
+  auth.uid() = user_id
+  and public.can_add_property()
+  and (ownership_model = 'Owned' or public.has_pro_access_for_user(auth.uid()))
+  and (not rent_reminder_enabled or public.has_premium_access())
+);
+
+drop policy if exists "Users can update own plan properties" on public.properties;
+create policy "Users can update own plan properties"
+on public.properties for update
+using (auth.uid() = user_id and public.has_premium_access())
+with check (
+  auth.uid() = user_id
+  and public.has_premium_access()
+  and (ownership_model = 'Owned' or public.has_pro_access_for_user(auth.uid()))
+  and (not rent_reminder_enabled or public.has_premium_access())
+);
+
+drop policy if exists "Users can add own premium documents" on public.documents;
+create policy "Users can add own premium documents"
+on public.documents for insert
+with check (
+  auth.uid() = user_id
+  and public.has_premium_access()
+  and (not reminder_enabled or public.has_premium_access())
+);
+
+drop policy if exists "Users can update own plan documents" on public.documents;
+create policy "Users can update own plan documents"
+on public.documents for update
+using (auth.uid() = user_id and public.has_premium_access())
+with check (
+  auth.uid() = user_id
+  and public.has_premium_access()
+  and (not reminder_enabled or public.has_premium_access())
+);
+
+drop policy if exists "Users can manage own pro reminders" on public.reminders;
+drop policy if exists "Users can manage own paid reminders" on public.reminders;
+create policy "Users can manage own paid reminders"
+on public.reminders for all
+using (auth.uid() = user_id and public.has_premium_access())
+with check (auth.uid() = user_id and public.has_premium_access());

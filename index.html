@@ -52,7 +52,7 @@
     <aside class="notification-panel" id="notificationPanel" hidden>
       <div class="section-heading split-heading">
         <div>
-          <p class="eyebrow">Pro reminders</p>
+          <p class="eyebrow">Reminders</p>
           <h2>Upcoming actions</h2>
         </div>
         <button class="icon-button" id="closeNotificationPanel" type="button" aria-label="Close reminders">×</button>
@@ -903,7 +903,7 @@
                 <button class="secondary-button" id="enablePushNotifications" type="button">Enable push notifications</button>
                 <button class="secondary-button" id="disablePushNotifications" type="button">Disable on this device</button>
               </div>
-              <p class="field-hint" id="pushNotificationMessage">Push notifications need browser permission and an active Pro plan.</p>
+              <p class="field-hint" id="pushNotificationMessage">Push notifications need browser permission and an active Standard or Pro plan.</p>
             </div>
             <div class="account-privacy-panel">
               <div>
@@ -1705,12 +1705,12 @@
             <input id="propertyRentDueDay" type="number" min="1" max="31" step="1" value="1" />
           </label>
           <label>
-            <span>Rent reminders (Pro)</span>
+            <span>Rent reminders</span>
             <select id="propertyRentReminder">
               <option>On</option>
               <option>Off</option>
             </select>
-            <small class="field-hint">Reminder alerts are active on Pro.</small>
+            <small class="field-hint">Reminder alerts are active on paid plans.</small>
           </label>
           <label>
             <span>Operating expenses</span>
@@ -1799,12 +1799,12 @@
               <input id="detailRentDueDay" type="number" min="1" max="31" step="1" />
             </label>
             <label>
-              <span>Rent reminders (Pro)</span>
+              <span>Rent reminders</span>
               <select id="detailRentReminder">
                 <option>On</option>
                 <option>Off</option>
               </select>
-              <small class="field-hint">Reminder alerts are active on Pro.</small>
+              <small class="field-hint">Reminder alerts are active on paid plans.</small>
             </label>
             <button class="tax-button" type="submit">Save management setup</button>
             <p class="field-hint" id="propertyManagementMessage">Owned properties can leave the operator fields blank. Managed and rent-to-rent properties use these fields in landlord reports.</p>

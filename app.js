@@ -1319,13 +1319,13 @@ function renderDocuments() {
   }
 
   if (premium.documentMessage) {
-    premium.documentMessage.textContent = hasProAccess()
+    premium.documentMessage.textContent = hasPremiumAccess()
       ? "Documents and manual costs are saved against this property."
-      : "Documents are saved against this property. Upgrade to Pro to enable expiry reminders.";
+      : "Documents are saved against this property. Upgrade to a paid plan to enable expiry reminders.";
   }
   if (premium.documentReminder) {
-    premium.documentReminder.disabled = !hasProAccess();
-    if (!hasProAccess()) premium.documentReminder.checked = false;
+    premium.documentReminder.disabled = !hasPremiumAccess();
+    if (!hasPremiumAccess()) premium.documentReminder.checked = false;
   }
 
   if (!visibleDocuments.length) {
@@ -2253,7 +2253,7 @@ function portfolioCalendarEvents() {
     });
   });
 
-  if (!hasProAccess()) return events;
+  if (!hasPremiumAccess()) return events;
 
   properties.forEach((property) => {
     const mortgage = latestMortgageDeal(property);
@@ -3170,17 +3170,17 @@ function updateNotificationPanel(reminders) {
   premium.notificationList.replaceChildren(...reminders.slice(0, 12).map(renderReminderItem));
   if (!reminders.length) {
     const item = document.createElement("li");
-    item.textContent = hasProAccess()
+    item.textContent = hasPremiumAccess()
       ? "No urgent reminders."
-      : "Upgrade to Pro to enable reminders.";
+      : "Upgrade to a paid plan to enable reminders.";
     premium.notificationList.replaceChildren(item);
   }
 }
 
 function renderReminders() {
-  if (!hasProAccess()) {
+  if (!hasPremiumAccess()) {
     const item = document.createElement("li");
-    item.textContent = "Upgrade to Pro for mortgage expiry, rent due, tenancy and certificate reminders.";
+    item.textContent = "Upgrade to Standard or Pro for mortgage expiry, rent due, tenancy and certificate reminders.";
     premium.reminderList.replaceChildren(item);
     updateNotificationPanel([]);
     return;
@@ -3698,7 +3698,7 @@ function isPremiumAtPropertyLimit() {
 }
 
 function premiumLimitMessage() {
-  return `Standard includes up to ${PREMIUM_PROPERTY_LIMIT} properties. Upgrade to Pro for unlimited properties, reminders, quarterly accountant packs and landlord reports.`;
+  return `Standard includes up to ${PREMIUM_PROPERTY_LIMIT} properties. Upgrade to Pro for unlimited properties, quarterly accountant packs and landlord reports.`;
 }
 
 function showProUpgrade(message = "This workflow is included in PropertyPanel Pro.") {
@@ -5333,7 +5333,7 @@ async function savePropertyDocumentOrExpense(source = "documents") {
     }
 
     payload.form.reset();
-    if (premium.documentReminder && !hasProAccess()) premium.documentReminder.checked = false;
+    if (premium.documentReminder && !hasPremiumAccess()) premium.documentReminder.checked = false;
     const successMessage = payload.file && savedExpense
       ? "Document and expense saved."
       : payload.file
@@ -5843,8 +5843,8 @@ async function refreshPushNotificationState() {
 
   const supported = pushSupported();
   const hasKey = Boolean(VAPID_PUBLIC_KEY);
-  const isPro = hasProAccess();
-  premium.enablePushNotifications.disabled = !supported || !hasKey || !isPro;
+  const hasPaidPlan = hasPremiumAccess();
+  premium.enablePushNotifications.disabled = !supported || !hasKey || !hasPaidPlan;
   premium.disablePushNotifications.disabled = !supported;
 
   if (!supported) {
@@ -5855,8 +5855,8 @@ async function refreshPushNotificationState() {
     setPushMessage("Push notifications are ready in the app, but the VAPID public key still needs to be configured.");
     return;
   }
-  if (!isPro) {
-    setPushMessage("Push reminders are included in Pro.");
+  if (!hasPaidPlan) {
+    setPushMessage("Push reminders are included in Standard and Pro.");
     return;
   }
   if (Notification.permission === "denied") {
@@ -5893,9 +5893,9 @@ async function enablePushNotifications() {
     setPushMessage("Sign in before enabling push reminders.");
     return;
   }
-  if (!hasProAccess()) {
-    showProUpgrade("Push reminders are included in PropertyPanel Pro.");
-    setPushMessage("Upgrade to Pro to enable push reminders.");
+  if (!hasPremiumAccess()) {
+    showSubscriptionRequired();
+    setPushMessage("Upgrade to Standard or Pro to enable push reminders.");
     return;
   }
   if (!pushSupported()) {
