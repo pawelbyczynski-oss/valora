@@ -1050,6 +1050,18 @@ select {
   background: var(--panel);
 }
 
+:root[data-theme="dark"] .dashboard-shell > .portfolio-tabs {
+  background:
+    linear-gradient(180deg, rgba(20, 184, 166, 0.08), rgba(17, 24, 39, 0)),
+    var(--panel);
+}
+
+:root[data-theme="dark"] .dashboard-shell > .portfolio-tabs .section-tab.active {
+  border-color: rgba(20, 184, 166, 0.38);
+  background: rgba(20, 184, 166, 0.14);
+  color: #5eead4;
+}
+
 :root[data-theme="dark"] .field-hint,
 :root[data-theme="dark"] .hero-copy,
 :root[data-theme="dark"] .preview-property p,
@@ -1170,7 +1182,7 @@ select {
 .dashboard-shell {
   padding: 20px;
   display: grid;
-  grid-template-columns: 184px minmax(0, 1fr);
+  grid-template-columns: 212px minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -1263,7 +1275,19 @@ select {
   overflow-x: visible;
 }
 
+.dashboard-shell > .portfolio-tabs {
+  top: 88px;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(15, 118, 110, 0.06), rgba(255, 255, 255, 0)),
+    var(--panel);
+  box-shadow: 0 14px 32px rgba(31, 41, 51, 0.06);
+}
+
 .section-tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1292,10 +1316,37 @@ select {
   flex: initial;
 }
 
+.dashboard-shell > .portfolio-tabs .section-tab {
+  min-height: 46px;
+  justify-content: flex-start;
+  padding: 0 12px 0 14px;
+  border-color: transparent;
+  background: transparent;
+  font-size: 0.92rem;
+  font-weight: 850;
+}
+
 .section-tab.active {
   border-color: rgba(15, 118, 110, 0.55);
   background: rgba(15, 118, 110, 0.1);
   color: var(--mint);
+}
+
+.dashboard-shell > .portfolio-tabs .section-tab.active {
+  border-color: rgba(15, 118, 110, 0.22);
+  background: rgba(15, 118, 110, 0.12);
+  color: #0b625b;
+}
+
+.dashboard-shell > .portfolio-tabs .section-tab.active::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 9px;
+  bottom: 9px;
+  width: 4px;
+  border-radius: 999px;
+  background: var(--mint);
 }
 
 .dashboard-panel[hidden],
@@ -3496,6 +3547,57 @@ li {
     position: static;
     display: flex;
     overflow-x: auto;
+  }
+
+  .dashboard-shell:not(.property-detail-shell) {
+    padding-bottom: calc(102px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .dashboard-shell > .portfolio-tabs {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom, 10px));
+    top: auto;
+    z-index: 40;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(86px, 1fr);
+    align-items: center;
+    gap: 6px;
+    width: auto;
+    max-width: calc(100vw - 20px);
+    padding: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-radius: 14px;
+    box-shadow: 0 18px 42px rgba(31, 41, 51, 0.2);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .dashboard-shell > .portfolio-tabs .section-tab {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    min-width: 82px;
+    min-height: 58px;
+    padding: 7px 8px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    font-size: 0.72rem;
+    line-height: 1.05;
+    text-align: center;
+  }
+
+  .dashboard-shell > .portfolio-tabs .tab-icon {
+    width: 20px;
+    height: 20px;
+    font-size: 1.05rem;
+  }
+
+  .dashboard-shell > .portfolio-tabs .section-tab.active::before {
+    display: none;
   }
 
   .section-tabs {
