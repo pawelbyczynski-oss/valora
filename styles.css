@@ -1311,6 +1311,30 @@ select {
   line-height: 1;
 }
 
+[data-dashboard-tab="overview"] .tab-icon {
+  color: #14b8a6;
+}
+
+[data-dashboard-tab="properties"] .tab-icon {
+  color: #16a34a;
+}
+
+[data-dashboard-tab="transactions"] .tab-icon {
+  color: #f59e0b;
+}
+
+[data-dashboard-tab="account"] .tab-icon {
+  color: #38bdf8;
+}
+
+[data-dashboard-tab="subscription"] .tab-icon {
+  color: #a855f7;
+}
+
+[data-dashboard-tab="help"] .tab-icon {
+  color: #64748b;
+}
+
 .dashboard-shell > .section-tabs .section-tab,
 .property-detail-shell > .section-tabs .section-tab {
   flex: initial;
