@@ -315,7 +315,19 @@
           </label>
           <label>
             <span>Refurb cost</span>
-            <input id="refurbCost" type="number" inputmode="decimal" min="0" step="500" value="12000" />
+            <input id="refurbCost" type="number" inputmode="decimal" min="0" step="500" placeholder="Optional" />
+          </label>
+          <label>
+            <span>Estimated value after refurbishment</span>
+            <input id="postRefurbValue" type="number" inputmode="decimal" min="0" step="1000" placeholder="Optional" />
+            <small class="field-hint">Use this for refurb / refinance deals. Leave blank for a standard BTL.</small>
+          </label>
+          <label>
+            <span>Refinance LTV</span>
+            <div class="input-suffix">
+              <input id="refinanceLtv" type="number" inputmode="decimal" min="0" max="100" step="0.5" value="75" />
+              <span>%</span>
+            </div>
           </label>
           <label>
             <span>Legal / broker fees</span>
@@ -416,6 +428,22 @@
           <article>
             <span class="metric-label">ICR coverage <button class="metric-help" type="button" aria-label="ICR coverage explanation" data-tooltip="Interest Cover Ratio: rent compared with the lender's required rent at the selected stress factor.">?</button></span>
             <strong id="icrCoverage">0%</strong>
+          </article>
+          <article class="refurb-metric" hidden>
+            <span class="metric-label">Yield on total cost <button class="metric-help" type="button" aria-label="Yield on total cost explanation" data-tooltip="Annual rent divided by purchase price plus refurbishment cost, before mortgage and tax.">?</button></span>
+            <strong id="yieldOnTotalCost">0%</strong>
+          </article>
+          <article class="refurb-metric" hidden>
+            <span class="metric-label">Yield after refurb value <button class="metric-help" type="button" aria-label="Yield after refurbishment value explanation" data-tooltip="Annual rent divided by the estimated value after refurbishment.">?</button></span>
+            <strong id="yieldOnPostRefurbValue">0%</strong>
+          </article>
+          <article class="refurb-metric" hidden>
+            <span class="metric-label">Cash left after refinance <button class="metric-help" type="button" aria-label="Cash left after refinance explanation" data-tooltip="Estimated cash still left in the deal after refinancing at the selected LTV. This is a simplified estimate before lender fees and tax.">?</button></span>
+            <strong id="cashLeftAfterRefinance">£0</strong>
+          </article>
+          <article class="refurb-metric" hidden>
+            <span class="metric-label">Equity released <button class="metric-help" type="button" aria-label="Equity released explanation" data-tooltip="Estimated new refinance amount minus the existing loan. This is the potential cash released before lender fees and tax.">?</button></span>
+            <strong id="equityReleasedAfterRefinance">£0</strong>
           </article>
         </div>
 
@@ -2354,6 +2382,6 @@
     </datalist>
 
     <script src="config.js?v=20260610-push-config-2"></script>
-    <script src="app.js?v=20260610-push-diagnostics"></script>
+    <script src="app.js?v=20260619-refurb-scenario"></script>
   </body>
 </html>

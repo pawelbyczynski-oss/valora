@@ -10,6 +10,8 @@ const inputs = {
   icrFactor: document.querySelector("#icrFactor"),
   taxBand: document.querySelector("#taxBand"),
   refurbCost: document.querySelector("#refurbCost"),
+  postRefurbValue: document.querySelector("#postRefurbValue"),
+  refinanceLtv: document.querySelector("#refinanceLtv"),
   fees: document.querySelector("#fees"),
   dwellingCount: document.querySelector("#dwellingCount"),
   mixedCommercialValue: document.querySelector("#mixedCommercialValue"),
@@ -32,6 +34,10 @@ const outputs = {
   purchaseTax: document.querySelector("#purchaseTax"),
   cashNeeded: document.querySelector("#cashNeeded"),
   icrCoverage: document.querySelector("#icrCoverage"),
+  yieldOnTotalCost: document.querySelector("#yieldOnTotalCost"),
+  yieldOnPostRefurbValue: document.querySelector("#yieldOnPostRefurbValue"),
+  cashLeftAfterRefinance: document.querySelector("#cashLeftAfterRefinance"),
+  equityReleasedAfterRefinance: document.querySelector("#equityReleasedAfterRefinance"),
   taxBasisText: document.querySelector("#taxBasisText"),
   insightList: document.querySelector("#insightList"),
   taxModal: document.querySelector("#taxModal"),
@@ -6899,6 +6905,12 @@ function buildInsights(metrics) {
     insights.push(`Net yield is below 4.5%, so this may rely more on capital growth than monthly income.`);
   }
 
+  if (metrics.postRefurbValue) {
+    insights.push(
+      `Refurb view: estimated value after works is ${money.format(metrics.postRefurbValue)}, with ${money.format(metrics.equityReleasedAfterRefinance)} potential equity released and ${money.format(metrics.cashLeftAfterRefinance)} left in the deal after a simplified refinance estimate.`,
+    );
+  }
+
   if (propertyType === "commercial") {
     insights.push("Commercial mode uses non-residential SDLT or LBTT rates. Leasehold premium and rent/NPV rules are not modelled yet.");
   }
@@ -7042,6 +7054,8 @@ function update() {
   const expenses = valueOf(inputs.expenses);
   const icrFactor = valueOf(inputs.icrFactor) / 100;
   const refurbCost = valueOf(inputs.refurbCost);
+  const postRefurbValue = valueOf(inputs.postRefurbValue);
+  const refinanceLtv = valueOf(inputs.refinanceLtv) / 100;
   const fees = valueOf(inputs.fees);
   const dwellingCount = Math.max(Math.round(valueOf(inputs.dwellingCount)), 1);
 
@@ -7054,6 +7068,14 @@ function update() {
   const cashNeeded = deposit + purchaseTax.total + refurbCost + fees;
   const grossYield = purchasePrice ? (rent * 12 * 100) / purchasePrice : 0;
   const netYield = purchasePrice ? ((rent - expenses) * 12 * 100) / purchasePrice : 0;
+  const totalCostBasis = purchasePrice + refurbCost;
+  const yieldOnTotalCost = totalCostBasis ? (rent * 12 * 100) / totalCostBasis : 0;
+  const yieldOnPostRefurbValue = postRefurbValue ? (rent * 12 * 100) / postRefurbValue : 0;
+  const estimatedRefinance = postRefurbValue * refinanceLtv;
+  const equityReleasedAfterRefinance = Math.max(estimatedRefinance - loan, 0);
+  const cashLeftAfterRefinance = postRefurbValue
+    ? Math.max(cashNeeded - equityReleasedAfterRefinance, 0)
+    : 0;
   const roi = cashNeeded ? (annualCashflow * 100) / cashNeeded : 0;
   const loanToValue = purchasePrice ? (loan * 100) / purchasePrice : 0;
   const requiredRent = interestOnlyCost * icrFactor;
@@ -7067,6 +7089,11 @@ function update() {
     cashNeeded,
     grossYield,
     netYield,
+    postRefurbValue,
+    yieldOnTotalCost,
+    yieldOnPostRefurbValue,
+    cashLeftAfterRefinance,
+    equityReleasedAfterRefinance,
     roi,
     purchaseTax,
     dwellingCount,
@@ -7088,6 +7115,13 @@ function update() {
   outputs.roi.textContent = formatPercent(roi);
   outputs.grossYield.textContent = formatPercent(grossYield);
   outputs.netYield.textContent = formatPercent(netYield);
+  outputs.yieldOnTotalCost.textContent = formatPercent(yieldOnTotalCost);
+  outputs.yieldOnPostRefurbValue.textContent = formatPercent(yieldOnPostRefurbValue);
+  outputs.cashLeftAfterRefinance.textContent = money.format(cashLeftAfterRefinance);
+  outputs.equityReleasedAfterRefinance.textContent = money.format(equityReleasedAfterRefinance);
+  document.querySelectorAll(".refurb-metric").forEach((metric) => {
+    metric.hidden = !postRefurbValue;
+  });
   inputs.interestOnlyCost.value = money.format(interestOnlyCost);
   outputs.mortgagePayment.textContent = money.format(mortgagePayment);
   outputs.purchaseTaxLabel.textContent = purchaseTax.label;
