@@ -43,7 +43,7 @@ on public.admin_users for select
 using (lower(email) = lower(auth.jwt()->>'email') and active = true);
 
 insert into public.admin_users (email)
-values ('pawelbyczynski@gmail.com')
+values ('contact@propertypanel.co.uk')
 on conflict (email) do update set active = true;
 
 update public.promo_codes
