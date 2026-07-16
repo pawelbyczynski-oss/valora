@@ -7313,6 +7313,13 @@ premium.themeToggle.addEventListener("click", () => {
 document.querySelectorAll("[data-plan]").forEach((button) => {
   button.addEventListener("click", async () => {
     setSelectedPlan(button.dataset.plan);
+    const session = await getCurrentSession();
+    if (session) {
+      openDashboard();
+      switchDashboardTab("subscription");
+      await startStripeCheckout(selectedPlan);
+      return;
+    }
     document.querySelector("#purchasePanel").scrollIntoView({ behavior: "smooth", block: "center" });
     await refreshPlanContinueButton();
     trackEvent("plan_selected", { plan: selectedPlan });
