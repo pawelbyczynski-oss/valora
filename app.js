@@ -432,6 +432,7 @@ const TRANSACTION_STORAGE_KEY = "property-panel-transactions";
 const DOCUMENT_STORAGE_KEY = "property-panel-documents";
 const SELECTED_PLAN_STORAGE_KEY = "property-panel-selected-plan";
 const CHECKOUT_PENDING_STORAGE_KEY = "property-panel-checkout-pending";
+const CHECKOUT_INTENT_STORAGE_KEY = "property-panel-checkout-intent";
 const LEGACY_PROPERTY_STORAGE_KEY = "valo" + "ra-properties";
 const PROMO_STORAGE_KEY = "property-panel-promo-access";
 const LEGACY_PROMO_STORAGE_KEY = "valo" + "ra-promo-access";
@@ -3788,6 +3789,12 @@ function setSelectedPlan(plan) {
   refreshPlanContinueButton();
 }
 
+function rememberCheckoutIntent(plan = selectedPlan) {
+  const checkoutPlan = plan === "pro" ? "pro" : "premium";
+  setSelectedPlan(checkoutPlan);
+  sessionStorage.setItem(CHECKOUT_INTENT_STORAGE_KEY, checkoutPlan);
+}
+
 function checkoutStatusFromUrl() {
   return new URLSearchParams(window.location.search).get("checkout");
 }
@@ -5680,6 +5687,16 @@ async function handleEmailAuth() {
     }
 
     if (data.session) {
+      const checkoutIntent = sessionStorage.getItem(CHECKOUT_INTENT_STORAGE_KEY);
+      if (checkoutIntent) {
+        setSelectedPlan(checkoutIntent);
+        sessionStorage.removeItem(CHECKOUT_INTENT_STORAGE_KEY);
+        premium.authMessage.textContent = `Account created. Opening ${selectedPlanLabel()} checkout...`;
+        switchView("premiumView");
+        await startStripeCheckout(selectedPlan);
+        return;
+      }
+
       premium.authMessage.textContent = "Account created. Opening your dashboard...";
       saveUiState({ viewId: "dashboardView", dashboardTab: "overview", activePropertyId: null, propertyDetailTab: "overview" });
       await initAuth();
@@ -5697,6 +5714,16 @@ async function handleEmailAuth() {
     premium.emailAuthSubmit.disabled = false;
     if (error) {
       premium.authMessage.textContent = error.message;
+      return;
+    }
+
+    const checkoutIntent = sessionStorage.getItem(CHECKOUT_INTENT_STORAGE_KEY);
+    if (checkoutIntent) {
+      setSelectedPlan(checkoutIntent);
+      sessionStorage.removeItem(CHECKOUT_INTENT_STORAGE_KEY);
+      premium.authMessage.textContent = `Signed in. Opening ${selectedPlanLabel()} checkout...`;
+      switchView("premiumView");
+      await startStripeCheckout(selectedPlan);
       return;
     }
 
@@ -6470,6 +6497,16 @@ async function initAuth() {
     }
     await loadAdminOverview();
     await refreshPlanContinueButton();
+
+    const checkoutIntent = sessionStorage.getItem(CHECKOUT_INTENT_STORAGE_KEY);
+    if (checkoutIntent && !checkoutStatus && !hasPremiumAccess()) {
+      setSelectedPlan(checkoutIntent);
+      sessionStorage.removeItem(CHECKOUT_INTENT_STORAGE_KEY);
+      switchView("premiumView");
+      premium.subscriptionNote.textContent = `Opening ${selectedPlanLabel()} checkout...`;
+      await startStripeCheckout(selectedPlan);
+      return;
+    }
 
     if (!hasPremiumAccess()) {
       clearPremiumDataForLockedAccount();
@@ -7292,13 +7329,16 @@ premium.sidebarItems.forEach((button) => {
 });
 
 premium.showLogin.addEventListener("click", async () => {
+  premium.subscriptionNote.textContent = `Preparing ${selectedPlanLabel()} checkout...`;
   const session = await getCurrentSession();
   if (session) {
     await startStripeCheckout(selectedPlan);
     return;
   }
 
+  rememberCheckoutIntent(selectedPlan);
   switchView("loginView");
+  setAuthMode("signin");
   premium.loginEmail.focus();
 });
 
@@ -7316,6 +7356,7 @@ document.querySelectorAll("[data-plan]").forEach((button) => {
       await startStripeCheckout(selectedPlan);
       return;
     }
+    rememberCheckoutIntent(selectedPlan);
     document.querySelector("#purchasePanel").scrollIntoView({ behavior: "smooth", block: "center" });
     await refreshPlanContinueButton();
     trackEvent("plan_selected", { plan: selectedPlan });
