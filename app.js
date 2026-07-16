@@ -7294,8 +7294,6 @@ premium.sidebarItems.forEach((button) => {
 premium.showLogin.addEventListener("click", async () => {
   const session = await getCurrentSession();
   if (session) {
-    openDashboard();
-    switchDashboardTab("subscription");
     await startStripeCheckout(selectedPlan);
     return;
   }
@@ -7315,8 +7313,6 @@ document.querySelectorAll("[data-plan]").forEach((button) => {
     setSelectedPlan(button.dataset.plan);
     const session = await getCurrentSession();
     if (session) {
-      openDashboard();
-      switchDashboardTab("subscription");
       await startStripeCheckout(selectedPlan);
       return;
     }

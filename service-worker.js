@@ -1,9 +1,9 @@
-const CACHE_NAME = "propertypanel-pwa-v20260716-live-checkout";
+const CACHE_NAME = "propertypanel-pwa-v20260716-live-checkout-direct";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/styles.css?v=20260611-tab-colors",
-  "/app.js?v=20260716-live-checkout",
+  "/app.js?v=20260716-live-checkout-direct",
   "/property-panel-logo.svg",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
