@@ -1,9 +1,9 @@
-const CACHE_NAME = "propertypanel-pwa-v20260717-contact";
+const CACHE_NAME = "propertypanel-pwa-v20260717-admin-users";
 const APP_SHELL = [
   "/",
   "/index.html",
-  "/styles.css?v=20260717-contact",
-  "/app.js?v=20260716-checkout-intent",
+  "/styles.css?v=20260717-admin-users",
+  "/app.js?v=20260717-admin-users",
   "/property-panel-logo.svg",
   "/manifest.webmanifest",
   "/icons/icon-192.png",

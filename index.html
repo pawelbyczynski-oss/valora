@@ -12,7 +12,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="property-panel-logo.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-    <link rel="stylesheet" href="styles.css?v=20260717-contact" />
+    <link rel="stylesheet" href="styles.css?v=20260717-admin-users" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   </head>
@@ -1615,6 +1615,7 @@
             <h2>Recent accounts</h2>
           </div>
           <div class="admin-table" id="adminUserList"></div>
+          <p class="field-hint" id="adminUsersMessage">Deleting a user removes their login and portfolio records. Cancel active Stripe subscriptions first.</p>
         </section>
         <section class="panel-card admin-panel" data-admin-panel="activity">
           <div class="section-heading">
@@ -2398,6 +2399,6 @@
     </datalist>
 
     <script src="config.js?v=20260610-push-config-2"></script>
-    <script src="app.js?v=20260716-checkout-intent"></script>
+    <script src="app.js?v=20260717-admin-users"></script>
   </body>
 </html>

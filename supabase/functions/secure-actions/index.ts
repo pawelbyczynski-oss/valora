@@ -104,6 +104,46 @@ async function deleteUserRows(supabaseAdmin: ReturnType<typeof createClient>, ta
   if (!missingTable) throw error;
 }
 
+async function deleteUserPortfolioAndAuth(supabaseAdmin: ReturnType<typeof createClient>, userId: string) {
+  const storagePaths = await listStoragePaths(supabaseAdmin, "property-documents", userId);
+  if (storagePaths.length) {
+    const { error: storageError } = await supabaseAdmin.storage.from("property-documents").remove(storagePaths);
+    if (storageError) throw storageError;
+  }
+
+  await deleteUserRows(supabaseAdmin, "tenancy_rent_changes", userId);
+  await deleteUserRows(supabaseAdmin, "calendar_feed_tokens", userId);
+  await deleteUserRows(supabaseAdmin, "push_subscriptions", userId);
+  await deleteUserRows(supabaseAdmin, "recurring_expenses", userId);
+  await deleteUserRows(supabaseAdmin, "compliance_items", userId);
+  await deleteUserRows(supabaseAdmin, "arrears_cases", userId);
+  await deleteUserRows(supabaseAdmin, "maintenance_logs", userId);
+  await deleteUserRows(supabaseAdmin, "contractors", userId);
+  await deleteUserRows(supabaseAdmin, "rent_reviews", userId);
+  await deleteUserRows(supabaseAdmin, "void_periods", userId);
+  await deleteUserRows(supabaseAdmin, "property_transactions", userId);
+  await deleteUserRows(supabaseAdmin, "documents", userId);
+  await deleteUserRows(supabaseAdmin, "reminders", userId);
+  await deleteUserRows(supabaseAdmin, "properties", userId);
+  await deleteUserRows(supabaseAdmin, "promo_redemptions", userId);
+  await deleteUserRows(supabaseAdmin, "analytics_events", userId);
+
+  const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+  if (authDeleteError) throw authDeleteError;
+}
+
+function adminSubscriptionStatus(subscription: {
+  status?: string | null;
+  cancel_at_period_end?: boolean | null;
+  current_period_end?: string | null;
+} | null | undefined) {
+  if (!subscription) return "no subscription";
+  const ends = subscription.current_period_end ? `ends ${monthLabel(subscription.current_period_end)}` : "end date unknown";
+  if (subscription.cancel_at_period_end) return `cancelled - ${ends}`;
+  if (subscription.status === "canceled" || subscription.status === "cancelled") return `cancelled - ${ends}`;
+  return subscription.status || "no subscription";
+}
+
 Deno.serve(async (request) => {
   const corsHeaders = corsHeadersFor(request);
   const reply = (body: unknown, status = 200) => jsonResponse(body, status, corsHeaders);
@@ -189,26 +229,7 @@ Deno.serve(async (request) => {
     if (action === "delete-account") {
       if (body?.confirm !== "DELETE") return reply({ success: false, message: "Deletion confirmation is required." }, 400);
 
-      const storagePaths = await listStoragePaths(supabaseAdmin, "property-documents", user.id);
-      if (storagePaths.length) {
-        const { error: storageError } = await supabaseAdmin.storage.from("property-documents").remove(storagePaths);
-        if (storageError) throw storageError;
-      }
-
-      await deleteUserRows(supabaseAdmin, "tenancy_rent_changes", user.id);
-      await deleteUserRows(supabaseAdmin, "calendar_feed_tokens", user.id);
-      await deleteUserRows(supabaseAdmin, "recurring_expenses", user.id);
-      await deleteUserRows(supabaseAdmin, "compliance_items", user.id);
-      await deleteUserRows(supabaseAdmin, "arrears_cases", user.id);
-      await deleteUserRows(supabaseAdmin, "property_transactions", user.id);
-      await deleteUserRows(supabaseAdmin, "documents", user.id);
-      await deleteUserRows(supabaseAdmin, "reminders", user.id);
-      await deleteUserRows(supabaseAdmin, "properties", user.id);
-      await deleteUserRows(supabaseAdmin, "promo_redemptions", user.id);
-      await deleteUserRows(supabaseAdmin, "analytics_events", user.id);
-
-      const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
-      if (authDeleteError) throw authDeleteError;
+      await deleteUserPortfolioAndAuth(supabaseAdmin, user.id);
 
       return reply({ success: true });
     }
@@ -288,7 +309,7 @@ Deno.serve(async (request) => {
       const { data: recentSubscriptions } = recentUserIds.length
         ? await supabaseAdmin
             .from("subscriptions")
-            .select("user_id, status, total_paid_pence, created_at")
+            .select("user_id, status, total_paid_pence, current_period_end, cancel_at_period_end, canceled_at, created_at")
             .in("user_id", recentUserIds)
             .order("created_at", { ascending: false })
         : { data: [] };
@@ -339,8 +360,12 @@ Deno.serve(async (request) => {
         recent_users: (recentProfiles || []).map((profile) => {
           const subscription = subscriptionByUser.get(profile.id);
           return {
+            id: profile.id,
             email: profile.email,
-            status: subscription?.status || "no subscription",
+            status: adminSubscriptionStatus(subscription),
+            subscription_status: subscription?.status || "no subscription",
+            cancel_at_period_end: Boolean(subscription?.cancel_at_period_end),
+            current_period_end: subscription?.current_period_end || null,
             joined: monthLabel(profile.created_at),
             paid: `£${(Number(subscription?.total_paid_pence || 0) / 100).toFixed(2)}`,
           };
@@ -351,6 +376,50 @@ Deno.serve(async (request) => {
           email: event.user_id ? emailByUser.get(event.user_id) || "anonymous" : "anonymous",
         })),
       });
+    }
+
+    if (action === "admin-delete-user") {
+      const targetUserId = textValue(body?.user_id, 80);
+      if (!targetUserId) return reply({ success: false, message: "User id is required." }, 400);
+      if (targetUserId === user.id) return reply({ success: false, message: "You cannot delete your own admin account here." }, 400);
+
+      const { data: targetProfile, error: targetProfileError } = await supabaseAdmin
+        .from("profiles")
+        .select("id,email")
+        .eq("id", targetUserId)
+        .maybeSingle();
+      if (targetProfileError) throw targetProfileError;
+      if (!targetProfile) return reply({ success: false, message: "User not found." }, 404);
+
+      const { data: targetAdmin } = await supabaseAdmin
+        .from("admin_users")
+        .select("id")
+        .ilike("email", targetProfile.email)
+        .eq("active", true)
+        .maybeSingle();
+      if (targetAdmin) return reply({ success: false, message: "Admin users must be removed manually from admin_users first." }, 400);
+
+      const { data: subscription, error: subscriptionError } = await supabaseAdmin
+        .from("subscriptions")
+        .select("status,cancel_at_period_end,current_period_end")
+        .eq("user_id", targetUserId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (subscriptionError) throw subscriptionError;
+
+      const hasStillActiveBilling = subscription
+        && ["active", "trialing", "past_due", "unpaid", "incomplete"].includes(subscription.status)
+        && !subscription.cancel_at_period_end;
+      if (hasStillActiveBilling) {
+        return reply({
+          success: false,
+          message: "Cancel this user's Stripe subscription before deleting the account.",
+        }, 400);
+      }
+
+      await deleteUserPortfolioAndAuth(supabaseAdmin, targetUserId);
+      return reply({ success: true, deleted_user_id: targetUserId });
     }
 
     if (action === "get-marketing-card") {

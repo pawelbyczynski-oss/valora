@@ -1716,6 +1716,17 @@ select {
   grid-column: 1 / -1;
 }
 
+.admin-user-row {
+  grid-template-columns: minmax(180px, 1.4fr) minmax(180px, 1.2fr) minmax(120px, 0.8fr) minmax(90px, 0.6fr) auto;
+  align-items: center;
+}
+
+.danger-inline-button {
+  border-color: rgba(220, 38, 38, 0.45);
+  color: var(--danger);
+  justify-self: end;
+}
+
 .email-log-row.status-sent {
   border-left: 4px solid var(--teal);
 }

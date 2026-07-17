@@ -209,6 +209,7 @@ const premium = {
   adminPdfExports: document.querySelector("#adminPdfExports"),
   adminPromos: document.querySelector("#adminPromos"),
   adminUserList: document.querySelector("#adminUserList"),
+  adminUsersMessage: document.querySelector("#adminUsersMessage"),
   adminEventList: document.querySelector("#adminEventList"),
   adminPromoForm: document.querySelector("#adminPromoForm"),
   adminPromoCode: document.querySelector("#adminPromoCode"),
@@ -4073,6 +4074,31 @@ function renderAdminTable(target, rows, columns) {
   );
 }
 
+function renderAdminUsers(rows = []) {
+  if (!premium.adminUserList) return;
+
+  if (!rows.length) {
+    premium.adminUserList.innerHTML = `<div class="admin-row muted-row">No users yet</div>`;
+    return;
+  }
+
+  premium.adminUserList.replaceChildren(
+    ...rows.map((row) => {
+      const item = document.createElement("div");
+      item.className = "admin-row admin-user-row";
+      const canDelete = Boolean(row.id);
+      item.innerHTML = `
+        <div><span>Email</span><strong>${escapeHtml(row.email || "-")}</strong></div>
+        <div><span>Status</span><strong>${escapeHtml(row.status || "no subscription")}</strong></div>
+        <div><span>Joined</span><strong>${escapeHtml(row.joined || "-")}</strong></div>
+        <div><span>Paid</span><strong>${escapeHtml(row.paid || "£0.00")}</strong></div>
+        <button class="secondary-button small-button danger-inline-button" type="button" data-admin-delete-user="${escapeHtml(row.id || "")}" ${canDelete ? "" : "disabled"}>Delete</button>
+      `;
+      return item;
+    }),
+  );
+}
+
 function renderAdminPromos(promos = []) {
   if (!premium.adminPromoList) return;
 
@@ -4535,12 +4561,7 @@ async function loadAdminOverview() {
   premium.adminPdfExports.textContent = data.events?.pdf_exported ?? 0;
   premium.adminPromos.textContent = data.totals?.promo_redemptions ?? 0;
 
-  renderAdminTable(premium.adminUserList, data.recent_users, [
-    ["Email", "email"],
-    ["Status", "status"],
-    ["Joined", "joined"],
-    ["Paid", "paid"],
-  ]);
+  renderAdminUsers(data.recent_users || []);
   renderAdminTable(premium.adminEventList, data.recent_events, [
     ["Event", "event_type"],
     ["When", "created"],
@@ -4554,6 +4575,39 @@ async function loadAdminOverview() {
   applyPlanSettings(data.plan_settings || {});
   fillPricingForm(planSettings);
   return true;
+}
+
+async function deleteAdminUser(userId) {
+  if (!supabaseClient || !userId) return;
+
+  const row = premium.adminUserList?.querySelector(`[data-admin-delete-user="${CSS.escape(userId)}"]`)?.closest(".admin-user-row");
+  const email = row?.querySelector("strong")?.textContent || "this user";
+  const firstConfirm = window.confirm(`Delete ${email} from PropertyPanel? This removes their login and portfolio records.`);
+  if (!firstConfirm) return;
+  const typedConfirm = window.prompt(`Type DELETE to confirm deleting ${email}.`);
+  if (typedConfirm !== "DELETE") {
+    if (premium.adminUsersMessage) premium.adminUsersMessage.textContent = "User deletion cancelled.";
+    return;
+  }
+
+  const button = premium.adminUserList?.querySelector(`[data-admin-delete-user="${CSS.escape(userId)}"]`);
+  setButtonBusy(button, true, "Deleting...");
+  if (premium.adminUsersMessage) premium.adminUsersMessage.textContent = `Deleting ${email}...`;
+
+  try {
+    const { data, error } = await supabaseClient.functions.invoke("secure-actions", {
+      body: { action: "admin-delete-user", user_id: userId },
+    });
+    if (error || !data?.success) {
+      throw new Error(data?.message || error?.message || "Could not delete user.");
+    }
+    if (premium.adminUsersMessage) premium.adminUsersMessage.textContent = `${email} deleted.`;
+    await loadAdminOverview();
+  } catch (error) {
+    if (premium.adminUsersMessage) premium.adminUsersMessage.textContent = error?.message || "Could not delete user.";
+  } finally {
+    setButtonBusy(button, false);
+  }
 }
 
 async function createAdminPromoCode() {
@@ -7395,6 +7449,12 @@ premium.adminPromoList.addEventListener("click", (event) => {
   const button = event.target.closest("[data-promo-delete]");
   if (!button) return;
   deactivateAdminPromoCode(button.dataset.promoDelete);
+});
+
+premium.adminUserList?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-admin-delete-user]");
+  if (!button) return;
+  deleteAdminUser(button.dataset.adminDeleteUser);
 });
 
 premium.adminPartnerForm?.addEventListener("submit", (event) => {
