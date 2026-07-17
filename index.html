@@ -12,7 +12,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="property-panel-logo.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-    <link rel="stylesheet" href="styles.css?v=20260611-tab-colors" />
+    <link rel="stylesheet" href="styles.css?v=20260717-contact" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   </head>
@@ -40,6 +40,7 @@
         <button class="nav-button active" type="button" data-view="homeView">Calculator</button>
         <button class="nav-button" type="button" data-view="premiumView">Plans</button>
         <button class="nav-button" id="navPortfolioButton" type="button" data-nav-action="portfolio">Portfolio</button>
+        <button class="nav-button" type="button" data-view="contactView">Contact us</button>
         <button class="nav-button notification-button" id="notificationButton" type="button" aria-expanded="false" aria-controls="notificationPanel" title="Reminders">
           <span aria-hidden="true">🔔</span>
           <span class="notification-count" id="notificationCount" hidden>0</span>
@@ -613,6 +614,17 @@
       </section>
     </section>
 
+    <section class="premium-shell app-view" id="contactView" aria-label="Contact PropertyPanel">
+      <section class="panel-card contact-panel">
+        <div class="section-heading">
+          <p class="eyebrow">Contact us</p>
+          <h1>Need help with PropertyPanel?</h1>
+        </div>
+        <p class="hero-copy">If something is not working, you have a billing question, or you need help with your account, email us and include the email address used for your PropertyPanel account.</p>
+        <a class="tax-button contact-email-link" href="mailto:contact@propertypanel.co.uk">contact@propertypanel.co.uk</a>
+      </section>
+    </section>
+
     <section class="premium-shell app-view" id="dashboardView" aria-label="PropertyPanel dashboard">
       <section class="dashboard-shell" id="dashboardPanel" hidden>
         <div class="dashboard-head dashboard-welcome">
@@ -1098,6 +1110,10 @@
               <details>
                 <summary>What can I do if my subscription is not active?</summary>
                 <p>You can still use the calculator and choose a Standard or Pro plan. Portfolio features need an active subscription. Your billing history stays in Stripe and your account security controls remain separate from property records.</p>
+              </details>
+              <details>
+                <summary>How do I contact PropertyPanel?</summary>
+                <p>If something is not working or you need help with your account, email <a class="inline-link" href="mailto:contact@propertypanel.co.uk">contact@propertypanel.co.uk</a>.</p>
               </details>
             </div>
           </section>

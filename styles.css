@@ -865,6 +865,19 @@ select {
   line-height: 1.5;
 }
 
+.contact-panel {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.contact-email-link {
+  width: fit-content;
+  text-decoration: none;
+}
+
 .price-card {
   display: grid;
   align-content: space-between;
