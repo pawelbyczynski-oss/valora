@@ -1648,9 +1648,9 @@ function renderPropertyExpenses(property) {
         <div><span>Source</span><strong>${escapeHtml(transaction.source)}</strong></div>
         <div><span>Notes</span><strong>${escapeHtml(transaction.notes || "-")}</strong></div>
         <div class="detail-actions property-transaction-actions">
-          ${transaction.status !== "approved" ? `<button class="tax-button small-button" type="button" data-approve-property-transaction="${transaction.id}">Approve</button>` : ""}
-          <button class="secondary-button small-button" type="button" data-edit-property-transaction="${transaction.id}">Edit</button>
-          <button class="secondary-button small-button danger-button" type="button" data-delete-property-transaction="${transaction.id}">Delete</button>
+          ${transaction.status !== "approved" ? `<button class="tax-button small-button" type="button" data-approve-property-transaction="${escapeHtml(transaction.id)}">Approve</button>` : ""}
+          <button class="secondary-button small-button" type="button" data-edit-property-transaction="${escapeHtml(transaction.id)}">Edit</button>
+          <button class="secondary-button small-button danger-button" type="button" data-delete-property-transaction="${escapeHtml(transaction.id)}">Delete</button>
         </div>
       `;
       return row;
@@ -2198,7 +2198,7 @@ function renderPremiumDashboard() {
           <div><span>Cashflow</span><strong>${money.format(cashflow)}</strong></div>
           <div><span>Mortgage interest</span><strong>${money.format(mortgageInterest)}</strong></div>
         </div>
-        <div class="property-expiry"><span>Expiry</span><strong>${mortgageDeal.expiryDate || "-"}</strong></div>
+        <div class="property-expiry"><span>Expiry</span><strong>${escapeHtml(mortgageDeal.expiryDate || "-")}</strong></div>
         <div class="property-performance">
           <span>Monthly cashflow <strong class="${cashflow >= 0 ? "positive-value" : "negative-value"}">${money.format(cashflow)}</strong></span>
           <span>Gross yield <strong>${grossYield.toFixed(1)}%</strong></span>
@@ -2361,7 +2361,7 @@ function renderCalendarDayEvents(events) {
     ${selectedEvents.length
       ? selectedEvents.map((event) => `
         <article class="calendar-event-row">
-          <i class="calendar-dot dot-${event.kind}"></i>
+          <i class="calendar-dot dot-${escapeHtml(event.kind)}"></i>
           <div>
             <strong>${escapeHtml(event.title)}</strong>
             <span>${escapeHtml(transactionPropertyName(event.propertyId))} · ${escapeHtml(event.detail)}</span>
@@ -2799,7 +2799,7 @@ function renderPropertyDetail() {
     <div><span>Mortgage balance</span><strong>${money.format(mortgageDeal.balance)}</strong></div>
     <div><span>Mortgage product</span><strong>${escapeHtml(mortgageDeal.productType || "Fixed")}</strong></div>
     <div><span>Rate</span><strong>${Number(mortgageDeal.rate || 0).toFixed(2)}%</strong></div>
-    <div><span>Expiry</span><strong>${mortgageDeal.expiryDate || "-"}</strong></div>
+    <div><span>Expiry</span><strong>${escapeHtml(mortgageDeal.expiryDate || "-")}</strong></div>
     <div><span>Rent due</span><strong>${property.rentReminder === "On" ? `${property.rentDueDay}${ordinalSuffix(property.rentDueDay)} monthly` : "Off"}</strong></div>
     <div><span>Guaranteed rent</span><strong>${property.guaranteedRent ? money.format(property.guaranteedRent) : "-"}</strong></div>
     <div><span>Maintenance</span><strong>${escapeHtml(property.maintenanceFee ? `${property.maintenanceModel} (${money.format(property.maintenanceFee)})` : property.maintenanceModel || "-")}</strong></div>
@@ -2866,8 +2866,8 @@ function renderPropertyDetail() {
         <div><span>Rent</span><strong>${money.format(Number(tenancy.rent || 0))}</strong></div>
         <div><span>Contracts</span><strong>${escapeHtml((tenancy.documents || []).join(", ") || "-")}</strong></div>
         <div class="detail-actions">
-          <button class="secondary-button small-button" type="button" data-print-tenant-statement="${tenancy.id}">Tenant statement</button>
-          <button class="secondary-button small-button" type="button" data-edit-tenancy="${tenancy.id}">Edit</button>
+          <button class="secondary-button small-button" type="button" data-print-tenant-statement="${escapeHtml(tenancy.id)}">Tenant statement</button>
+          <button class="secondary-button small-button" type="button" data-edit-tenancy="${escapeHtml(tenancy.id)}">Edit</button>
           <button class="secondary-button small-button danger-button" type="button" data-delete-tenancy="${tenancy.id}">Delete</button>
         </div>
         <form class="tenancy-rent-change-form" data-rent-change-form="${escapeHtml(tenancy.id)}">
