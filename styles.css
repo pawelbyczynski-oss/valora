@@ -2975,14 +2975,16 @@ h2 {
   letter-spacing: 0;
 }
 
-h1 {
+h1,
+.page-title {
   font-size: clamp(2rem, 4.5vw, 3.8rem);
   line-height: 1;
   max-width: 620px;
   text-wrap: balance;
 }
 
-.product-dashboard h1 {
+.product-dashboard h1,
+.product-dashboard .page-title {
   font-size: clamp(1.6rem, 2.5vw, 2.35rem);
   line-height: 1.05;
 }

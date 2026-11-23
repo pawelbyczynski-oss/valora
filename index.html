@@ -3,7 +3,67 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PropertyPanel | Property Management</title>
+    <title>PropertyPanel | UK Buy-to-Let Calculator &amp; Landlord Portfolio Tracker</title>
+    <meta name="description" content="Free UK buy-to-let calculator and landlord portfolio tracker. Work out cashflow, rental yield, ROI, ICR and SDLT or LBTT for England and Scotland, then track rents, mortgages and documents." />
+    <link rel="canonical" href="https://www.propertypanel.co.uk/" />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PropertyPanel" />
+    <meta property="og:locale" content="en_GB" />
+    <meta property="og:url" content="https://www.propertypanel.co.uk/" />
+    <meta property="og:title" content="PropertyPanel | UK Buy-to-Let Calculator &amp; Landlord Portfolio Tracker" />
+    <meta property="og:description" content="Calculate buy-to-let cashflow, yield, ROI, ICR and SDLT/LBTT for England and Scotland, then keep your landlord portfolio organised." />
+    <meta property="og:image" content="https://www.propertypanel.co.uk/icons/icon-512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="PropertyPanel logo" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="PropertyPanel | UK Buy-to-Let Calculator &amp; Landlord Portfolio Tracker" />
+    <meta name="twitter:description" content="Calculate buy-to-let cashflow, yield, ROI, ICR and SDLT/LBTT for England and Scotland, then keep your landlord portfolio organised." />
+    <meta name="twitter:image" content="https://www.propertypanel.co.uk/icons/icon-512.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://www.propertypanel.co.uk/#organization",
+            "name": "PropertyPanel",
+            "url": "https://www.propertypanel.co.uk/",
+            "logo": "https://www.propertypanel.co.uk/icons/icon-512.png",
+            "email": "contact@propertypanel.co.uk",
+            "areaServed": "GB"
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://www.propertypanel.co.uk/#webapp",
+            "name": "PropertyPanel",
+            "url": "https://www.propertypanel.co.uk/",
+            "description": "UK buy-to-let calculator and landlord portfolio tracker for cashflow, rental yield, ROI, ICR and SDLT/LBTT in England and Scotland.",
+            "applicationCategory": "FinanceApplication",
+            "operatingSystem": "Any",
+            "browserRequirements": "Requires JavaScript",
+            "inLanguage": "en-GB",
+            "areaServed": "GB",
+            "featureList": [
+              "Buy-to-let cashflow calculator",
+              "Rental yield and ROI calculator",
+              "Interest cover ratio (ICR) check",
+              "SDLT calculator for England",
+              "LBTT and ADS calculator for Scotland",
+              "Individual and limited company comparison",
+              "Landlord portfolio, rent and document tracker"
+            ],
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "GBP"
+            },
+            "publisher": { "@id": "https://www.propertypanel.co.uk/#organization" }
+          }
+        ]
+      }
+    </script>
     <meta name="theme-color" content="#0F766E" />
     <meta name="application-name" content="PropertyPanel" />
     <meta name="apple-mobile-web-app-title" content="PropertyPanel" />
@@ -12,7 +72,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="property-panel-logo.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-    <link rel="stylesheet" href="styles.css?v=20260717-admin-users" />
+    <link rel="stylesheet" href="styles.css?v=20261123-seo-headings" />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
   </head>
@@ -223,7 +283,7 @@
         <div class="topbar">
           <div class="headline">
             <p class="eyebrow">UK Buy-to-Let</p>
-            <h1 id="app-title">Evaluate every property with investor-grade clarity.</h1>
+            <h2 class="page-title" id="app-title">Evaluate every property with investor-grade clarity.</h2>
           </div>
           <div class="mode-toggle" role="group" aria-label="Investor type">
             <button class="toggle-button active" type="button" data-investor="individual" aria-pressed="true">Individual</button>
@@ -475,7 +535,7 @@
       <div class="premium-hero">
         <div>
           <p class="eyebrow">PropertyPanel plans</p>
-          <h1>Choose the property workflow that fits your portfolio.</h1>
+          <h2 class="page-title">Choose the property workflow that fits your portfolio.</h2>
           <p class="hero-copy">Start with simple tracking for a small portfolio, or upgrade to Pro when you need unlimited properties, rent-to-rent workflows and landlord reports.</p>
         </div>
       </div>
@@ -618,7 +678,7 @@
       <section class="panel-card contact-panel">
         <div class="section-heading">
           <p class="eyebrow">Contact us</p>
-          <h1>Need help with PropertyPanel?</h1>
+          <h2 class="page-title">Need help with PropertyPanel?</h2>
         </div>
         <p class="hero-copy">If something is not working, you have a billing question, or you need help with your account, email us and include the email address used for your PropertyPanel account.</p>
         <a class="tax-button contact-email-link" href="mailto:contact@propertypanel.co.uk">contact@propertypanel.co.uk</a>
@@ -1134,7 +1194,7 @@
       <div class="dashboard-head">
         <div>
           <p class="eyebrow">Admin</p>
-          <h1>PropertyPanel control room</h1>
+          <h2 class="page-title">PropertyPanel control room</h2>
         </div>
         <button class="secondary-button small-button" id="refreshAdmin" type="button">Refresh</button>
       </div>
