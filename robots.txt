@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://propertypanel.co.uk/sitemap.xml
+Sitemap: https://www.propertypanel.co.uk/sitemap.xml
