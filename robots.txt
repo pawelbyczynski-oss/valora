@@ -1,5 +1,4 @@
 User-agent: *
 Allow: /
-Disallow: /supabase/
 
 Sitemap: https://propertypanel.co.uk/sitemap.xml
